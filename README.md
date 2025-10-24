@@ -126,11 +126,40 @@ just docs-serve
 
 ## Documentation
 
-See the [documentation](docs/) for more details:
+Full documentation is available at [your-username.github.io/udspy](https://your-username.github.io/udspy)
 
+Or browse locally:
 - [Architecture](docs/architecture/overview.md)
 - [Examples](docs/examples/)
 - [API Reference](docs/api/)
+
+### Building Documentation
+
+```bash
+# Install mkdocs dependencies
+pip install mkdocs-material mkdocstrings[python]
+
+# Serve docs locally
+mkdocs serve
+
+# Build static site
+mkdocs build
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
+## Releases
+
+Releases are automated via GitHub Actions:
+
+1. Update version in `pyproject.toml` and `src/udspy/__init__.py`
+2. Commit and tag: `git tag v0.x.x && git push --tags`
+3. GitHub Actions will build, test, and publish to PyPI
+4. Documentation will be deployed to GitHub Pages
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed release instructions.
 
 ## License
 

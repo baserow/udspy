@@ -44,12 +44,14 @@ nav:
       - Chain of Thought: examples/chain_of_thought.md
       - Streaming: examples/streaming.md
       - Tool Calling: examples/tool_calling.md
+      - Conversation History: examples/history.md
       - Advanced: examples/advanced.md
   - API Reference:
       - Signatures: api/signature.md
       - Modules: api/module.md
       - Adapters: api/adapter.md
       - Streaming: api/streaming.md
+      - History: api/history.md
       - Settings: api/settings.md
 
 plugins:
