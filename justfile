@@ -2,9 +2,10 @@
 default:
     @just --list
 
-# Install dependencies
+# Install dependencies and package in editable mode
 install:
     uv sync --all-extras
+    uv pip install -e .
 
 # Run tests
 test:

@@ -12,12 +12,29 @@ A minimal DSPy-inspired library.
 
 ## Installation
 
+### For Development
+
 ```bash
-# Using uv (recommended)
+# Clone the repository
+git clone <your-repo-url>
+cd udspy
+
+# Install dependencies and package in editable mode
 uv sync
+uv pip install -e .
 
 # Or with pip
 pip install -e .
+```
+
+### For Users
+
+```bash
+# When published to PyPI
+pip install udspy
+
+# Or with uv
+uv pip install udspy
 ```
 
 ## Quick Start
@@ -44,8 +61,9 @@ print(result.answer)
 ## Development
 
 ```bash
-# Install dependencies
+# Install dependencies and package in editable mode
 just install
+uv pip install -e .
 
 # Run tests
 just test
