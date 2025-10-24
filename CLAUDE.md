@@ -65,6 +65,87 @@ udspy/
 
 ---
 
+## 2025-01-24: Context Manager for Settings
+
+### Context
+Need to support different API keys and models in different contexts (e.g., multi-tenant apps, different users, testing scenarios).
+
+### Decision
+Implemented thread-safe context manager using Python's `contextvars` module:
+
+```python
+# Global settings
+udspy.settings.configure(api_key="global-key", model="gpt-4o-mini")
+
+# Temporary override in context
+with udspy.settings.context(api_key="user-key", model="gpt-4"):
+    result = predictor(question="...")  # Uses user-key and gpt-4
+
+# Back to global settings
+result = predictor(question="...")  # Uses global-key and gpt-4o-mini
+```
+
+### Key Features
+
+1. **Thread-Safe**: Uses `ContextVar` for thread-safe context isolation
+2. **Nestable**: Contexts can be nested with proper inheritance
+3. **Comprehensive**: Supports overriding api_key, model, client, async_client, and any kwargs
+4. **Clean API**: Simple context manager interface
+5. **Backwards Compatible**: Existing code continues to work without changes
+
+### Implementation Details
+
+- Added `ContextVar` fields to `Settings` class for each configurable attribute
+- Properties now check context first, then fall back to global settings
+- Context manager saves/restores context state using try/finally
+- Proper cleanup ensures no context leakage
+
+### Use Cases
+
+1. **Multi-tenant applications**: Different API keys per user
+   ```python
+   with udspy.settings.context(api_key=user.api_key):
+       result = predictor(question=user.question)
+   ```
+
+2. **Model selection per request**: Use different models for different tasks
+   ```python
+   with udspy.settings.context(model="gpt-4"):
+       result = expensive_predictor(question=complex_question)
+   ```
+
+3. **Testing**: Isolate test settings without affecting global state
+   ```python
+   with udspy.settings.context(api_key="sk-test", temperature=0.0):
+       assert predictor(question="2+2").answer == "4"
+   ```
+
+4. **Async operations**: Safe concurrent operations with different settings
+   ```python
+   async def handle_user(user):
+       with udspy.settings.context(api_key=user.api_key):
+           async for chunk in streaming_predictor.stream(...):
+               yield chunk
+   ```
+
+### Consequences
+
+**Benefits**:
+- Clean separation of concerns (global vs context-specific settings)
+- No need to pass settings through function parameters
+- Thread-safe for concurrent operations
+- Flexible and composable
+
+**Trade-offs**:
+- Slight complexity increase in Settings class
+- Context variables have a small performance overhead (negligible)
+- Must remember to use context manager (but gracefully degrades to global settings)
+
+### Migration Guide
+No migration needed - feature is additive and backwards compatible.
+
+---
+
 ## Template for Future Entries
 
 ## YYYY-MM-DD: Change Title

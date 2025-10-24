@@ -39,6 +39,7 @@ nav:
       - Streaming: architecture/streaming.md
   - Examples:
       - Basic Usage: examples/basic_usage.md
+      - Context Settings: examples/context_settings.md
       - Streaming: examples/streaming.md
       - Tool Calling: examples/tool_calling.md
       - Advanced: examples/advanced.md
