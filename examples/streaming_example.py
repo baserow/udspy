@@ -4,7 +4,6 @@ import asyncio
 import os
 
 import udspy
-from udspy import InputField, OutputField, StreamingPredict, Signature
 
 # Configure with your OpenAI API key
 api_key = os.getenv("OPENAI_API_KEY")
@@ -15,17 +14,17 @@ udspy.settings.configure(api_key=api_key, model="gpt-4o-mini")
 
 
 # Define a signature with reasoning
-class ReasonedQA(Signature):
+class ReasonedQA(udspy.Signature):
     """Answer questions with step-by-step reasoning."""
 
-    question: str = InputField(description="Question to answer")
-    reasoning: str = OutputField(description="Step-by-step reasoning process")
-    answer: str = OutputField(description="Final answer")
+    question: str = udspy.InputField(description="Question to answer")
+    reasoning: str = udspy.OutputField(description="Step-by-step reasoning process")
+    answer: str = udspy.OutputField(description="Final answer")
 
 
 async def main():
     """Run streaming prediction example."""
-    predictor = StreamingPredict(ReasonedQA)
+    predictor = udspy.StreamingPredict(ReasonedQA)
 
     print("Question: What is the sum of the first 10 prime numbers?\n")
 
