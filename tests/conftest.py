@@ -4,21 +4,20 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
-from openai import AsyncOpenAI, OpenAI
+from openai import AsyncOpenAI
 
 import udspy
 
 
 @pytest.fixture(autouse=True)
 def configure_client() -> None:
-    """Configure a mock OpenAI client for testing."""
-    # Use mock client to avoid actual API calls
-    mock_client = MagicMock(spec=OpenAI)
-    mock_async_client = MagicMock(spec=AsyncOpenAI)
+    """Configure a mock async OpenAI client for testing."""
+    # Use mock async client to avoid actual API calls
+    # (Sync wrappers use asyncio.run() which works with async client)
+    mock_aclient = MagicMock(spec=AsyncOpenAI)
 
     udspy.settings.configure(
-        client=mock_client,
-        async_client=mock_async_client,
+        aclient=mock_aclient,
         model="gpt-4o-mini",
     )
 

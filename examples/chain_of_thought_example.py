@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     result = cot_predictor(question="What is 15 * 23?")
 
-    print(f"Question: What is 15 * 23?")
+    print("Question: What is 15 * 23?")
     print(f"\nReasoning:\n{result.reasoning}")
     print(f"\nAnswer: {result.answer}")
 
@@ -49,8 +49,8 @@ if __name__ == "__main__":
     )
 
     print(
-        f"Question: If all roses are flowers and some flowers fade quickly, "
-        f"can we conclude that some roses fade quickly?"
+        "Question: If all roses are flowers and some flowers fade quickly, "
+        "can we conclude that some roses fade quickly?"
     )
     print(f"\nReasoning:\n{result.reasoning}")
     print(f"\nAnswer: {result.answer}")
@@ -66,8 +66,8 @@ if __name__ == "__main__":
     )
 
     print(
-        f"Question: A train travels 60 miles in 1 hour. "
-        f"How far will it travel in 2.5 hours at the same speed?"
+        "Question: A train travels 60 miles in 1 hour. "
+        "How far will it travel in 2.5 hours at the same speed?"
     )
     print(f"\nReasoning:\n{result.reasoning}")
     print(f"\nAnswer: {result.answer}")
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     result = custom_cot(question="What is the sum of the first 5 prime numbers?")
 
-    print(f"Question: What is the sum of the first 5 prime numbers?")
+    print("Question: What is the sum of the first 5 prime numbers?")
     print(f"\nDetailed Analysis:\n{result.reasoning}")
     print(f"\nAnswer: {result.answer}")
 
@@ -109,9 +109,9 @@ if __name__ == "__main__":
     )
 
     print(
-        f"Scenario: A startup has $100k runway, 6 months left, "
-        f"and needs to choose between hiring a salesperson or "
-        f"building a new feature."
+        "Scenario: A startup has $100k runway, 6 months left, "
+        "and needs to choose between hiring a salesperson or "
+        "building a new feature."
     )
     print(f"\nReasoning:\n{result.reasoning}")
     print(f"\nAnalysis:\n{result.analysis}")

@@ -1,9 +1,9 @@
 """Tests for ChainOfThought module."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
+from openai.types.chat import ChatCompletionChunk
+from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 
 from udspy import ChainOfThought, InputField, OutputField, Signature, settings
 
@@ -51,31 +51,37 @@ def test_chain_of_thought_forward() -> None:
         question: str = InputField()
         answer: str = OutputField()
 
-    # Mock response with reasoning and answer
-    mock_response = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            Choice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content=(
-                        "[[ ## reasoning ## ]]\n"
-                        "Let's think step by step. 2+2 is basic addition.\n"
-                        "[[ ## answer ## ]]\n"
-                        "4"
+    # Mock streaming response with reasoning and answer
+    chunks = [
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(
+                        content=(
+                            "[[ ## reasoning ## ]]\n"
+                            "Let's think step by step. 2+2 is basic addition.\n"
+                            "[[ ## answer ## ]]\n"
+                            "4"
+                        ),
+                        role="assistant",
                     ),
-                ),
-                finish_reason="stop",
-            )
-        ],
-    )
+                    finish_reason=None,
+                )
+            ],
+        ),
+    ]
 
-    mock_client = settings.client
-    mock_client.chat.completions.create = MagicMock(return_value=mock_response)
+    async def mock_stream():
+        for chunk in chunks:
+            yield chunk
+
+    mock_async_client = settings.aclient
+    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_stream())
 
     cot = ChainOfThought(QA)
     result = cot(question="What is 2+2?")

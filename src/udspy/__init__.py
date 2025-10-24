@@ -4,7 +4,9 @@ from udspy.adapter import ChatAdapter
 from udspy.module import ChainOfThought, Module, Predict, Prediction
 from udspy.settings import settings
 from udspy.signature import InputField, OutputField, Signature, make_signature
-from udspy.streaming import StreamChunk, StreamingPredict, streamify
+from udspy.streaming import StreamChunk, StreamEvent, emit_event
+from udspy.tool import Tool, tool
+from udspy.utils import asyncify
 
 __version__ = "0.1.0"
 
@@ -24,7 +26,12 @@ __all__ = [
     # Adapter
     "ChatAdapter",
     # Streaming
-    "StreamingPredict",
+    "StreamEvent",
     "StreamChunk",
-    "streamify",
+    "emit_event",
+    # Tools
+    "Tool",
+    "tool",
+    # Utils
+    "asyncify",
 ]

@@ -1,163 +1,135 @@
-"""Streaming support for incremental LLM outputs."""
+"""Streaming support with event queue for incremental LLM outputs and tool updates."""
 
-import re
-from collections.abc import AsyncIterator
-from typing import Any
+import asyncio
+from contextvars import ContextVar
+from typing import TYPE_CHECKING, Any
 
-from openai import AsyncStream
-from openai.types.chat import ChatCompletionChunk
+if TYPE_CHECKING:
+    from udspy import Module
 
-from udspy.module import Predict, Prediction
-from udspy.settings import settings
+# Context variable for the current stream's event queue
+_stream_queue: ContextVar[asyncio.Queue[Any] | None] = ContextVar("_stream_queue", default=None)
 
 
-class StreamChunk:
-    """A chunk of streamed output for a specific field.
+class StreamEvent:
+    """Base class for all stream events.
+
+    Users can define custom event types by inheriting from this class.
+    The only built-in events are StreamChunk and Prediction.
+
+    Example:
+        ```python
+        from dataclasses import dataclass
+        from udspy.streaming import StreamEvent, emit_event
+
+        @dataclass
+        class ToolProgress(StreamEvent):
+            tool_name: str
+            message: str
+            progress: float  # 0.0 to 1.0
+
+        # In your tool:
+        async def my_tool():
+            await emit_event(ToolProgress("search", "Searching...", 0.5))
+        ```
+    """
+
+    pass
+
+
+class StreamChunk(StreamEvent):
+    """A chunk of streamed LLM output for a specific field.
 
     Attributes:
         field_name: Name of the output field
-        content: Incremental content for this field
+        delta: Incremental content for this field (new text since last chunk)
+        content: Full accumulated content for this field so far
         is_complete: Whether this field is finished streaming
     """
 
-    def __init__(self, field_name: str, content: str, is_complete: bool = False):
+    def __init__(
+        self, module: "Module", field_name: str, delta: str, content: str, is_complete: bool = False
+    ):
+        self.module = module
         self.field_name = field_name
+        self.delta = delta
         self.content = content
         self.is_complete = is_complete
 
     def __repr__(self) -> str:
         status = "complete" if self.is_complete else "streaming"
-        return f"StreamChunk(field={self.field_name}, status={status}, content={self.content!r})"
-
-
-class StreamingPredict(Predict):
-    """Streaming version of Predict that yields incremental outputs.
-
-    Example:
-        ```python
-        predictor = StreamingPredict(signature)
-        async for chunk in predictor.stream(question="What is AI?"):
-            print(f"{chunk.field_name}: {chunk.content}", end="", flush=True)
-        ```
-    """
-
-    async def stream(self, **inputs: Any) -> AsyncIterator[StreamChunk | Prediction]:
-        """Stream prediction outputs incrementally.
-
-        Args:
-            **inputs: Input values matching the signature's input fields
-
-        Yields:
-            StreamChunk objects for each output field, followed by final Prediction
-
-        Raises:
-            ValueError: If required inputs are missing
-        """
-        # Validate inputs
-        input_fields = self.signature.get_input_fields()
-        for field_name in input_fields:
-            if field_name not in inputs:
-                raise ValueError(f"Missing required input field: {field_name}")
-
-        # Build messages
-        messages = [
-            {
-                "role": "system",
-                "content": self.adapter.format_instructions(self.signature),
-            },
-            {
-                "role": "user",
-                "content": self.adapter.format_inputs(self.signature, inputs),
-            },
-        ]
-
-        # Prepare kwargs
-        completion_kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            "stream": True,
-            **self.kwargs,
-        }
-
-        # Add tools if provided
-        if self.tools:
-            tool_schemas = self.adapter.format_tool_schemas(self.tools)
-            completion_kwargs["tools"] = tool_schemas
-
-        # Make streaming API call
-        client = settings.async_client
-        stream: AsyncStream[ChatCompletionChunk] = await client.chat.completions.create(
-            **completion_kwargs
+        return (
+            f"StreamChunk(field={self.field_name}, status={status}, "
+            f"delta={self.delta!r}, content={self.content!r})"
         )
 
-        # Track streaming state
-        output_fields = self.signature.get_output_fields()
-        field_pattern = re.compile(r"\[\[ ## (\w+) ## \]\]")
-        current_field: str | None = None
-        accumulated_content: dict[str, list[str]] = {name: [] for name in output_fields}
-        full_completion: list[str] = []
 
-        # Process stream
-        async for chunk in stream:
-            delta = chunk.choices[0].delta
-            content = delta.content
+class Prediction(StreamEvent, dict[str, Any]):
+    """Final prediction result with attribute access.
 
-            if not content:
-                continue
-
-            # Accumulate full completion for final parsing
-            full_completion.append(content)
-
-            # Check for field markers
-            match = field_pattern.search(content)
-            if match:
-                # Entering a new field
-                if current_field:
-                    # Mark previous field as complete
-                    yield StreamChunk(current_field, "", is_complete=True)
-
-                current_field = match.group(1)
-                # Remove the marker from content
-                content = field_pattern.sub("", content)
-
-            # Stream content for current field
-            if current_field and current_field in output_fields:
-                accumulated_content[current_field].append(content)
-                yield StreamChunk(current_field, content, is_complete=False)
-
-        # Mark last field as complete
-        if current_field:
-            yield StreamChunk(current_field, "", is_complete=True)
-
-        # Parse final outputs
-        completion_text = "".join(full_completion)
-        outputs = self.adapter.parse_outputs(self.signature, completion_text)
-
-        # Return final prediction
-        yield Prediction(**outputs)
-
-
-def streamify(predictor: Predict) -> StreamingPredict:
-    """Convert a Predict module to a StreamingPredict.
-
-    Args:
-        predictor: A Predict module to make streaming
-
-    Returns:
-        A StreamingPredict with the same configuration
+    This is both a StreamEvent (can be yielded from astream) and a dict
+    (for convenient attribute access to outputs).
 
     Example:
         ```python
-        predictor = Predict(signature)
-        streaming_predictor = streamify(predictor)
-        async for chunk in streaming_predictor.stream(question="Hi"):
-            print(chunk.content, end="")
+        pred = Prediction(answer="Paris", reasoning="France's capital")
+        print(pred.answer)  # "Paris"
+        print(pred["answer"])  # "Paris"
         ```
     """
-    return StreamingPredict(
-        signature=predictor.signature,
-        model=predictor.model,
-        tools=predictor.tools,
-        adapter=predictor.adapter,
-        **predictor.kwargs,
-    )
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"Prediction has no attribute '{name}'") from None
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
+
+
+async def emit_event(event: StreamEvent) -> None:
+    """Emit an event to the active stream.
+
+    This can be called from anywhere (tools, callbacks, etc.) to inject
+    events into the current streaming context. If no stream is active,
+    this is a no-op (silently ignored).
+
+    Args:
+        event: The event to emit (any subclass of StreamEvent)
+
+    Example:
+        ```python
+        from udspy.streaming import emit_event, StreamEvent
+        from dataclasses import dataclass
+
+        @dataclass
+        class ToolStatus(StreamEvent):
+            message: str
+
+        async def my_tool():
+            await emit_event(ToolStatus("Starting search..."))
+            result = await do_search()
+            await emit_event(ToolStatus("Search complete"))
+            return result
+
+        # In the stream consumer:
+        async for event in predictor.astream(question="..."):
+            if isinstance(event, ToolStatus):
+                print(f"📊 {event.message}")
+            elif isinstance(event, StreamChunk):
+                print(event.delta, end="", flush=True)
+        ```
+    """
+    queue = _stream_queue.get()
+    if queue is not None:
+        await queue.put(event)
+
+
+__all__ = [
+    "StreamEvent",
+    "StreamChunk",
+    "Prediction",
+    "emit_event",
+    "_stream_queue",
+]

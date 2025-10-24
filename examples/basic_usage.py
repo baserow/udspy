@@ -27,9 +27,9 @@ predictor = Predict(QA)
 # Make predictions
 if __name__ == "__main__":
     result = predictor(question="What is the capital of France?")
-    print(f"Question: What is the capital of France?")
+    print("Question: What is the capital of France?")
     print(f"Answer: {result.answer}")
 
     result = predictor(question="What is 15 * 23?")
-    print(f"\nQuestion: What is 15 * 23?")
+    print("\nQuestion: What is 15 * 23?")
     print(f"Answer: {result.answer}")

@@ -1,11 +1,11 @@
-"""Example with native tool calling."""
+"""Example with native tool calling - automatic execution with @tool decorator."""
 
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 import udspy
-from udspy import InputField, OutputField, Predict, Signature
+from udspy import InputField, OutputField, Predict, Signature, tool
 
 # Configure with your OpenAI API key
 api_key = os.getenv("OPENAI_API_KEY")
@@ -15,19 +15,27 @@ if not api_key:
 udspy.settings.configure(api_key=api_key, model="gpt-4o-mini")
 
 
-# Define tool schemas using Pydantic
-class Calculator(BaseModel):
-    """Perform arithmetic operations."""
+# Define tools using the @tool decorator
+@tool(name="Calculator", description="Perform arithmetic operations")
+def calculator(
+    operation: str = Field(description="The operation: add, subtract, multiply, divide"),
+    a: float = Field(description="First number"),
+    b: float = Field(description="Second number"),
+) -> float:
+    """Execute calculator operation."""
+    ops = {
+        "add": a + b,
+        "subtract": a - b,
+        "multiply": a * b,
+        "divide": a / b if b != 0 else float("inf"),
+    }
+    return ops[operation]
 
-    operation: str = Field(description="The operation: add, subtract, multiply, divide")
-    a: float = Field(description="First number")
-    b: float = Field(description="Second number")
 
-
-class WebSearch(BaseModel):
-    """Search the web for information."""
-
-    query: str = Field(description="Search query")
+@tool(name="WebSearch", description="Search the web for information")
+def web_search(query: str = Field(description="Search query")) -> str:
+    """Execute web search (mock implementation)."""
+    return f"Search results for: {query}"
 
 
 # Define signature
@@ -38,17 +46,16 @@ class MathQuery(Signature):
     answer: str = OutputField(description="Answer to the question")
 
 
-# Create predictor with tools
-predictor = Predict(MathQuery, tools=[Calculator, WebSearch])
-
 if __name__ == "__main__":
-    result = predictor(question="What is 157 multiplied by 234?")
+    # Create predictor with tool callables
+    # The @tool decorator makes them executable, so Predict handles everything automatically!
+    predictor = Predict(MathQuery, tools=[calculator, web_search], max_turns=5)
 
-    print(f"Question: What is 157 multiplied by 234?")
+    # Just call it! The multi-turn loop is handled automatically
+    question = "What is 157 multiplied by 234?"
+    print(f"Question: {question}\n")
+
+    result = predictor(question=question)
+
+    print("\n=== Final Answer ===")
     print(f"Answer: {result.answer}")
-
-    # Check if tools were called
-    if "tool_calls" in result:
-        print("\nTool calls made:")
-        for tool_call in result.tool_calls:
-            print(f"  - {tool_call['name']}: {tool_call['arguments']}")

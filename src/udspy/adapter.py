@@ -188,46 +188,54 @@ class ChatAdapter:
 
         return outputs
 
-    def format_tool_schemas(self, tools: list[type[BaseModel]]) -> list[dict[str, Any]]:
-        """Convert Pydantic models to OpenAI tool schemas.
+    def format_tool_schemas(self, tools: list[Any]) -> list[dict[str, Any]]:
+        """Convert Tool objects or Pydantic models to OpenAI tool schemas.
 
         Args:
-            tools: List of Pydantic model classes representing tools
+            tools: List of Tool objects or Pydantic model classes
 
         Returns:
             List of OpenAI tool schema dictionaries
         """
+        from udspy.tool import Tool
+
         tool_schemas = []
 
-        for tool_model in tools:
-            schema = tool_model.model_json_schema()
+        for tool_item in tools:
+            if isinstance(tool_item, Tool):
+                # Tool decorator - use its built-in schema conversion
+                tool_schemas.append(tool_item.to_openai_schema())
+            else:
+                # Pydantic model - convert using existing logic
+                tool_model = tool_item
+                schema = tool_model.model_json_schema()
 
-            # Extract description from docstring or schema
-            description = (
-                tool_model.__doc__.strip()
-                if tool_model.__doc__
-                else schema.get("description", f"Use {tool_model.__name__}")
-            )
+                # Extract description from docstring or schema
+                description = (
+                    tool_model.__doc__.strip()
+                    if tool_model.__doc__
+                    else schema.get("description", f"Use {tool_model.__name__}")
+                )
 
-            # Build OpenAI function schema
-            tool_schema = {
-                "type": "function",
-                "function": {
-                    "name": schema.get("title", tool_model.__name__),
-                    "description": description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": schema.get("properties", {}),
-                        "required": schema.get("required", []),
-                        "additionalProperties": False,
+                # Build OpenAI function schema
+                tool_schema = {
+                    "type": "function",
+                    "function": {
+                        "name": schema.get("title", tool_model.__name__),
+                        "description": description,
+                        "parameters": {
+                            "type": "object",
+                            "properties": schema.get("properties", {}),
+                            "required": schema.get("required", []),
+                            "additionalProperties": False,
+                        },
                     },
-                },
-            }
+                }
 
-            # Remove $defs if present (internal Pydantic references)
-            if "$defs" in tool_schema["function"]["parameters"]:  # type: ignore[index]
-                del tool_schema["function"]["parameters"]["$defs"]  # type: ignore[index]
+                # Remove $defs if present (internal Pydantic references)
+                if "$defs" in tool_schema["function"]["parameters"]:  # type: ignore[index]
+                    del tool_schema["function"]["parameters"]["$defs"]  # type: ignore[index]
 
-            tool_schemas.append(tool_schema)
+                tool_schemas.append(tool_schema)
 
         return tool_schemas

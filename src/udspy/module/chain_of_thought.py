@@ -1,11 +1,13 @@
 """Chain of Thought reasoning module."""
 
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from udspy.adapter import ChatAdapter
-from udspy.module.base import Module, Prediction
+from udspy.module.base import Module
 from udspy.module.predict import Predict
 from udspy.signature import Signature, make_signature
+from udspy.streaming import StreamEvent
 
 
 class ChainOfThought(Module):
@@ -82,13 +84,18 @@ class ChainOfThought(Module):
             **kwargs,
         )
 
-    def forward(self, **inputs: Any) -> Prediction:
-        """Execute chain of thought prediction.
+    async def astream(self, **inputs: Any) -> AsyncGenerator[StreamEvent, None]:
+        """Stream chain of thought prediction with reasoning.
+
+        Delegates to the wrapped Predict module's astream method, which yields
+        StreamEvent objects including reasoning field.
 
         Args:
             **inputs: Input values matching the signature's input fields
 
-        Returns:
-            Prediction with reasoning and outputs
+        Yields:
+            StreamEvent objects (StreamChunk with reasoning and other fields,
+            final Prediction with all outputs including reasoning)
         """
-        return self.predict(**inputs)
+        async for event in self.predict.astream(**inputs):
+            yield event

@@ -104,3 +104,47 @@ def test_format_tool_schemas() -> None:
     assert "operation" in schema["function"]["parameters"]["properties"]
     assert "a" in schema["function"]["parameters"]["properties"]
     assert "b" in schema["function"]["parameters"]["properties"]
+
+
+def test_parse_value_with_different_types() -> None:
+    """Test parse_value handles different types correctly."""
+    from udspy.adapter import parse_value
+
+    # Test int
+    assert parse_value("42", int) == 42
+
+    # Test float
+    assert parse_value("3.14", float) == 3.14
+
+    # Test bool
+    assert parse_value("true", bool) is True
+    assert parse_value("yes", bool) is True
+    assert parse_value("1", bool) is True
+    assert parse_value("false", bool) is False
+
+    # Test list
+    assert parse_value("[1, 2, 3]", list) == [1, 2, 3]
+
+    # Test dict
+    assert parse_value('{"key": "value"}', dict) == {"key": "value"}
+
+    # Test str (default)
+    assert parse_value("hello", str) == "hello"
+
+    # Test fallback to string for unknown type
+    assert parse_value("anything", object) == "anything"
+
+
+def test_parse_value_with_pydantic_model() -> None:
+    """Test parse_value handles Pydantic models."""
+    from udspy.adapter import parse_value
+
+    class TestModel(BaseModel):
+        name: str
+        age: int
+
+    # Test with JSON object
+    result = parse_value('{"name": "Alice", "age": 30}', TestModel)
+    assert isinstance(result, TestModel)
+    assert result.name == "Alice"
+    assert result.age == 30

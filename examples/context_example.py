@@ -33,13 +33,13 @@ if __name__ == "__main__":
     with udspy.settings.context(model="gpt-4", temperature=0.0):
         result = predictor(question="What is the capital of France?")
         print(f"Answer: {result.answer}")
-        print(f"Model used: gpt-4\n")
+        print("Model used: gpt-4\n")
 
     # Back to global settings
     print("=== Back to global settings ===")
     result = predictor(question="What is Python?")
     print(f"Answer: {result.answer}")
-    print(f"Model used: gpt-4o-mini\n")
+    print("Model used: gpt-4o-mini\n")
 
     # Example: Using different API keys for different tenants/users
     print("=== Multi-tenant example ===")

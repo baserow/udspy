@@ -1,6 +1,6 @@
 """Tests for settings and context management."""
 
-from openai import AsyncOpenAI, OpenAI
+from openai import AsyncOpenAI
 
 from udspy import settings
 
@@ -10,19 +10,16 @@ def test_configure_with_api_key() -> None:
     settings.configure(api_key="sk-test-key", model="gpt-4")
 
     assert settings.default_model == "gpt-4"
-    assert isinstance(settings.client, OpenAI)
-    assert isinstance(settings.async_client, AsyncOpenAI)
+    assert isinstance(settings.aclient, AsyncOpenAI)
 
 
 def test_configure_with_custom_client() -> None:
-    """Test configuring with custom clients."""
-    custom_client = OpenAI(api_key="sk-custom")
-    custom_async_client = AsyncOpenAI(api_key="sk-custom")
+    """Test configuring with custom async client."""
+    custom_aclient = AsyncOpenAI(api_key="sk-custom")
 
-    settings.configure(client=custom_client, async_client=custom_async_client)
+    settings.configure(aclient=custom_aclient)
 
-    assert settings.client == custom_client
-    assert settings.async_client == custom_async_client
+    assert settings.aclient == custom_aclient
 
 
 def test_context_override_model() -> None:
@@ -41,14 +38,14 @@ def test_context_override_model() -> None:
 def test_context_override_api_key() -> None:
     """Test context manager creates new client with different API key."""
     settings.configure(api_key="sk-global")
-    global_client = settings.client
+    global_aclient = settings.aclient
 
     with settings.context(api_key="sk-context"):
-        context_client = settings.client
-        assert context_client != global_client
+        context_aclient = settings.aclient
+        assert context_aclient != global_aclient
 
     # Back to global client
-    assert settings.client == global_client
+    assert settings.aclient == global_aclient
 
 
 def test_context_override_kwargs() -> None:
@@ -87,16 +84,13 @@ def test_nested_contexts() -> None:
 
 
 def test_context_with_custom_client() -> None:
-    """Test context manager with custom client."""
+    """Test context manager with custom async client."""
     settings.configure(api_key="sk-global")
 
-    custom_client = OpenAI(api_key="sk-custom")
-    custom_async_client = AsyncOpenAI(api_key="sk-custom")
+    custom_aclient = AsyncOpenAI(api_key="sk-custom")
 
-    with settings.context(client=custom_client, async_client=custom_async_client):
-        assert settings.client == custom_client
-        assert settings.async_client == custom_async_client
+    with settings.context(aclient=custom_aclient):
+        assert settings.aclient == custom_aclient
 
     # Back to global clients
-    assert settings.client != custom_client
-    assert settings.async_client != custom_async_client
+    assert settings.aclient != custom_aclient

@@ -5,24 +5,25 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
-from openai import AsyncOpenAI, OpenAI
+from openai import AsyncOpenAI
 
 
 class Settings:
-    """Global settings for udspy."""
+    """Global settings for udspy.
+
+    Since udspy is async-first, we only need the async OpenAI client.
+    Sync wrappers (forward(), __call__()) use asyncio.run() internally,
+    which works fine with the async client.
+    """
 
     def __init__(self) -> None:
-        self._client: OpenAI | None = None
-        self._async_client: AsyncOpenAI | None = None
-        self._default_model: str = "gpt-4o-mini"
+        self._aclient: AsyncOpenAI | None = None
+        self._default_model: str | None = None
         self._default_kwargs: dict[str, Any] = {}
 
         # Context-specific overrides (thread-safe)
-        self._context_client: ContextVar[OpenAI | None] = ContextVar(
-            "context_client", default=None
-        )
-        self._context_async_client: ContextVar[AsyncOpenAI | None] = ContextVar(
-            "context_async_client", default=None
+        self._context_aclient: ContextVar[AsyncOpenAI | None] = ContextVar(
+            "context_aclient", default=None
         )
         self._context_model: ContextVar[str | None] = ContextVar("context_model", default=None)
         self._context_kwargs: ContextVar[dict[str, Any] | None] = ContextVar(
@@ -34,28 +35,35 @@ class Settings:
         api_key: str | None = None,
         base_url: str | None = None,
         model: str | None = None,
-        client: OpenAI | None = None,
-        async_client: AsyncOpenAI | None = None,
+        aclient: AsyncOpenAI | None = None,
         **kwargs: Any,
     ) -> None:
         """Configure global OpenAI client and defaults.
 
         Args:
-            api_key: OpenAI API key (creates default client)
+            api_key: OpenAI API key (creates default async client)
+            base_url: Base URL for OpenAI API
             model: Default model to use for all predictions
-            client: Custom synchronous OpenAI client
-            async_client: Custom asynchronous OpenAI client
-            **kwargs: Default kwargs for all chat completions
-        """
-        if client:
-            self._client = client
-        elif api_key:
-            self._client = OpenAI(api_key=api_key, base_url=base_url)
+            aclient: Custom async OpenAI client
+            **kwargs: Default kwargs for all chat completions (temperature, etc.)
 
-        if async_client:
-            self._async_client = async_client
+        Example:
+            ```python
+            import udspy
+
+            # With API key
+            udspy.settings.configure(api_key="sk-...", model="gpt-4o")
+
+            # With custom client
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key="sk-...", timeout=30.0)
+            udspy.settings.configure(aclient=client, model="gpt-4o")
+            ```
+        """
+        if aclient:
+            self._aclient = aclient
         elif api_key:
-            self._async_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            self._aclient = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
         if model:
             self._default_model = model
@@ -63,34 +71,23 @@ class Settings:
         self._default_kwargs.update(kwargs)
 
     @property
-    def client(self) -> OpenAI:
-        """Get the synchronous OpenAI client (context-aware)."""
+    def aclient(self) -> AsyncOpenAI:
+        """Get the async OpenAI client (context-aware).
+
+        This is used by all module operations, both async and sync.
+        Sync wrappers use asyncio.run() internally.
+        """
         # Check context first
-        context_client = self._context_client.get()
-        if context_client is not None:
-            return context_client
+        context_aclient = self._context_aclient.get()
+        if context_aclient is not None:
+            return context_aclient
 
         # Fall back to global client
-        if self._client is None:
+        if self._aclient is None:
             raise RuntimeError(
                 "OpenAI client not configured. Call udspy.settings.configure() first."
             )
-        return self._client
-
-    @property
-    def async_client(self) -> AsyncOpenAI:
-        """Get the asynchronous OpenAI client (context-aware)."""
-        # Check context first
-        context_async_client = self._context_async_client.get()
-        if context_async_client is not None:
-            return context_async_client
-
-        # Fall back to global client
-        if self._async_client is None:
-            raise RuntimeError(
-                "OpenAI client not configured. Call udspy.settings.configure() first."
-            )
-        return self._async_client
+        return self._aclient
 
     @property
     def default_model(self) -> str:
@@ -121,53 +118,54 @@ class Settings:
         self,
         api_key: str | None = None,
         model: str | None = None,
-        client: OpenAI | None = None,
-        async_client: AsyncOpenAI | None = None,
+        aclient: AsyncOpenAI | None = None,
         **kwargs: Any,
     ) -> Iterator[None]:
         """Context manager for temporary settings overrides.
 
         This is thread-safe and allows you to use different API keys, models,
-        or other settings within a specific context.
+        or other settings within a specific context. Useful for multi-tenant
+        applications.
 
         Args:
             api_key: Temporary OpenAI API key (creates temporary client)
             model: Temporary model to use
-            client: Temporary synchronous OpenAI client
-            async_client: Temporary asynchronous OpenAI client
+            aclient: Temporary async OpenAI client
             **kwargs: Temporary kwargs for chat completions
 
         Example:
             ```python
+            import udspy
+            from udspy import Predict, Signature, InputField, OutputField
+
             # Global settings
             udspy.settings.configure(api_key="global-key", model="gpt-4o-mini")
 
-            # Temporary override for a specific context
-            with udspy.settings.context(api_key="other-key", model="gpt-4"):
-                predictor = Predict(QA)
-                result = predictor(question="...")  # Uses "other-key" and "gpt-4"
+            class QA(Signature):
+                question: str = InputField()
+                answer: str = OutputField()
+
+            predictor = Predict(QA)
+
+            # Temporary override for a specific context (e.g., different tenant)
+            with udspy.settings.context(api_key="tenant-key", model="gpt-4"):
+                result = predictor(question="...")  # Uses "tenant-key" and "gpt-4"
 
             # Back to global settings
             result = predictor(question="...")  # Uses "global-key" and "gpt-4o-mini"
             ```
         """
         # Save current context values
-        prev_client = self._context_client.get()
-        prev_async_client = self._context_async_client.get()
+        prev_aclient = self._context_aclient.get()
         prev_model = self._context_model.get()
         prev_kwargs = self._context_kwargs.get()
 
         try:
             # Set context-specific values
-            if client:
-                self._context_client.set(client)
+            if aclient:
+                self._context_aclient.set(aclient)
             elif api_key:
-                self._context_client.set(OpenAI(api_key=api_key))
-
-            if async_client:
-                self._context_async_client.set(async_client)
-            elif api_key:
-                self._context_async_client.set(AsyncOpenAI(api_key=api_key))
+                self._context_aclient.set(AsyncOpenAI(api_key=api_key))
 
             if model:
                 self._context_model.set(model)
@@ -182,8 +180,7 @@ class Settings:
 
         finally:
             # Restore previous context values
-            self._context_client.set(prev_client)
-            self._context_async_client.set(prev_async_client)
+            self._context_aclient.set(prev_aclient)
             self._context_model.set(prev_model)
             self._context_kwargs.set(prev_kwargs)
 

@@ -32,8 +32,11 @@ async def main():
         question="What is the sum of the first 10 prime numbers?"
     ):
         if isinstance(item, udspy.StreamChunk):
-            if item.content:
-                print(f"[{item.field_name}] {item.content}", end="", flush=True)
+            if not item.is_complete and item.content:
+                # Print only the new content (delta)
+                if item.delta:
+                    print(f"{item.delta}", end="", flush=True)
+
             if item.is_complete:
                 print(f"\n--- {item.field_name} complete ---\n")
         elif isinstance(item, udspy.Prediction):
