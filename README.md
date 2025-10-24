@@ -1,6 +1,15 @@
 # udspy
 
-A minimal DSPy-inspired library.
+[![PyPI version](https://badge.fury.io/py/udspy.svg)](https://badge.fury.io/py/udspy)
+[![Python versions](https://img.shields.io/pypi/pyversions/udspy.svg)](https://pypi.org/project/udspy/)
+[![Tests](https://github.com/silvestrid/udspy/actions/workflows/test.yml/badge.svg)](https://github.com/silvestrid/udspy/actions/workflows/test.yml)
+[![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://silvestrid.github.io/udspy)
+[![codecov](https://codecov.io/gh/silvestrid/udspy/branch/main/graph/badge.svg)](https://codecov.io/gh/silvestrid/udspy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A minimal DSPy-inspired library with native OpenAI tool calling, conversation history, and streaming support.
+
+**Topics:** `python` `openai` `llm` `dspy` `pydantic` `async` `ai-framework` `function-calling` `tool-calling` `streaming` `conversational-ai` `prompt-engineering` `type-hints` `pytest` `chatbot` `agent`
 
 ## Features
 
@@ -126,7 +135,7 @@ just docs-serve
 
 ## Documentation
 
-Full documentation is available at [your-username.github.io/udspy](https://your-username.github.io/udspy)
+Full documentation is available at [silvestrid.github.io/udspy](https://silvestrid.github.io/udspy)
 
 Or browse locally:
 - [Architecture](docs/architecture/overview.md)

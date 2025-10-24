@@ -38,6 +38,10 @@ docs-build:
 docs-serve:
     uv run mkdocs serve
 
+# Deploy documentation to GitHub Pages
+docs-deploy:
+    uv run mkdocs gh-deploy
+
 # Clean build artifacts
 clean:
     rm -rf dist build *.egg-info htmlcov .coverage .pytest_cache .mypy_cache .ruff_cache

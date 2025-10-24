@@ -1,8 +1,8 @@
 site_name: udspy
 site_description: A minimal DSPy-inspired library with native OpenAI tool calling
-site_url: https://your-username.github.io/udspy
-repo_url: https://github.com/your-username/udspy
-repo_name: your-username/udspy
+site_url: https://silvestrid.github.io/udspy
+repo_url: https://github.com/silvestrid/udspy
+repo_name: silvestrid/udspy
 
 theme:
   name: material

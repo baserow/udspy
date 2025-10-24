@@ -6,7 +6,7 @@ Thank you for your interest in contributing to udspy!
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/udspy.git
+git clone https://github.com/silvestrid/udspy.git
 cd udspy
 ```
 
@@ -141,7 +141,7 @@ Once the tag is pushed, GitHub Actions will automatically:
 ### 4. Verify Release
 
 - Check [PyPI](https://pypi.org/project/udspy/) for the new version
-- Check [GitHub Releases](https://github.com/your-username/udspy/releases) for the release notes
+- Check [GitHub Releases](https://github.com/silvestrid/udspy/releases) for the release notes
 - Verify documentation is updated at the docs site
 
 ## PyPI Publishing Setup
@@ -150,7 +150,7 @@ For automated PyPI publishing to work, you need to set up Trusted Publishing:
 
 1. Go to [PyPI Trusted Publishing](https://pypi.org/manage/account/publishing/)
 2. Add a new publisher:
-   - Owner: `your-username`
+   - Owner: `silvestrid`
    - Repository: `udspy`
    - Workflow: `release.yml`
    - Environment: leave blank
@@ -166,7 +166,7 @@ Documentation is automatically published to GitHub Pages on every push to `main`
 3. Select branch: `gh-pages`
 4. Click Save
 
-The docs will be available at: `https://your-username.github.io/udspy/`
+The docs will be available at: `https://silvestrid.github.io/udspy/`
 
 ## Code Style
 
