@@ -36,10 +36,12 @@ nav:
       - Signatures: architecture/signatures.md
       - Adapters: architecture/adapters.md
       - Modules: architecture/modules.md
+      - Chain of Thought: architecture/chain_of_thought.md
       - Streaming: architecture/streaming.md
   - Examples:
       - Basic Usage: examples/basic_usage.md
       - Context Settings: examples/context_settings.md
+      - Chain of Thought: examples/chain_of_thought.md
       - Streaming: examples/streaming.md
       - Tool Calling: examples/tool_calling.md
       - Advanced: examples/advanced.md

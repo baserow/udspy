@@ -146,6 +146,120 @@ No migration needed - feature is additive and backwards compatible.
 
 ---
 
+## 2025-01-24: Chain of Thought Module
+
+### Context
+Chain of Thought (CoT) is a proven prompting technique that improves LLM reasoning by explicitly requesting step-by-step thinking. This is one of the most valuable patterns from DSPy.
+
+### Decision
+Implemented `ChainOfThought` module that automatically adds a reasoning field to any signature:
+
+```python
+class QA(Signature):
+    """Answer questions."""
+    question: str = InputField()
+    answer: str = OutputField()
+
+# Automatically extends to: question -> reasoning, answer
+cot = ChainOfThought(QA)
+result = cot(question="What is 15 * 23?")
+
+print(result.reasoning)  # Shows step-by-step calculation
+print(result.answer)     # "345"
+```
+
+### Implementation Approach
+
+Unlike DSPy which uses a `signature.prepend()` method, udspy takes a simpler approach:
+
+1. **Extract fields** from original signature
+2. **Create extended outputs** with reasoning prepended: `{"reasoning": str, **original_outputs}`
+3. **Use make_signature** to create new signature dynamically
+4. **Wrap in Predict** with the extended signature
+
+This approach:
+- Doesn't require adding prepend/insert methods to Signature
+- Leverages existing `make_signature` utility
+- Keeps ChainOfThought as a pure Module wrapper
+- Only ~45 lines of code
+
+### Key Features
+
+1. **Automatic reasoning field**: No manual signature modification needed
+2. **Customizable description**: Override reasoning field description
+3. **Works with any signature**: Single or multiple outputs
+4. **Transparent**: Reasoning is always accessible in results
+5. **Configurable**: All Predict parameters (model, temperature, tools) supported
+
+### Research Evidence
+
+Chain of Thought prompting improves performance on:
+- **Math**: ~25-30% accuracy improvement (Wei et al., 2022)
+- **Reasoning**: Significant gains on logic puzzles
+- **Multi-step**: Better at complex multi-hop reasoning
+- **Transparency**: Shows reasoning for verification
+
+### Use Cases
+
+1. **Math and calculation**
+   ```python
+   cot = ChainOfThought(QA, temperature=0.0)
+   result = cot(question="What is 157 * 234?")
+   ```
+
+2. **Analysis and decision-making**
+   ```python
+   class Decision(Signature):
+       scenario: str = InputField()
+       decision: str = OutputField()
+       justification: str = OutputField()
+
+   decider = ChainOfThought(Decision)
+   ```
+
+3. **Educational applications**: Show work/reasoning
+4. **High-stakes decisions**: Require explicit justification
+5. **Debugging**: Understand why LLM made specific choices
+
+### Consequences
+
+**Benefits**:
+- Improved accuracy on reasoning tasks
+- Transparent reasoning process
+- Easy to verify correctness
+- Simple API (just wrap any signature)
+- Minimal code overhead
+
+**Trade-offs**:
+- Increased token usage (~2-3x for simple tasks)
+- Slightly higher latency
+- Not always needed for simple factual queries
+- Reasoning quality depends on model capability
+
+### Comparison with DSPy
+
+| Aspect | udspy | DSPy |
+|--------|-------|------|
+| API | `ChainOfThought(signature)` | `dspy.ChainOfThought(signature, rationale_field=...)` |
+| Implementation | Dynamic signature creation | Signature.prepend() method |
+| Customization | `reasoning_description` param | Full `rationale_field` control |
+| Complexity | ~45 lines | ~40 lines |
+| Dependencies | Uses `make_signature` | Uses signature mutation |
+
+Both are equally effective; udspy's approach is simpler but less flexible in edge cases.
+
+### Future Considerations
+
+1. **Streaming support**: StreamingChainOfThought for incremental reasoning
+2. **Few-shot examples**: Add example reasoning patterns to improve quality
+3. **Verification**: Automatic reasoning quality checks
+4. **Caching**: Built-in caching for repeated queries
+
+### Migration Guide
+Feature is additive - no migration needed.
+
+---
+
 ## Template for Future Entries
 
 ## YYYY-MM-DD: Change Title

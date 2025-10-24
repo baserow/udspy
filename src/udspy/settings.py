@@ -32,6 +32,7 @@ class Settings:
     def configure(
         self,
         api_key: str | None = None,
+        base_url: str | None = None,
         model: str | None = None,
         client: OpenAI | None = None,
         async_client: AsyncOpenAI | None = None,
@@ -49,12 +50,12 @@ class Settings:
         if client:
             self._client = client
         elif api_key:
-            self._client = OpenAI(api_key=api_key)
+            self._client = OpenAI(api_key=api_key, base_url=base_url)
 
         if async_client:
             self._async_client = async_client
         elif api_key:
-            self._async_client = AsyncOpenAI(api_key=api_key)
+            self._async_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
         if model:
             self._default_model = model
