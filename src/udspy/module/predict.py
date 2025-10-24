@@ -553,4 +553,9 @@ class Predict(Module):
 
         finally:
             # Clean up context
-            _stream_queue.reset(token)
+            try:
+                _stream_queue.reset(token)
+            except (ValueError, LookupError):
+                # Context was already cleaned up or created in different context
+                # This can happen when the generator is closed due to an exception
+                pass

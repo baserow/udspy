@@ -33,6 +33,10 @@ class Tool:
         func: Callable[..., Any],
         name: str | None = None,
         description: str | None = None,
+        *,
+        ask_for_confirmation: bool = False,
+        desc: str | None = None,  # Alias for description (DSPy compatibility)
+        args: dict[str, str] | None = None,  # Optional manual arg spec (DSPy compatibility)
     ):
         """Initialize a Tool.
 
@@ -40,10 +44,18 @@ class Tool:
             func: The function to wrap
             name: Tool name (defaults to function name)
             description: Tool description (defaults to function docstring)
+            ask_for_confirmation: If True, ReAct will ask user to confirm before executing
+            desc: Alias for description (for DSPy compatibility)
+            args: Optional manual argument specification (for DSPy compatibility)
         """
         self.func = func
         self.name = name or func.__name__
-        self.description = description or inspect.getdoc(func) or ""
+        self.description = description or desc or inspect.getdoc(func) or ""
+        self.ask_for_confirmation = ask_for_confirmation
+
+        # Aliases for DSPy compatibility
+        self.desc = self.description
+        self.args: dict[str, str] = args or {}  # Will be populated below if not provided
 
         # Extract parameter schema from function signature
         sig = inspect.signature(func)
@@ -67,9 +79,56 @@ class Tool:
 
             self.parameters[param_name] = param_info
 
+            # Populate args dict for DSPy compatibility (if not manually provided)
+            if not args:
+                type_str = (
+                    param_info["type"].__name__
+                    if hasattr(param_info["type"], "__name__")
+                    else str(param_info["type"])
+                )
+                desc_str = param_info["description"] or "No description"
+                self.args[param_name] = f"{type_str} - {desc_str}"
+
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Call the wrapped function."""
         return self.func(*args, **kwargs)
+
+    async def acall(self, **kwargs: Any) -> Any:
+        """Async call the wrapped function.
+
+        If the function is async, awaits it. Otherwise, runs it in executor.
+        If ask_for_confirmation is True, raises HumanInTheLoopRequired before execution.
+
+        Args:
+            **kwargs: Arguments to pass to the function
+
+        Returns:
+            Function result
+
+        Raises:
+            HumanInTheLoopRequired: If confirmation is required
+        """
+        # Check if confirmation is needed
+        if self.ask_for_confirmation:
+            import json
+
+            from udspy.module.react import HumanInTheLoopRequired
+
+            raise HumanInTheLoopRequired(
+                question=f"Confirm execution of {self.name} with args: {json.dumps(kwargs)}? (yes/no)",
+                tool_name=self.name,
+                tool_args=kwargs,
+            )
+
+        # Execute the function
+        if inspect.iscoroutinefunction(self.func):
+            return await self.func(**kwargs)
+        else:
+            # Run sync function in executor to avoid blocking
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, lambda: self.func(**kwargs))
 
     def to_openai_schema(self) -> dict[str, Any]:
         """Convert to OpenAI tool schema.
@@ -142,12 +201,15 @@ class Tool:
 def tool(
     name: str | None = None,
     description: str | None = None,
+    *,
+    ask_for_confirmation: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]:
     """Decorator to mark a function as a tool.
 
     Args:
         name: Tool name (defaults to function name)
         description: Tool description (defaults to function docstring)
+        ask_for_confirmation: If True, ReAct will ask user to confirm before executing
 
     Returns:
         Decorator function
@@ -167,10 +229,18 @@ def tool(
                 "divide": a / b if b != 0 else float("inf"),
             }
             return ops[operation]
+
+        # Tool that requires confirmation (e.g., destructive operations)
+        @tool(name="DeleteFile", description="Delete a file", ask_for_confirmation=True)
+        def delete_file(path: str = Field(...)) -> str:
+            os.remove(path)
+            return f"Deleted {path}"
         ```
     """
 
     def decorator(func: Callable[..., Any]) -> Tool:
-        return Tool(func, name=name, description=description)
+        return Tool(
+            func, name=name, description=description, ask_for_confirmation=ask_for_confirmation
+        )
 
     return decorator

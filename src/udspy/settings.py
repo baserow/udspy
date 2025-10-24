@@ -32,7 +32,7 @@ class Settings:
 
     def configure(
         self,
-        api_key: str | None = None,
+        api_key: str = "",
         base_url: str | None = None,
         model: str | None = None,
         aclient: AsyncOpenAI | None = None,
@@ -62,7 +62,7 @@ class Settings:
         """
         if aclient:
             self._aclient = aclient
-        elif api_key:
+        else:
             self._aclient = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
         if model:

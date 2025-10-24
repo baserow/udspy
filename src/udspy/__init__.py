@@ -2,7 +2,15 @@
 
 from udspy.adapter import ChatAdapter
 from udspy.history import History
-from udspy.module import ChainOfThought, Module, Predict, Prediction
+from udspy.module import (
+    ChainOfThought,
+    HumanInTheLoopRequired,
+    Module,
+    Predict,
+    Prediction,
+    ReAct,
+    UserInputRequired,
+)
 from udspy.settings import settings
 from udspy.signature import InputField, OutputField, Signature, make_signature
 from udspy.streaming import StreamChunk, StreamEvent, emit_event
@@ -24,6 +32,9 @@ __all__ = [
     "Predict",
     "Prediction",
     "ChainOfThought",
+    "ReAct",
+    "HumanInTheLoopRequired",
+    "UserInputRequired",  # Backwards compatibility
     # Adapter
     "ChatAdapter",
     # History
