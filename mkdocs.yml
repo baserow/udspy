@@ -1,0 +1,74 @@
+site_name: udspy
+site_description: A minimal DSPy-inspired library with native OpenAI tool calling
+site_url: https://your-username.github.io/udspy
+repo_url: https://github.com/your-username/udspy
+repo_name: your-username/udspy
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Design Decisions: architecture/decisions.md
+      - Signatures: architecture/signatures.md
+      - Adapters: architecture/adapters.md
+      - Modules: architecture/modules.md
+      - Streaming: architecture/streaming.md
+  - Examples:
+      - Basic Usage: examples/basic_usage.md
+      - Streaming: examples/streaming.md
+      - Tool Calling: examples/tool_calling.md
+      - Advanced: examples/advanced.md
+  - API Reference:
+      - Signatures: api/signature.md
+      - Modules: api/module.md
+      - Adapters: api/adapter.md
+      - Streaming: api/streaming.md
+      - Settings: api/settings.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
