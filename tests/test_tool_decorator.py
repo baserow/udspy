@@ -1,6 +1,5 @@
 """Tests for @tool decorator and automatic tool execution."""
 
-
 import pytest
 from pydantic import Field
 
@@ -118,7 +117,9 @@ async def test_predict_with_tool_automatic_execution() -> None:
             model="gpt-4o-mini",
             object="chat.completion.chunk",
             created=1234567890,
-            choices=[Choice(index=0, delta=ChoiceDelta(content="\nThe answer is 15"), finish_reason=None)],
+            choices=[
+                Choice(index=0, delta=ChoiceDelta(content="\nThe answer is 15"), finish_reason=None)
+            ],
         ),
     ]
 

@@ -1,6 +1,7 @@
 """udspy: A minimal DSPy-inspired library with native OpenAI tool calling."""
 
 from udspy.adapter import ChatAdapter
+from udspy.history import History
 from udspy.module import ChainOfThought, Module, Predict, Prediction
 from udspy.settings import settings
 from udspy.signature import InputField, OutputField, Signature, make_signature
@@ -25,6 +26,8 @@ __all__ = [
     "ChainOfThought",
     # Adapter
     "ChatAdapter",
+    # History
+    "History",
     # Streaming
     "StreamEvent",
     "StreamChunk",

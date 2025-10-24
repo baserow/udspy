@@ -79,7 +79,8 @@ class Module:
         called from within an async context (use aforward() instead).
 
         Args:
-            **inputs: Input values for the module
+            **inputs: Input values for the module (includes both input fields
+                and any module-specific parameters like auto_execute_tools)
 
         Returns:
             Final Prediction object

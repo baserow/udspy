@@ -98,6 +98,10 @@ class Settings:
             return context_model
 
         # Fall back to global model
+        if self._default_model is None:
+            raise ValueError(
+                "No model configured. Call settings.configure(model='...') or set in context."
+            )
         return self._default_model
 
     @property

@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import regex as re
 from openai import AsyncStream
@@ -13,6 +13,9 @@ from udspy.module.base import Module
 from udspy.settings import settings
 from udspy.signature import Signature
 from udspy.streaming import Prediction, StreamChunk, StreamEvent, _stream_queue
+
+if TYPE_CHECKING:
+    from udspy.history import History
 
 
 class Predict(Module):
@@ -88,13 +91,21 @@ class Predict(Module):
                 # Pydantic model - just schema (no automatic execution)
                 self.tool_schemas.append(tool)
 
-    async def astream(self, **inputs: Any) -> AsyncGenerator[StreamEvent, None]:
-        """Core async streaming method with automatic tool execution.
+    async def astream(
+        self, *, auto_execute_tools: bool = True, history: Optional["History"] = None, **inputs: Any
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """Core async streaming method with optional automatic tool execution.
 
-        Yields StreamEvent objects and automatically handles multi-turn
-        conversation when tools are present.
+        Yields StreamEvent objects. When auto_execute_tools=True (default),
+        automatically handles multi-turn conversation when tools are present.
+        When False, returns Prediction with tool_calls for manual handling.
 
         Args:
+            auto_execute_tools: If True, automatically execute tools and continue
+                conversation. If False, return Prediction with tool_calls for
+                manual execution. Default: True.
+            history: Optional History object for multi-turn conversations. When
+                provided, conversation history is automatically managed.
             **inputs: Input values matching the signature's input fields
 
         Yields:
@@ -105,10 +116,10 @@ class Predict(Module):
         """
         # Validate and build initial messages
         self._validate_inputs(inputs)
-        messages = self._build_initial_messages(inputs)
+        messages = self._build_initial_messages(inputs, history)
 
         # Multi-turn loop for tool execution
-        async for event in self._execute_with_tools(messages):
+        async for event in self._execute_with_tools(messages, auto_execute_tools, history):
             yield event
 
     def _validate_inputs(self, inputs: dict[str, Any]) -> None:
@@ -118,17 +129,58 @@ class Predict(Module):
             if field_name not in inputs:
                 raise ValueError(f"Missing required input field: {field_name}")
 
-    def _build_initial_messages(self, inputs: dict[str, Any]) -> list[dict[str, Any]]:
-        """Build initial messages from inputs."""
-        return [
-            {"role": "system", "content": self.adapter.format_instructions(self.signature)},
-            {"role": "user", "content": self.adapter.format_inputs(self.signature, inputs)},
-        ]
+    def _build_initial_messages(
+        self, inputs: dict[str, Any], history: Any = None
+    ) -> list[dict[str, Any]]:
+        """Build initial messages from inputs and optional history.
+
+        Args:
+            inputs: Input values from user
+            history: Optional History object with existing conversation
+
+        Returns:
+            List of messages including history (if provided) and new user input
+        """
+        from udspy.history import History
+
+        messages: list[dict[str, Any]] = []
+
+        # Start with history if provided
+        if history is not None:
+            if isinstance(history, History):
+                # Copy existing messages from history
+                messages.extend(history.messages)
+            else:
+                raise TypeError(f"history must be a History object, got {type(history)}")
+
+        # Add system message if not in history
+        if not messages or messages[0]["role"] != "system":
+            messages.insert(
+                0, {"role": "system", "content": self.adapter.format_instructions(self.signature)}
+            )
+
+        # Add new user input
+        user_content = self.adapter.format_inputs(self.signature, inputs)
+        user_msg = {"role": "user", "content": user_content}
+        messages.append(user_msg)
+
+        # Also add to history if provided
+        if history is not None and isinstance(history, History):
+            history.messages.append(user_msg)
+
+        return messages
 
     async def _execute_with_tools(
-        self, messages: list[dict[str, Any]]
+        self, messages: list[dict[str, Any]], auto_execute_tools: bool, history: Any = None
     ) -> AsyncGenerator[StreamEvent, None]:
-        """Execute multi-turn conversation with automatic tool execution."""
+        """Execute multi-turn conversation with optional automatic tool execution.
+
+        Args:
+            messages: Conversation messages
+            auto_execute_tools: If True, automatically execute tools. If False,
+                return after first tool call.
+            history: Optional History object to update with conversation
+        """
         for turn in range(self.max_turns):
             # Stream one LLM turn
             final_prediction = None
@@ -137,12 +189,24 @@ class Predict(Module):
                     final_prediction = event
                 yield event
 
-            # Check if we need to execute tools
-            if not (final_prediction and "tool_calls" in final_prediction and self.tool_callables):
-                break  # Done
+            # Update history with prediction if provided
+            if history is not None and final_prediction:
+                self._update_history_with_prediction(history, final_prediction)
+
+            # Check if we have tool calls
+            if not (final_prediction and "tool_calls" in final_prediction):
+                break  # No tools requested, we're done
+
+            # If not auto-executing, stop here and return the tool_calls
+            if not auto_execute_tools:
+                break  # User will handle tool calls manually
+
+            # Check if we can execute (need tool_callables)
+            if not self.tool_callables:
+                break  # No executables, stop here
 
             # Execute tools and add results to messages
-            self._execute_tool_calls(messages, final_prediction.tool_calls)
+            self._execute_tool_calls(messages, final_prediction.tool_calls, history)
 
         # Check if we exceeded max turns
         if turn >= self.max_turns - 1 and final_prediction and "tool_calls" in final_prediction:
@@ -168,26 +232,38 @@ class Predict(Module):
             yield event
 
     def _execute_tool_calls(
-        self, messages: list[dict[str, Any]], tool_calls: list[dict[str, Any]]
+        self, messages: list[dict[str, Any]], tool_calls: list[dict[str, Any]], history: Any = None
     ) -> None:
-        """Execute tool calls and add results to messages."""
+        """Execute tool calls and add results to messages.
+
+        Args:
+            messages: Conversation messages
+            tool_calls: List of tool calls to execute
+            history: Optional History object to update
+        """
         import json
 
         # Add assistant message with tool calls
-        messages.append(
-            {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {"name": tc["name"], "arguments": tc["arguments"]},
-                    }
-                    for tc in tool_calls
-                ],
-            }
-        )
+        assistant_msg = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                }
+                for tc in tool_calls
+            ],
+        }
+        messages.append(assistant_msg)
+
+        # Update history if provided
+        if history is not None:
+            from udspy.history import History
+
+            if isinstance(history, History):
+                history.messages.append(assistant_msg)
 
         # Execute each tool
         for tool_call in tool_calls:
@@ -203,22 +279,72 @@ class Predict(Module):
             else:
                 content = f"Error: Tool {tool_name} not found"
 
-            messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": content})
+            tool_msg = {"role": "tool", "tool_call_id": tool_call["id"], "content": content}
+            messages.append(tool_msg)
 
-    async def aforward(self, **inputs: Any) -> Prediction:
-        """Async non-streaming method. Returns the final Prediction.
+            # Update history if provided
+            if history is not None:
+                from udspy.history import History
 
-        When tools are used, this returns the LAST prediction (after tool execution),
-        not the first one (which might only contain tool_calls).
+                if isinstance(history, History):
+                    history.messages.append(tool_msg)
+
+    def _update_history_with_prediction(self, history: Any, prediction: Prediction) -> None:
+        """Update history with assistant's prediction.
 
         Args:
+            history: History object to update
+            prediction: Prediction from assistant
+        """
+        from udspy.history import History
+
+        if not isinstance(history, History):
+            return
+
+        # Build content from prediction output fields
+        output_fields = self.signature.get_output_fields()
+        content_parts = []
+
+        for field_name in output_fields:
+            if hasattr(prediction, field_name):
+                value = getattr(prediction, field_name)
+                if value:
+                    content_parts.append(f"[[ ## {field_name} ## ]]\n{value}")
+
+        content = "\n".join(content_parts) if content_parts else ""
+
+        # Check if this prediction has tool_calls
+        if hasattr(prediction, "tool_calls") and prediction.tool_calls:
+            # Don't add to history yet - will be added in _execute_tool_calls
+            pass
+        else:
+            # Regular assistant message
+            history.add_assistant_message(content)
+
+    async def aforward(
+        self, *, auto_execute_tools: bool = True, history: Any = None, **inputs: Any
+    ) -> Prediction:
+        """Async non-streaming method. Returns the final Prediction.
+
+        When tools are used with auto_execute_tools=True (default), this returns
+        the LAST prediction (after tool execution), not the first one (which might
+        only contain tool_calls). When auto_execute_tools=False, returns the first
+        Prediction with tool_calls for manual handling.
+
+        Args:
+            auto_execute_tools: If True, automatically execute tools and return
+                final answer. If False, return Prediction with tool_calls for
+                manual execution. Default: True.
+            history: Optional History object for multi-turn conversations.
             **inputs: Input values for the module
 
         Returns:
-            Final Prediction object (after all tool executions)
+            Final Prediction object (after all tool executions if auto_execute_tools=True)
         """
         final_prediction: Prediction | None = None
-        async for event in self.astream(**inputs):
+        async for event in self.astream(
+            auto_execute_tools=auto_execute_tools, history=history, **inputs
+        ):
             if isinstance(event, Prediction):
                 final_prediction = event  # Keep updating to get the last one
 
