@@ -151,4 +151,4 @@ if "tool_calls" in result:
     # (requires manual message construction - see advanced examples)
 ```
 
-See the [full example](../../examples/tool_calling.py) in the repository.
+See the [full example](https://github.com/silvestrid/udspy/blob/main/examples/tool_calling.py) in the repository.

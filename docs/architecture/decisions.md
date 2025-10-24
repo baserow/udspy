@@ -125,5 +125,5 @@ This document explains key architectural decisions made in udspy.
 
 ## See Also
 
-- [CLAUDE.md](../../CLAUDE.md) - Chronological architectural changes
+- [CLAUDE.md](https://github.com/silvestrid/udspy/blob/main/CLAUDE.md) - Chronological architectural changes
 - [Architecture Overview](overview.md) - Component relationships

@@ -186,4 +186,4 @@ with udspy.settings.context(api_key=user.api_key):
     result = predictor(question=user.question)
 ```
 
-See the [full example](../../examples/context_example.py) in the repository.
+See the [full example](https://github.com/silvestrid/udspy/blob/main/examples/context.py) in the repository.

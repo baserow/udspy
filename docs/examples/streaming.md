@@ -80,4 +80,4 @@ async def ask_question(question: str):
     return StreamingResponse(generate(), media_type="text/event-stream")
 ```
 
-See the [full example](../../examples/streaming_example.py) in the repository.
+See the [full example](https://github.com/silvestrid/udspy/blob/main/examples/streaming.py) in the repository.

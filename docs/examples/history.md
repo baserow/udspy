@@ -197,4 +197,4 @@ result = predictor(question="...", history=history)
 
 ## Examples
 
-See [history.py](../../examples/history.py) for complete working examples.
+See [history.py](https://github.com/silvestrid/udspy/blob/main/examples/history.py) for complete working examples.

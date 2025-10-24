@@ -454,4 +454,4 @@ agent = ReAct(
 
 - [Tool Calling Guide](tool_calling.md) - Creating custom tools
 - [Chain of Thought](chain_of_thought.md) - Simpler reasoning module
-- [Examples](../../examples/react.py) - Full working examples
+- [ReAct API Reference](../api/react.md) - Full API documentation

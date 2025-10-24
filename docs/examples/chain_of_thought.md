@@ -250,4 +250,4 @@ print(result.decision)
 print(result.justification)
 ```
 
-See the [full example](../../examples/chain_of_thought_example.py) in the repository.
+See the [full example](https://github.com/silvestrid/udspy/blob/main/examples/chain_of_thought.py) in the repository.

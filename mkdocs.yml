@@ -44,6 +44,7 @@ nav:
       - Chain of Thought: examples/chain_of_thought.md
       - Streaming: examples/streaming.md
       - Tool Calling: examples/tool_calling.md
+      - ReAct: examples/react.md
       - Conversation History: examples/history.md
       - Advanced: examples/advanced.md
   - API Reference:
@@ -52,6 +53,8 @@ nav:
       - Adapters: api/adapter.md
       - Streaming: api/streaming.md
       - History: api/history.md
+      - ReAct: api/react.md
+      - Tools: api/tool.md
       - Settings: api/settings.md
 
 plugins:
