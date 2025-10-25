@@ -42,6 +42,7 @@ nav:
           - Chain of Thought: architecture/modules/chain_of_thought.md
           - ReAct: architecture/modules/react.md
       - Streaming: architecture/streaming.md
+      - Confirmation: architecture/confirmation.md
   - Examples:
       - Basic Usage: examples/basic_usage.md
       - Context Settings: examples/context_settings.md
@@ -49,6 +50,7 @@ nav:
       - Streaming: examples/streaming.md
       - Tool Calling: examples/tool_calling.md
       - ReAct: examples/react.md
+      - Confirmation: examples/confirmation.md
       - Conversation History: examples/history.md
       - Advanced: examples/advanced.md
   - API Reference:
@@ -59,6 +61,7 @@ nav:
       - History: api/history.md
       - ReAct: api/react.md
       - Tools: api/tool.md
+      - Confirmation: api/confirmation.md
       - Settings: api/settings.md
 
 plugins:
