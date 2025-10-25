@@ -52,7 +52,7 @@ release-check:
 
 # Build documentation
 docs-build:
-    uv run mkdocs build
+    uv run mkdocs build --strict
 
 # Serve documentation locally
 docs-serve:

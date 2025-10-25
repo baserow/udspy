@@ -35,7 +35,7 @@ class ChainOfThought(Module):
 
     def __init__(
         self,
-        signature: type[Signature],
+        signature: type[Signature] | str,
         *,
         reasoning_description: str = "Step-by-step reasoning process",
         model: str | None = None,
@@ -46,13 +46,18 @@ class ChainOfThought(Module):
         """Initialize a Chain of Thought module.
 
         Args:
-            signature: Signature defining inputs and final outputs
+            signature: Signature defining inputs and final outputs, or a string in
+                      format "inputs -> outputs" (e.g., "question -> answer")
             reasoning_description: Description for the reasoning field
             model: Model name (overrides global default)
             tools: List of Pydantic tool models
             adapter: Custom adapter
             **kwargs: Additional arguments for chat completion
         """
+        # Convert string signature to Signature class
+        if isinstance(signature, str):
+            signature = Signature.from_string(signature)
+
         self.original_signature = signature
 
         # Create extended signature with reasoning field

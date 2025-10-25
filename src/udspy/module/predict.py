@@ -53,7 +53,7 @@ class Predict(Module):
 
     def __init__(
         self,
-        signature: type[Signature],
+        signature: type[Signature] | str,
         *,
         model: str | None = None,
         tools: list["Tool"] | None = None,
@@ -64,7 +64,8 @@ class Predict(Module):
         """Initialize a Predict module.
 
         Args:
-            signature: Signature defining inputs and outputs
+            signature: Signature defining inputs and outputs, or a string in
+                      format "inputs -> outputs" (e.g., "question -> answer")
             model: Model name (overrides global default)
             tools: List of tool functions (decorated with @tool) or Pydantic models
             max_turns: Maximum number of LLM calls for tool execution loop (default: 10)
@@ -72,6 +73,10 @@ class Predict(Module):
             **kwargs: Additional arguments for chat completion (temperature, etc.)
         """
         from udspy.tool import Tool
+
+        # Convert string signature to Signature class
+        if isinstance(signature, str):
+            signature = Signature.from_string(signature)
 
         self.signature = signature
         self.model = model or settings.default_model

@@ -104,22 +104,11 @@ class ReAct(Module):
 
         super().__init__()
 
+        # Convert string signature to Signature class
         if isinstance(signature, str):
-            parts = signature.split("->")
-            if len(parts) != 2:
-                raise ValueError(
-                    "String signature must be in format 'input1, input2 -> output1, output2'"
-                )
+            signature = Signature.from_string(signature)
 
-            input_names = [name.strip() for name in parts[0].split(",")]
-            output_names = [name.strip() for name in parts[1].split(",")]
-
-            input_fields: dict[str, type] = dict.fromkeys(input_names, str)
-            output_fields: dict[str, type] = dict.fromkeys(output_names, str)
-
-            self.signature = make_signature(input_fields, output_fields, "")
-        else:
-            self.signature = signature
+        self.signature = signature
 
         self.max_iters = max_iters
         self.enable_ask_to_user = enable_ask_to_user
