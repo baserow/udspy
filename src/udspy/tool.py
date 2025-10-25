@@ -34,7 +34,7 @@ class Tool:
         name: str | None = None,
         description: str | None = None,
         *,
-        ask_for_confirmation: bool = False,
+        interruptible: bool = False,
         desc: str | None = None,  # Alias for description (DSPy compatibility)
         args: dict[str, str] | None = None,  # Optional manual arg spec (DSPy compatibility)
     ):
@@ -44,14 +44,41 @@ class Tool:
             func: The function to wrap
             name: Tool name (defaults to function name)
             description: Tool description (defaults to function docstring)
-            ask_for_confirmation: If True, ReAct will ask user to confirm before executing
+            interruptible: If True, wraps function with @interruptible decorator
             desc: Alias for description (for DSPy compatibility)
             args: Optional manual argument specification (for DSPy compatibility)
         """
-        self.func = func
         self.name = name or func.__name__
+        self.func = func
+
+        # Wrap with @interruptible decorator if requested
+        if interruptible:
+            from udspy.interrupt import interruptible as interruptible_decorator
+
+            # We need the @interruptible decorator to see the correct __name__
+            # So we create a wrapper with the tool name, then apply the decorator
+            tool_name = self.name
+            original_func = func
+            sig = inspect.signature(func)
+
+            # Create a dynamic wrapper with the same signature but different name
+            if inspect.iscoroutinefunction(func):
+                # For async functions
+                async def tool_wrapper(*args: Any, **kwargs: Any) -> Any:
+                    return await original_func(*args, **kwargs)
+            else:
+                # For sync functions
+                def tool_wrapper(*args: Any, **kwargs: Any) -> Any:
+                    return original_func(*args, **kwargs)
+
+            # Copy signature and set correct name
+            tool_wrapper.__name__ = tool_name
+            tool_wrapper.__signature__ = sig  # type: ignore[attr-defined]
+
+            # Now apply @interruptible - it will see the correct __name__
+            self.func = interruptible_decorator(tool_wrapper)
         self.description = description or desc or inspect.getdoc(func) or ""
-        self.ask_for_confirmation = ask_for_confirmation
+        self.interruptible = interruptible
 
         # Aliases for DSPy compatibility
         self.desc = self.description
@@ -97,7 +124,7 @@ class Tool:
         """Async call the wrapped function.
 
         If the function is async, awaits it. Otherwise, runs it in executor.
-        If ask_for_confirmation is True, raises HumanInTheLoopRequired before execution.
+        If interruptible is True, the @interruptible decorator handles confirmation.
 
         Args:
             **kwargs: Arguments to pass to the function
@@ -106,21 +133,9 @@ class Tool:
             Function result
 
         Raises:
-            HumanInTheLoopRequired: If confirmation is required
+            HumanInTheLoopRequired: If interruptible and not approved
         """
-        # Check if confirmation is needed
-        if self.ask_for_confirmation:
-            import json
-
-            from udspy.module.react import HumanInTheLoopRequired
-
-            raise HumanInTheLoopRequired(
-                question=f"Confirm execution of {self.name} with args: {json.dumps(kwargs)}? (yes/no)",
-                tool_name=self.name,
-                tool_args=kwargs,
-            )
-
-        # Execute the function
+        # Execute the function (interruptible decorator handles confirmation if enabled)
         if inspect.iscoroutinefunction(self.func):
             return await self.func(**kwargs)
         else:
@@ -202,14 +217,14 @@ def tool(
     name: str | None = None,
     description: str | None = None,
     *,
-    ask_for_confirmation: bool = False,
+    interruptible: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]:
     """Decorator to mark a function as a tool.
 
     Args:
         name: Tool name (defaults to function name)
         description: Tool description (defaults to function docstring)
-        ask_for_confirmation: If True, ReAct will ask user to confirm before executing
+        interruptible: If True, wraps function with @interruptible decorator
 
     Returns:
         Decorator function
@@ -231,7 +246,7 @@ def tool(
             return ops[operation]
 
         # Tool that requires confirmation (e.g., destructive operations)
-        @tool(name="DeleteFile", description="Delete a file", ask_for_confirmation=True)
+        @tool(name="DeleteFile", description="Delete a file", interruptible=True)
         def delete_file(path: str = Field(...)) -> str:
             os.remove(path)
             return f"Deleted {path}"
@@ -239,8 +254,6 @@ def tool(
     """
 
     def decorator(func: Callable[..., Any]) -> Tool:
-        return Tool(
-            func, name=name, description=description, ask_for_confirmation=ask_for_confirmation
-        )
+        return Tool(func, name=name, description=description, interruptible=interruptible)
 
     return decorator

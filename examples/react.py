@@ -49,7 +49,7 @@ def calculator(expression: str = Field(description="Mathematical expression to e
         return f"Error evaluating expression: {str(e)}"
 
 
-@tool(name="delete_file", description="Delete a file (requires confirmation)", ask_for_confirmation=True)
+@tool(name="delete_file", description="Delete a file (requires confirmation)", interruptible=True)
 def delete_file(path: str = Field(description="Path to the file to delete")) -> str:
     """Mock file deletion tool - requires user confirmation."""
     # In a real application, this would actually delete the file

@@ -22,7 +22,6 @@ def __init__(
     tools: list[Callable | Tool],
     *,
     max_iters: int = 10,
-    max_failures: int = 3,
     enable_ask_to_user: bool = True,
 )
 ```
@@ -35,8 +34,6 @@ def __init__(
   - Tools can be decorated functions (`@tool`) or `Tool` instances
 - **`max_iters`** (`int`, default: `10`): Maximum number of reasoning iterations
   - Agent will stop after this many steps even if not finished
-- **`max_failures`** (`int`, default: `3`): Consecutive failures before allowing `ask_to_user`
-  - After this many tool failures, the agent can ask the user for help
 - **`enable_ask_to_user`** (`bool`, default: `True`): Whether to enable the `ask_to_user` tool
   - If `False`, the agent cannot request user clarification
 
@@ -119,15 +116,21 @@ async def main():
 asyncio.run(main())
 ```
 
-##### `resume_after_user_input(user_response, saved_state) -> Prediction`
+##### `resume(user_response, saved_state) -> Prediction`
 
 Resume execution after user provides input (synchronous).
 
 **Parameters:**
 
 - **`user_response`** (`str`): The user's response to the question
+  - `"yes"` or `"y"`: Approve the pending tool call
+  - `"no"` or `"n"`: Reject and let agent decide next action
+  - Free text: Treated as feedback for the agent
+  - JSON with `"edit"` key: Modify tool name/args (e.g., `{"edit": {"name": "new_tool", "args": {...}}}`)
 - **`saved_state`** (`HumanInTheLoopRequired`): The exception that was raised
-  - Contains trajectory, iteration, and input args
+  - Contains `context` dict with: `trajectory`, `iteration`, `input_args`
+  - Contains `tool_call` with pending tool information
+  - Contains `interrupt_id` for tracking
 
 **Returns:**
 
@@ -139,33 +142,37 @@ Resume execution after user provides input (synchronous).
 from udspy import HumanInTheLoopRequired
 
 try:
-    result = agent(question="Tell me about it")
+    result = agent(question="Delete my files")
 except HumanInTheLoopRequired as e:
     print(f"Agent asks: {e.question}")
-    response = input("Your answer: ")
-    result = agent.resume_after_user_input(response, e)
+    if e.tool_call:
+        print(f"Tool: {e.tool_call.name}")
+        print(f"Args: {e.tool_call.args}")
+    response = input("Your response (yes/no/feedback): ")
+    result = agent.resume(response, e)
 ```
 
-##### `aresume_after_user_input(user_response, saved_state) -> Prediction`
+##### `aresume(user_response, saved_state) -> Prediction`
 
 Resume execution after user provides input (async).
 
 **Parameters:**
 
-- Same as `resume_after_user_input()`
+- Same as `resume()`
 
 **Returns:**
 
-- Same as `resume_after_user_input()`
+- Same as `resume()`
 
 **Example:**
 
 ```python
 try:
-    result = await agent.aforward(question="Tell me about it")
+    result = await agent.aforward(question="Delete my files")
 except HumanInTheLoopRequired as e:
+    print(f"Agent asks: {e.question}")
     response = get_user_input(e.question)
-    result = await agent.aresume_after_user_input(response, e)
+    result = await agent.aresume(response, e)
 ```
 
 #### Properties
@@ -217,26 +224,24 @@ class HumanInTheLoopRequired(Exception):
     """Raised when human input is needed to proceed."""
 ```
 
+**Note**: This exception has been moved to the `interrupt` module. See the [Interrupt API](interrupt.md) for full documentation.
+
 Exception that pauses ReAct execution and saves state for resumption. This exception can be raised by:
 - The `ask_to_user` tool when the agent needs clarification
-- Tools with `ask_for_confirmation=True` before execution
+- Tools with `interruptible=True` before execution
 - Custom tools that need human input
-
-**Backwards Compatibility:** The old name `UserInputRequired` is still available as an alias.
 
 #### Constructor
 
 ```python
+from udspy.interrupt import HumanInTheLoopRequired, ToolCall
+
 def __init__(
     self,
     question: str,
     *,
-    tool_name: str | None = None,
-    tool_call_id: str | None = None,
-    tool_args: dict[str, Any] | None = None,
-    trajectory: dict[str, Any] | None = None,
-    iteration: int | None = None,
-    input_args: dict[str, Any] | None = None,
+    interrupt_id: str | None = None,
+    tool_call: ToolCall | None = None,
     context: dict[str, Any] | None = None,
 )
 ```
@@ -244,14 +249,11 @@ def __init__(
 **Parameters:**
 
 - **`question`** (`str`): Question to ask the user
-- **`tool_name`** (`str | None`): Name of the tool that raised this (if any)
-- **`tool_call_id`** (`str | None`): Tool call ID for tracking (if any)
-- **`tool_args`** (`dict[str, Any] | None`): Arguments passed to the tool (if any)
-- **`trajectory`** (`dict[str, Any] | None`): Current trajectory state
-  - Keys: `reasoning_N`, `tool_name_N`, `tool_args_N`, `observation_N`
-- **`iteration`** (`int | None`): Current iteration number
-- **`input_args`** (`dict[str, Any] | None`): Original input arguments
-- **`context`** (`dict[str, Any] | None`): Additional context dictionary
+- **`interrupt_id`** (`str | None`): Unique interrupt ID (auto-generated if not provided)
+- **`tool_call`** (`ToolCall | None`): Optional tool call information
+  - Has attributes: `.name` (tool name), `.args` (arguments dict), `.call_id` (optional ID)
+- **`context`** (`dict[str, Any] | None`): Module-specific state dictionary
+  - ReAct stores: `trajectory`, `iteration`, `input_args` here
 
 #### Attributes
 
@@ -272,17 +274,62 @@ except HumanInTheLoopRequired as e:
     print(e.question)  # "Confirm execution of delete_file...?"
 ```
 
-##### `trajectory`
+##### `interrupt_id`
 
 ```python
-trajectory: dict[str, Any]
+interrupt_id: str
 ```
 
-The current execution trajectory. Contains:
-- `reasoning_0`, `reasoning_1`, ...: Agent's reasoning
-- `tool_name_0`, `tool_name_1`, ...: Tools called
-- `tool_args_0`, `tool_args_1`, ...: Arguments passed
-- `observation_0`, `observation_1`, ...: Tool results
+Unique identifier for this interrupt. Used with `get_interrupt_status()` to check approval status.
+
+**Example:**
+
+```python
+from udspy import get_interrupt_status
+
+try:
+    result = agent(question="Delete files")
+except HumanInTheLoopRequired as e:
+    print(e.interrupt_id)  # "abc-123-def-456"
+    status = get_interrupt_status(e.interrupt_id)
+    print(status)  # "pending"
+```
+
+##### `tool_call`
+
+```python
+tool_call: ToolCall | None
+```
+
+Information about the tool call that triggered this interrupt (if applicable).
+
+**Attributes:**
+- `name` (`str`): Tool name
+- `args` (`dict[str, Any]`): Tool arguments
+- `call_id` (`str | None`): Optional call ID from OpenAI
+
+**Example:**
+
+```python
+try:
+    result = agent(question="Delete my files")
+except HumanInTheLoopRequired as e:
+    if e.tool_call:
+        print(f"Tool: {e.tool_call.name}")  # "delete_file"
+        print(f"Args: {e.tool_call.args}")  # {"path": "/tmp/test.txt"}
+        print(f"Call ID: {e.tool_call.call_id}")  # "call_abc123"
+```
+
+##### `context`
+
+```python
+context: dict[str, Any]
+```
+
+Module-specific state dictionary. For ReAct agents, contains:
+- `trajectory` (`dict[str, Any]`): Current execution trajectory with reasoning, tool calls, and observations
+- `iteration` (`int`): Current iteration number (0-indexed)
+- `input_args` (`dict[str, Any]`): Original input arguments
 
 **Example:**
 
@@ -290,48 +337,21 @@ The current execution trajectory. Contains:
 try:
     result = agent(question="What is 2+2?")
 except HumanInTheLoopRequired as e:
-    # Inspect what the agent has done so far
-    print(e.trajectory)
+    # Access ReAct-specific state
+    trajectory = e.context["trajectory"]
+    print(trajectory)
     # {
     #   'reasoning_0': 'I should use the calculator',
     #   'tool_name_0': 'calculator',
     #   'tool_args_0': {'expression': '2+2'},
     #   'observation_0': '4'
     # }
-```
 
-##### `iteration`
+    iteration = e.context["iteration"]
+    print(f"Paused at step {iteration + 1}")
 
-```python
-iteration: int
-```
-
-The current iteration number (0-indexed).
-
-**Example:**
-
-```python
-try:
-    result = agent(question="Complex task")
-except HumanInTheLoopRequired as e:
-    print(f"Paused at step {e.iteration + 1}")
-```
-
-##### `input_args`
-
-```python
-input_args: dict[str, Any]
-```
-
-The original input arguments passed to the agent.
-
-**Example:**
-
-```python
-try:
-    result = agent(question="What is Python?", max_iters=5)
-except HumanInTheLoopRequired as e:
-    print(e.input_args)  # {'question': 'What is Python?'}
+    input_args = e.context["input_args"]
+    print(f"Original question: {input_args['question']}")
 ```
 
 ---
@@ -367,15 +387,11 @@ Tool for requesting user clarification (if enabled).
 
 **Usage:**
 
-The agent calls this when:
-1. The initial request is ambiguous (at iteration 0)
-2. After `max_failures` consecutive tool failures
+The agent can call this whenever it needs clarification or more information from the user.
 
 Raises `HumanInTheLoopRequired` exception.
 
-**Restrictions:**
-- Can only be used once per task
-- Only at beginning or after failures
+**Notes:**
 - Can be disabled with `enable_ask_to_user=False`
 
 ---
@@ -456,27 +472,46 @@ The string signature is parsed into:
 
 ---
 
-## Tool Confirmation
+## Tool Interruption
 
-Tools can require user confirmation before execution:
+Tools can require user confirmation before execution using the `interruptible` parameter:
 
 ```python
+from udspy import tool
+from pydantic import Field
+
 @tool(
     name="delete_file",
     description="Delete a file",
-    ask_for_confirmation=True  # Require confirmation
+    interruptible=True  # Require confirmation before execution
 )
 def delete_file(path: str = Field(...)) -> str:
     os.remove(path)
     return f"Deleted {path}"
 ```
 
-When the agent tries to call this tool, it raises `HumanInTheLoopRequired` with a confirmation question.
+When the agent tries to call this tool, it raises `HumanInTheLoopRequired` with a confirmation question on the first call. After the user approves, the tool executes normally.
 
 **Confirmation Message Format:**
 
 ```
 "Confirm execution of {tool_name} with args: {args}? (yes/no)"
+```
+
+**Response Options:**
+- `"yes"` or `"y"`: Approve and execute the tool
+- `"no"` or `"n"`: Reject and let agent choose a different action
+- JSON with `"edit"`: Modify tool arguments before execution
+
+**Example:**
+
+```python
+try:
+    result = agent(question="Delete all temporary files")
+except HumanInTheLoopRequired as e:
+    print(e.question)  # "Confirm execution of delete_file..."
+    # User approves
+    result = agent.resume("yes", e)
 ```
 
 ---
@@ -501,7 +536,7 @@ def api_call(endpoint: str = Field(...)) -> str:
 The agent can then:
 1. Try a different tool
 2. Retry with different arguments
-3. Ask the user for help (after `max_failures`)
+3. Ask the user for help (using the `ask_to_user` tool)
 
 ### Maximum Iterations
 
@@ -518,24 +553,23 @@ result = agent(question="Complex task")
 ## Type Annotations
 
 ```python
-from typing import Callable
+from typing import Callable, Any
 from udspy import ReAct, Signature, Tool, Prediction, HumanInTheLoopRequired
 
 # Constructor types
 signature: type[Signature] | str
 tools: list[Callable | Tool]
 max_iters: int
-max_failures: int
 enable_ask_to_user: bool
 
 # Method types
 def forward(**input_args: Any) -> Prediction: ...
 async def aforward(**input_args: Any) -> Prediction: ...
-def resume_after_user_input(
+def resume(
     user_response: str,
     saved_state: HumanInTheLoopRequired
 ) -> Prediction: ...
-async def aresume_after_user_input(
+async def aresume(
     user_response: str,
     saved_state: HumanInTheLoopRequired
 ) -> Prediction: ...
@@ -546,6 +580,7 @@ async def aresume_after_user_input(
 ## See Also
 
 - [ReAct Examples](../examples/react.md) - Usage guide and examples
+- [Interrupt API](interrupt.md) - Interrupt system and `HumanInTheLoopRequired` documentation
 - [Tool API](tool.md) - Creating and configuring tools
 - [Module API](module.md) - Base module documentation
 - [Signature API](signature.md) - Signature documentation

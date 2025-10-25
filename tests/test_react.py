@@ -28,7 +28,7 @@ def calculator_tool(expression: str = Field(description="Math expression")) -> s
     return "42"
 
 
-@tool(name="delete_file", description="Delete a file", ask_for_confirmation=True)
+@tool(name="delete_file", description="Delete a file", interruptible=True)
 def delete_file_tool(path: str = Field(description="File path")) -> str:
     """Mock destructive tool requiring confirmation."""
     return f"Deleted {path}"
@@ -291,10 +291,11 @@ async def test_react_tool_confirmation() -> None:
     assert "Confirm execution" in exc_info.value.question
     assert "delete_file" in exc_info.value.question
     # Verify exception has rich context
-    assert exc_info.value.tool_name == "delete_file"
-    assert exc_info.value.tool_args == {"path": "/tmp/test.txt"}
-    assert exc_info.value.trajectory is not None
-    assert exc_info.value.iteration is not None
+    assert exc_info.value.tool_call is not None
+    assert exc_info.value.tool_call.name == "delete_file"
+    assert exc_info.value.tool_call.args == {"path": "/tmp/test.txt"}
+    assert exc_info.value.context.get("trajectory") is not None
+    assert exc_info.value.context.get("iteration") is not None
 
 
 def test_react_forward_sync() -> None:
@@ -372,11 +373,11 @@ def test_react_forward_sync() -> None:
     assert result.answer == "Test answer"
 
 
-def test_tool_with_confirmation_flag() -> None:
-    """Test that tool confirmation flag is properly set."""
-    assert delete_file_tool.ask_for_confirmation is True
-    assert search_tool.ask_for_confirmation is False
-    assert calculator_tool.ask_for_confirmation is False
+def test_tool_with_interruptible_flag() -> None:
+    """Test that tool interruptible flag is properly set."""
+    assert delete_file_tool.interruptible is True
+    assert search_tool.interruptible is False
+    assert calculator_tool.interruptible is False
 
 
 def test_tool_desc_and_args_aliases() -> None:
@@ -402,7 +403,7 @@ async def test_tool_execution_after_confirmation() -> None:
         func=tracked_delete,
         name="delete_file",
         description="Delete a file",
-        ask_for_confirmation=True,
+        interruptible=True,
     )
 
     # Mock chunks for initial call (LLM decides to delete)
@@ -519,8 +520,9 @@ async def test_tool_execution_after_confirmation() -> None:
         await agent.aforward(question="Delete /tmp/test.txt")
         raise AssertionError("Should have raised HumanInTheLoopRequired")
     except HumanInTheLoopRequired as e:
-        assert e.tool_name == "delete_file"
-        assert e.tool_args == {"path": "/tmp/test.txt"}
+        assert e.tool_call is not None
+        assert e.tool_call.name == "delete_file"
+        assert e.tool_call.args == {"path": "/tmp/test.txt"}
         assert call_count["count"] == 0  # Tool should NOT have been called yet
         saved_state = e
 
@@ -689,7 +691,8 @@ async def test_user_feedback_triggers_re_reasoning() -> None:
         await agent.aforward(question="Tell me about it")
         raise AssertionError("Should have raised HumanInTheLoopRequired")
     except HumanInTheLoopRequired as e:
-        assert e.tool_name == "ask_to_user"
+        assert e.tool_call is not None
+        assert e.tool_call.name == "ask_to_user"
         saved_state = e
 
     # Step 2: User provides feedback (not yes/no)

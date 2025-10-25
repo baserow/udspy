@@ -2,14 +2,13 @@
 
 from udspy.adapter import ChatAdapter
 from udspy.history import History
+from udspy.interrupt import HumanInTheLoopRequired, ToolCall, get_interrupt_status
 from udspy.module import (
     ChainOfThought,
-    HumanInTheLoopRequired,
     Module,
     Predict,
     Prediction,
     ReAct,
-    UserInputRequired,
 )
 from udspy.settings import settings
 from udspy.signature import InputField, OutputField, Signature, make_signature
@@ -34,7 +33,8 @@ __all__ = [
     "ChainOfThought",
     "ReAct",
     "HumanInTheLoopRequired",
-    "UserInputRequired",  # Backwards compatibility
+    "ToolCall",
+    "get_interrupt_status",
     # Adapter
     "ChatAdapter",
     # History

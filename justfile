@@ -19,8 +19,9 @@ test-cov:
 lint:
     uv run ruff check src tests
 
-# Format code
+# Format code and fix linting issues
 fmt:
+    uv run ruff check --fix src tests
     uv run ruff format src tests
 
 # Run type checker

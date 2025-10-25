@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from udspy.interrupt import HumanInTheLoopRequired
 from udspy.streaming import Prediction, StreamEvent
 
 
@@ -113,3 +114,87 @@ class Module:
             Final Prediction object
         """
         return self.forward(**inputs)
+
+    async def asuspend(self, exception: HumanInTheLoopRequired) -> Any:
+        """Async suspend execution and save state.
+
+        Called when HumanInTheLoopRequired is raised. Subclasses should override
+        to save any module-specific state needed for resumption.
+
+        Args:
+            exception: The HumanInTheLoopRequired exception that was raised
+
+        Returns:
+            Saved state (can be any type, will be passed to aresume)
+        """
+        # Default implementation returns the exception itself as state
+        return exception
+
+    def suspend(self, exception: HumanInTheLoopRequired) -> Any:
+        """Sync suspend execution and save state.
+
+        Wraps asuspend() with async_to_sync.
+
+        Args:
+            exception: The HumanInTheLoopRequired exception that was raised
+
+        Returns:
+            Saved state (can be any type, will be passed to resume)
+        """
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError(
+                f"Cannot call {self.__class__.__name__}.suspend() from async context. "
+                f"Use 'await {self.__class__.__name__[0].lower() + self.__class__.__name__[1:]}.asuspend(...)' instead."
+            )
+        except RuntimeError as e:
+            if "no running event loop" not in str(e).lower():
+                raise
+
+        return asyncio.run(self.asuspend(exception))
+
+    async def aresume(self, user_response: str, saved_state: Any) -> Prediction:
+        """Async resume execution after user input.
+
+        Called to resume execution after a HumanInTheLoopRequired exception.
+        Subclasses must override to implement resumption logic.
+
+        Args:
+            user_response: The user's response. Can be:
+                - "yes"/"y" to approve the action
+                - "no"/"n" to reject the action
+                - "feedback" to provide feedback for LLM re-reasoning
+                - JSON string with "edit" to modify tool arguments
+            saved_state: State returned from asuspend()
+
+        Returns:
+            Final Prediction object
+
+        Raises:
+            NotImplementedError: If not implemented by subclass
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} must implement aresume() method")
+
+    def resume(self, user_response: str, saved_state: Any) -> Prediction:
+        """Sync resume execution after user input.
+
+        Wraps aresume() with async_to_sync.
+
+        Args:
+            user_response: The user's response
+            saved_state: State returned from suspend()
+
+        Returns:
+            Final Prediction object
+        """
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError(
+                f"Cannot call {self.__class__.__name__}.resume() from async context. "
+                f"Use 'await {self.__class__.__name__[0].lower() + self.__class__.__name__[1:]}.aresume(...)' instead."
+            )
+        except RuntimeError as e:
+            if "no running event loop" not in str(e).lower():
+                raise
+
+        return asyncio.run(self.aresume(user_response, saved_state))

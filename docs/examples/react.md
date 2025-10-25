@@ -99,24 +99,19 @@ except HumanInTheLoopRequired as e:
     user_response = "The Python programming language"
 
     # Resume execution
-    result = agent.resume_after_user_input(user_response, e)
+    result = agent.resume(user_response, e)
     print(result.answer)
 ```
 
-### When `ask_to_user` Can Be Used
+### Configuring `ask_to_user`
 
-To prevent overuse, `ask_to_user` has strict usage rules:
-
-1. **Once per task**: Can only be called once during execution
-2. **At the beginning**: Allowed if the initial request is ambiguous
-3. **After failures**: Allowed after multiple consecutive tool failures (default: 3)
+The `ask_to_user` tool is enabled by default and can be called by the agent whenever clarification is needed:
 
 ```python
 agent = ReAct(
     ResearchTask,
     tools=[search],
-    enable_ask_to_user=True,
-    max_failures=3  # Ask user after 3 consecutive failures
+    enable_ask_to_user=True,  # Default: enabled
 )
 ```
 
@@ -138,7 +133,7 @@ For destructive or sensitive operations, you can require user confirmation:
 @tool(
     name="delete_file",
     description="Delete a file",
-    ask_for_confirmation=True  # Require confirmation
+    interruptible=True  # Require confirmation
 )
 def delete_file(path: str = Field(description="File path")) -> str:
     os.remove(path)
@@ -156,8 +151,13 @@ except HumanInTheLoopRequired as e:
     print(f"Confirm: {e.question}")
     # "Confirm execution of delete_file with args: {'path': '/tmp/old_data.txt'}? (yes/no)"
 
+    # Check tool call info
+    if e.tool_call:
+        print(f"Tool: {e.tool_call.name}")
+        print(f"Args: {e.tool_call.args}")
+
     # User confirms
-    result = agent.resume_after_user_input("yes", e)
+    result = agent.resume("yes", e)
 ```
 
 ## Accessing the Trajectory
@@ -202,7 +202,6 @@ agent = ReAct(
     signature=ResearchTask,       # Task signature
     tools=[search, calculator],   # Available tools
     max_iters=10,                 # Maximum reasoning steps (default: 10)
-    max_failures=3,               # Failures before allowing ask_to_user (default: 3)
     enable_ask_to_user=True       # Enable user clarification (default: True)
 )
 ```
@@ -212,7 +211,6 @@ agent = ReAct(
 - **`signature`**: Signature class or string format (`"input -> output"`)
 - **`tools`**: List of tool functions (decorated with `@tool`) or `Tool` objects
 - **`max_iters`**: Maximum number of reasoning iterations before stopping
-- **`max_failures`**: Number of consecutive tool failures before allowing `ask_to_user`
 - **`enable_ask_to_user`**: Whether to enable the `ask_to_user` tool
 
 ## Async Support
@@ -233,7 +231,7 @@ async def main():
     try:
         result = await agent.aforward(question="Tell me about it")
     except HumanInTheLoopRequired as e:
-        result = await agent.aresume_after_user_input("Python", e)
+        result = await agent.aresume("Python", e)
 
 asyncio.run(main())
 ```
@@ -310,7 +308,7 @@ def api_call(endpoint: str = Field(...)) -> str:
 # Agent will see error in observation and can:
 # 1. Try a different tool
 # 2. Retry with different args
-# 3. Ask user for help (after max_failures)
+# 3. Ask user for help (using ask_to_user tool)
 ```
 
 ### State Management
@@ -324,13 +322,14 @@ except HumanInTheLoopRequired as e:
     # Save state
     saved_state = e
     saved_question = e.question
-    saved_trajectory = e.trajectory
-    saved_iteration = e.iteration
-    saved_input_args = e.input_args
+    # Access ReAct-specific state from context
+    saved_trajectory = e.context["trajectory"]
+    saved_iteration = e.context["iteration"]
+    saved_input_args = e.context["input_args"]
 
     # Later, restore and continue
     user_response = input(f"{saved_question} ")
-    result = agent.resume_after_user_input(user_response, saved_state)
+    result = agent.resume(user_response, saved_state)
 ```
 
 ## DSPy Compatibility
@@ -354,7 +353,7 @@ print(search.args)   # Dict of argument specs
 1. **Provide clear tool descriptions**: The LLM uses descriptions to select tools
 2. **Use Field() for parameters**: Provide descriptions for all tool parameters
 3. **Limit max_iters**: Prevent infinite loops with reasonable iteration limits
-4. **Enable confirmation for destructive ops**: Use `ask_for_confirmation=True`
+4. **Enable confirmation for destructive ops**: Use `interruptible=True`
 5. **Handle HumanInTheLoopRequired**: Always catch and handle clarification requests
 6. **Use specific signatures**: Clear input/output fields help the agent understand the task
 7. **Test with mock tools**: Use simple mock tools to validate agent logic
@@ -440,13 +439,13 @@ agent = ReAct(
 )
 ```
 
-Or increase failure threshold:
+Or disable it completely if the agent should never ask for clarification:
 
 ```python
 agent = ReAct(
     signature,
     tools=tools,
-    max_failures=5  # Only after 5 failures
+    enable_ask_to_user=False  # Disable user clarification
 )
 ```
 

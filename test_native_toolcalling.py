@@ -50,7 +50,7 @@ def search(query: str = Field(description="Search query")) -> str:
 @tool(
     name="delete_file",
     description="Delete a file (requires confirmation)",
-    ask_for_confirmation=True,
+    interruptible=True,
 )
 def delete_file(path: str = Field(description="File path")) -> str:
     """Delete a file - requires confirmation."""

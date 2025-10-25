@@ -11,7 +11,7 @@ API documentation for creating and using tools with native OpenAI function calli
     name: str | None = None,
     description: str | None = None,
     *,
-    ask_for_confirmation: bool = False,
+    interruptible: bool = False,
 ) -> Callable[[Callable], Tool]
 ```
 
@@ -24,8 +24,9 @@ Decorator to mark a function as a tool for use with `Predict` and `ReAct` module
 - **`description`** (`str | None`, default: `None`): Tool description visible to the LLM
   - If not provided, uses the function's docstring
   - This helps the LLM decide when to use the tool
-- **`ask_for_confirmation`** (`bool`, default: `False`): Whether to require user confirmation before execution
-  - If `True`, raises `HumanInTheLoopRequired` before executing
+- **`interruptible`** (`bool`, default: `False`): Whether to require user confirmation before execution
+  - If `True`, wraps the tool with `@interruptible` decorator
+  - Raises `HumanInTheLoopRequired` on first call, executes after approval
   - Useful for destructive or sensitive operations
 
 **Returns:**
@@ -54,7 +55,7 @@ def calculator(
     return ops[operation]
 ```
 
-### Tool Confirmation Example
+### Tool Interruption Example
 
 ```python
 import os
@@ -64,7 +65,7 @@ from udspy import tool
 @tool(
     name="delete_file",
     description="Delete a file from the filesystem",
-    ask_for_confirmation=True  # Requires user confirmation
+    interruptible=True  # Requires user confirmation
 )
 def delete_file(path: str = Field(description="File path to delete")) -> str:
     """Delete a file (requires confirmation)."""
@@ -92,7 +93,7 @@ def __init__(
     name: str | None = None,
     description: str | None = None,
     *,
-    ask_for_confirmation: bool = False,
+    interruptible: bool = False,
     desc: str | None = None,
     args: dict[str, str] | None = None,
 )
@@ -103,7 +104,7 @@ def __init__(
 - **`func`** (`Callable`): The function to wrap
 - **`name`** (`str | None`): Tool name (defaults to function name)
 - **`description`** (`str | None`): Tool description (defaults to docstring)
-- **`ask_for_confirmation`** (`bool`, default: `False`): Whether to require confirmation
+- **`interruptible`** (`bool`, default: `False`): Whether to require confirmation before execution
 - **`desc`** (`str | None`): Alias for `description` (DSPy compatibility)
 - **`args`** (`dict[str, str] | None`): Manual argument specification (DSPy compatibility)
 
@@ -154,10 +155,10 @@ description: str
 
 The tool's description as seen by the LLM.
 
-#### `ask_for_confirmation`
+#### `interruptible`
 
 ```python
-ask_for_confirmation: bool
+interruptible: bool
 ```
 
 Whether this tool requires user confirmation before execution.
@@ -239,8 +240,8 @@ result = add(2, 3)  # Returns 5
 Call the wrapped function asynchronously.
 
 - If the function is async, awaits it directly
-- If the function is sync, runs it in an executor to avoid blocking
-- If `ask_for_confirmation=True`, raises `HumanInTheLoopRequired` before execution
+- If the function is sync, runs it in an executor to avoid blocking (unless `interruptible=True`)
+- If `interruptible=True`, may raise `HumanInTheLoopRequired` before execution
 
 **Parameters:**
 
@@ -252,7 +253,7 @@ Call the wrapped function asynchronously.
 
 **Raises:**
 
-- `HumanInTheLoopRequired`: If `ask_for_confirmation=True`
+- `HumanInTheLoopRequired`: If `interruptible=True` and not yet approved
 
 **Example:**
 
@@ -392,9 +393,9 @@ def example_tool(
 
 ---
 
-## Tool Confirmation
+## Tool Interruption
 
-For destructive or sensitive operations, use `ask_for_confirmation=True`:
+For destructive or sensitive operations, use `interruptible=True`:
 
 ```python
 import os
@@ -404,7 +405,7 @@ from udspy import tool, HumanInTheLoopRequired
 @tool(
     name="delete_all_files",
     description="Delete all files in a directory",
-    ask_for_confirmation=True  # Requires confirmation
+    interruptible=True  # Requires confirmation
 )
 def delete_all_files(
     directory: str = Field(description="Directory path")
@@ -414,17 +415,18 @@ def delete_all_files(
         os.remove(os.path.join(directory, file))
     return f"Deleted all files in {directory}"
 
-# When ReAct tries to call this tool, it raises HumanInTheLoopRequired
-# The user must confirm before the tool executes
+# When ReAct tries to call this tool, it raises HumanInTheLoopRequired on first call
+# After user approves, the tool executes normally
 ```
 
 **How it works:**
 
 1. LLM decides to call the tool
-2. Tool's `acall()` method raises `HumanInTheLoopRequired` before executing
+2. Tool function (wrapped with `@interruptible`) raises `HumanInTheLoopRequired` on first call
 3. User sees confirmation prompt: `"Confirm execution of delete_all_files with args: {...}? (yes/no)"`
 4. User responds with `"yes"`, `"no"`, or modified arguments
 5. ReAct resumes execution based on user's response
+6. If approved, subsequent calls to the same tool with same args execute normally
 
 ---
 
@@ -517,9 +519,9 @@ print(search.args)  # {"query": "str - Search query"}
    )
    ```
 
-3. **Require confirmation for destructive ops**: Use `ask_for_confirmation=True`
+3. **Require confirmation for destructive ops**: Use `interruptible=True`
    ```python
-   @tool(name="delete", description="Delete data", ask_for_confirmation=True)
+   @tool(name="delete", description="Delete data", interruptible=True)
    ```
 
 4. **Handle errors gracefully**: Return error messages as strings
@@ -555,7 +557,7 @@ def tool(
     name: str | None = None,
     description: str | None = None,
     *,
-    ask_for_confirmation: bool = False,
+    interruptible: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]: ...
 
 # Tool class
@@ -563,7 +565,7 @@ class Tool:
     func: Callable[..., Any]
     name: str
     description: str
-    ask_for_confirmation: bool
+    interruptible: bool
     parameters: dict[str, dict[str, Any]]
     desc: str  # Alias for description
     args: dict[str, str]  # DSPy compatibility
@@ -577,6 +579,7 @@ class Tool:
 
 ## See Also
 
+- [Interrupt API](interrupt.md) - Interrupt system and `@interruptible` decorator
 - [ReAct API](react.md) - Using tools with ReAct agents
 - [ReAct Examples](../examples/react.md) - Tool usage examples
 - [Module API](module.md) - Base module documentation

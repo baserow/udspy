@@ -8,6 +8,7 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from udspy.interrupt import HumanInTheLoopRequired, set_interrupt_approval
 from udspy.module.base import Module
 from udspy.module.chain_of_thought import ChainOfThought
 from udspy.module.predict import Predict
@@ -20,65 +21,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class HumanInTheLoopRequired(Exception):
-    """Raised when human input is needed to proceed.
-
-    This exception can be raised by tools or the ReAct module to pause execution
-    and request human input. It includes context for resuming execution later.
-
-    Common use cases:
-    - Tool requesting confirmation before destructive operations
-    - Tool asking for clarification or additional information
-    - Agent asking user to resolve ambiguity
-    """
-
-    def __init__(
-        self,
-        question: str,
-        *,
-        tool_name: str | None = None,
-        tool_call_id: str | None = None,
-        tool_args: dict[str, Any] | None = None,
-        trajectory: dict[str, Any] | None = None,
-        iteration: int | None = None,
-        input_args: dict[str, Any] | None = None,
-        context: dict[str, Any] | None = None,
-    ):
-        """Initialize with question and optional context.
-
-        Args:
-            question: Question to ask the human
-            tool_name: Name of the tool that raised this (if any)
-            tool_call_id: Tool call ID for tracking (if any)
-            tool_args: Arguments passed to the tool (if any)
-            trajectory: Current trajectory state (set by ReAct)
-            iteration: Current iteration number (set by ReAct)
-            input_args: Original input arguments (set by ReAct)
-            context: Additional context dictionary
-        """
-        self.question = question
-        self.tool_name = tool_name
-        self.tool_call_id = tool_call_id
-        self.tool_args = tool_args or {}
-        self.trajectory = trajectory or {}
-        self.iteration = iteration
-        self.input_args = input_args or {}
-        self.context = context or {}
-        super().__init__(f"Human input required: {question}")
-
-
-# Backwards compatibility alias
-UserInputRequired = HumanInTheLoopRequired
-
-
 class ReAct(Module):
     """ReAct (Reasoning and Acting) module for tool-using agents.
 
     ReAct iteratively reasons about the current situation and decides whether
     to call a tool or finish the task. This implementation adds:
 
-    - ask_to_user tool for clarification (usable once at start or after failures)
-    - Tool confirmation support via ask_for_confirmation flag
+    - ask_to_user tool for clarification
+    - Tool interruption support via interruptible parameter
     - State saving/restoration for user interaction
     - Trajectory truncation for long contexts
 
@@ -107,7 +57,6 @@ class ReAct(Module):
         tools: list[Callable | Tool],
         *,
         max_iters: int = 10,
-        max_failures: int = 3,
         enable_ask_to_user: bool = True,
     ):
         """Initialize ReAct module.
@@ -116,7 +65,6 @@ class ReAct(Module):
             signature: Signature defining inputs and outputs, or signature string
             tools: List of tool functions (decorated with @tool) or Tool objects
             max_iters: Maximum number of reasoning iterations (default: 10)
-            max_failures: Number of consecutive failures before allowing ask_to_user (default: 3)
             enable_ask_to_user: Whether to enable ask_to_user tool (default: True)
         """
         from udspy.tool import Tool
@@ -143,19 +91,11 @@ class ReAct(Module):
             self.signature = signature
 
         self.max_iters = max_iters
-        self.max_failures = max_failures
         self.enable_ask_to_user = enable_ask_to_user
 
         # Convert tools to Tool objects
         tool_list = [t if isinstance(t, Tool) else Tool(t) for t in tools]
         self.tools: dict[str, Tool] = {tool.name: tool for tool in tool_list}
-
-        # Track which tools need confirmation
-        self.tools_needing_confirmation = {
-            name
-            for name, tool in self.tools.items()
-            if getattr(tool, "ask_for_confirmation", False)
-        }
 
         # Build instruction for the agent
         inputs = ", ".join([f"`{k}`" for k in self.signature.get_input_fields().keys()])
@@ -191,21 +131,17 @@ class ReAct(Module):
 
             def ask_to_user_impl(question: str) -> str:
                 """Ask the user for clarification."""
+                from udspy.interrupt import ToolCall
+
                 raise HumanInTheLoopRequired(
                     question=question,
-                    tool_name="ask_to_user",
-                    tool_args={"question": question},
+                    tool_call=ToolCall(name="ask_to_user", args={"question": question}),
                 )
 
             self.tools["ask_to_user"] = Tool(
                 func=ask_to_user_impl,
                 name="ask_to_user",
-                description=(
-                    "Ask the user for clarification. ONLY use this when:\n"
-                    "1. At the very beginning if the request is ambiguous or missing critical information\n"
-                    "2. After multiple tool failures when you need help to proceed\n"
-                    "Can only be used ONCE per task."
-                ),
+                description="Ask the user for clarification when needed. Use this when you need more information or when the request is ambiguous.",
             )
 
         # Create ReAct signature with trajectory and reasoning
@@ -284,24 +220,20 @@ class ReAct(Module):
         idx: int,
         trajectory: dict[str, Any],
         input_args: dict[str, Any],
-        consecutive_failures: int,
-        ask_to_user_used: bool,
         *,
         pending_tool_call: dict[str, Any] | None = None,
-    ) -> tuple[bool, int, bool]:
+    ) -> bool:
         """Execute a single ReAct iteration.
 
         Args:
             idx: Current iteration index
             trajectory: Current trajectory state
             input_args: Original input arguments
-            consecutive_failures: Count of consecutive tool failures
-            ask_to_user_used: Whether ask_to_user has been used
             pending_tool_call: Optional pending tool call to execute (for resumption)
                              Format: {"name": str, "args": dict, "id": str}
 
         Returns:
-            Tuple of (should_stop, new_consecutive_failures, new_ask_to_user_used)
+            should_stop: Whether to stop the ReAct loop
 
         Raises:
             HumanInTheLoopRequired: When human input is needed
@@ -316,33 +248,40 @@ class ReAct(Module):
             trajectory[f"tool_args_{idx}"] = tool_args
 
             # Execute the confirmed/modified tool
-            # Bypass confirmation check since this is already confirmed
+            # The approval has been set in the interrupt context
             try:
                 tool = self.tools[tool_name]
-                # Call the underlying function directly to bypass confirmation check
+                # For interruptible tools, call directly (ContextVar doesn't propagate to thread executors)
                 if inspect.iscoroutinefunction(tool.func):
                     observation = await tool.func(**tool_args)
+                elif tool.interruptible:
+                    # Call sync interruptible tool directly to preserve interrupt context
+                    # This blocks the event loop but is necessary for context propagation
+                    observation = tool.func(**tool_args)
                 else:
+                    # Non-interruptible sync tools can run in executor
                     import asyncio
 
                     loop = asyncio.get_event_loop()
                     observation = await loop.run_in_executor(None, lambda: tool.func(**tool_args))
-                consecutive_failures = 0
             except HumanInTheLoopRequired as e:
-                # Enrich and re-raise
-                e.trajectory = trajectory.copy()
-                e.iteration = idx
-                e.input_args = input_args.copy()
-                e.tool_call_id = tool_call_id
+                # Enrich exception with module state via context
+                e.context = {
+                    "trajectory": trajectory.copy(),
+                    "iteration": idx,
+                    "input_args": input_args.copy(),
+                }
+                # Update tool_call with call_id if available
+                if e.tool_call and tool_call_id:
+                    e.tool_call.call_id = tool_call_id
                 raise
             except Exception as e:
                 observation = f"Error executing {tool_name}: {str(e)}"
-                consecutive_failures += 1
                 logger.warning(f"Tool execution failed: {e}")
 
             trajectory[f"observation_{idx}"] = str(observation)
             should_stop = tool_name == "finish"
-            return should_stop, consecutive_failures, ask_to_user_used
+            return should_stop
 
         # Normal iteration: get LLM decision and execute
         formatted_trajectory = self._format_trajectory(trajectory)
@@ -383,42 +322,29 @@ class ReAct(Module):
 
         # Execute the tool
         try:
-            if tool_name == "ask_to_user":
-                # Check if ask_to_user already used
-                if ask_to_user_used:
-                    observation = "Error: ask_to_user can only be used once per task"
-                # Check if it's allowed (beginning or after failures)
-                elif idx > 0 and consecutive_failures < self.max_failures:
-                    observation = f"Error: ask_to_user can only be used at the beginning or after {self.max_failures} consecutive tool failures"
-                else:
-                    ask_to_user_used = True
-                    # Tool will raise HumanInTheLoopRequired - we catch and enrich it
-                    tool = self.tools[tool_name]
-                    observation = await tool.acall(**tool_args)
-            else:
-                # Normal tool execution
-                tool = self.tools[tool_name]
-                observation = await tool.acall(**tool_args)
-                consecutive_failures = 0  # Reset on success
-
+            tool = self.tools[tool_name]
+            observation = await tool.acall(**tool_args)
         except HumanInTheLoopRequired as e:
-            # Enrich exception with trajectory and state
-            e.trajectory = trajectory.copy()
-            e.iteration = idx
-            e.input_args = input_args.copy()
-            e.tool_call_id = tool_call_id
+            # Enrich exception with module state via context
+            e.context = {
+                "trajectory": trajectory.copy(),
+                "iteration": idx,
+                "input_args": input_args.copy(),
+            }
+            # Update tool_call with call_id if available
+            if e.tool_call and tool_call_id:
+                e.tool_call.call_id = tool_call_id
             # Re-raise to caller
             raise
         except Exception as e:
             observation = f"Error executing {tool_name}: {str(e)}"
-            consecutive_failures += 1
             logger.warning(f"Tool execution failed: {e}")
 
         trajectory[f"observation_{idx}"] = str(observation)
 
         # Check if done
         should_stop = tool_name == "finish"
-        return should_stop, consecutive_failures, ask_to_user_used
+        return should_stop
 
     async def aforward(
         self,
@@ -437,17 +363,13 @@ class ReAct(Module):
         """
         max_iters = input_args.pop("max_iters", self.max_iters)
         trajectory: dict[str, Any] = {}
-        consecutive_failures = 0
-        ask_to_user_used = False
 
         for idx in range(max_iters):
             try:
-                should_stop, consecutive_failures, ask_to_user_used = await self._execute_iteration(
+                should_stop = await self._execute_iteration(
                     idx,
                     trajectory,
                     input_args,
-                    consecutive_failures,
-                    ask_to_user_used,
                 )
                 if should_stop:
                     break
@@ -478,7 +400,9 @@ class ReAct(Module):
         user_response: str,
         saved_state: HumanInTheLoopRequired,
     ) -> Prediction:
-        """Resume execution after user provides input.
+        """Resume execution after user provides input (backwards compatibility).
+
+        Deprecated: Use resume() instead.
 
         Args:
             user_response: The user's response to the question
@@ -487,14 +411,30 @@ class ReAct(Module):
         Returns:
             Final prediction after resuming execution
         """
-        import asyncio
-
-        return asyncio.run(self.aresume_after_user_input(user_response, saved_state))
+        return self.resume(user_response, saved_state)
 
     async def aresume_after_user_input(
         self,
         user_response: str,
         saved_state: HumanInTheLoopRequired,
+    ) -> Prediction:
+        """Async resume execution after user input (backwards compatibility).
+
+        Deprecated: Use aresume() instead.
+
+        Args:
+            user_response: The user's response
+            saved_state: The HumanInTheLoopRequired exception that was raised
+
+        Returns:
+            Final prediction after resuming
+        """
+        return await self.aresume(user_response, saved_state)
+
+    async def aresume(
+        self,
+        user_response: str,
+        saved_state: Any,
     ) -> Prediction:
         """Async resume execution after user input.
 
@@ -511,26 +451,33 @@ class ReAct(Module):
         Raises:
             HumanInTheLoopRequired: If another human input is needed
         """
-        # Restore state
-        trajectory = saved_state.trajectory.copy()
-        start_idx = saved_state.iteration or 0
-        input_args = saved_state.input_args.copy()
-        consecutive_failures = 0
-        ask_to_user_used = saved_state.tool_name == "ask_to_user"
+        # Restore state from context
+        trajectory = saved_state.context.get("trajectory", {}).copy()
+        start_idx = saved_state.context.get("iteration", 0)
+        input_args = saved_state.context.get("input_args", {}).copy()
 
         # Determine what to do based on user response
         user_response_lower = user_response.lower().strip()
         pending_tool_call: dict[str, Any] | None = None
 
         if user_response_lower in ("yes", "y"):
-            # User confirmed - execute tool with original args
-            pending_tool_call = {
-                "name": saved_state.tool_name or "",
-                "args": saved_state.tool_args.copy(),
-                "id": saved_state.tool_call_id or "",
-            }
+            # User confirmed - mark interrupt as approved and execute tool with original args
+            if saved_state.interrupt_id:
+                set_interrupt_approval(saved_state.interrupt_id, approved=True, status="approved")
+            if saved_state.tool_call:
+                pending_tool_call = {
+                    "name": saved_state.tool_call.name,
+                    "args": saved_state.tool_call.args.copy(),
+                    "id": saved_state.tool_call.call_id or "",
+                }
+            else:
+                # No tool call to execute
+                pending_tool_call = None
         elif user_response_lower in ("no", "n"):
-            # User rejected - add rejection to trajectory and continue
+            # User rejected - mark as rejected
+            if saved_state.interrupt_id:
+                set_interrupt_approval(saved_state.interrupt_id, approved=False, status="rejected")
+            # Add rejection to trajectory and continue
             trajectory[f"observation_{start_idx}"] = "User rejected the operation"
             start_idx += 1  # Move to next iteration
         else:
@@ -538,30 +485,46 @@ class ReAct(Module):
             try:
                 modified_args = json.loads(user_response)
                 if isinstance(modified_args, dict):
-                    # User provided modified args - execute with those
-                    pending_tool_call = {
-                        "name": saved_state.tool_name or "",
-                        "args": modified_args,
-                        "id": saved_state.tool_call_id or "",
-                    }
+                    # User provided modified args - mark interrupt as approved with modified data
+                    if saved_state.interrupt_id:
+                        set_interrupt_approval(
+                            saved_state.interrupt_id,
+                            approved=True,
+                            data=modified_args,
+                            status="edited",
+                        )
+                    if saved_state.tool_call:
+                        pending_tool_call = {
+                            "name": saved_state.tool_call.name,
+                            "args": modified_args,
+                            "id": saved_state.tool_call.call_id or "",
+                        }
+                    else:
+                        pending_tool_call = None
                 else:
                     # Not a dict, treat as feedback
+                    if saved_state.interrupt_id:
+                        set_interrupt_approval(
+                            saved_state.interrupt_id, approved=False, status="feedback"
+                        )
                     trajectory[f"observation_{start_idx}"] = f"User feedback: {user_response}"
                     start_idx += 1
             except json.JSONDecodeError:
                 # Not JSON, treat as user feedback for LLM to consider
+                if saved_state.interrupt_id:
+                    set_interrupt_approval(
+                        saved_state.interrupt_id, approved=False, status="feedback"
+                    )
                 trajectory[f"observation_{start_idx}"] = f"User feedback: {user_response}"
                 start_idx += 1
 
         # Continue execution from start_idx
         for idx in range(start_idx, self.max_iters):
             try:
-                should_stop, consecutive_failures, ask_to_user_used = await self._execute_iteration(
+                should_stop = await self._execute_iteration(
                     idx,
                     trajectory,
                     input_args,
-                    consecutive_failures,
-                    ask_to_user_used,
                     pending_tool_call=pending_tool_call,
                 )
                 # Clear pending tool call after first iteration
