@@ -100,7 +100,23 @@ refactor: split large astream method into smaller functions
 
 Releases are automated through GitHub Actions. Here's how to create a new release:
 
-### 1. Update Version
+### 1. Pre-release Checks
+
+Before creating a release, run all CI checks locally to ensure everything will pass:
+
+```bash
+just release-check
+```
+
+This command runs:
+- Linter (ruff) and type checker (mypy)
+- Full test suite with coverage
+- Documentation build
+- Package build
+
+If this passes locally, CI will pass too!
+
+### 2. Update Version
 
 Update the version in `pyproject.toml`:
 
@@ -115,7 +131,7 @@ And in `src/udspy/__init__.py`:
 __version__ = "0.2.0"  # Update this
 ```
 
-### 2. Commit and Tag
+### 3. Commit and Tag
 
 ```bash
 # Commit version bump
@@ -128,7 +144,7 @@ git push origin main
 git push origin v0.2.0
 ```
 
-### 3. Automated Release
+### 4. Automated Release
 
 Once the tag is pushed, GitHub Actions will automatically:
 1. Run all tests
@@ -138,7 +154,7 @@ Once the tag is pushed, GitHub Actions will automatically:
 5. Create GitHub release with changelog
 6. Comment on related issues
 
-### 4. Verify Release
+### 5. Verify Release
 
 - Check [PyPI](https://pypi.org/project/udspy/) for the new version
 - Check [GitHub Releases](https://github.com/silvestrid/udspy/releases) for the release notes

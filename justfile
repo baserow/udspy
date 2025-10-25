@@ -32,6 +32,24 @@ typecheck:
 # Run all checks (lint, test)
 check: lint test
 
+# Pre-release checks - run everything that CI runs
+release-check:
+    @echo "Running pre-release checks..."
+    @echo ""
+    @echo "1. Running linter and type checker..."
+    just lint
+    @echo ""
+    @echo "2. Running tests with coverage..."
+    just test
+    @echo ""
+    @echo "3. Building documentation..."
+    just docs-build
+    @echo ""
+    @echo "4. Building package..."
+    just build
+    @echo ""
+    @echo "✅ All pre-release checks passed! Ready to release."
+
 # Build documentation
 docs-build:
     uv run mkdocs build
