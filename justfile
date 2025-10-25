@@ -15,21 +15,22 @@ test:
 test-cov:
     uv run pytest --cov --cov-report=html --cov-report=term
 
-# Run linter
+# Run linter and type checker
 lint:
     uv run ruff check src tests examples
+    uv run mypy src
 
 # Format code and fix linting issues
 fmt:
     uv run ruff check --fix src tests examples
     uv run ruff format src tests examples
 
-# Run type checker
+# Run type checker only
 typecheck:
     uv run mypy src
 
-# Run all checks (lint, typecheck, test)
-check: lint typecheck test
+# Run all checks (lint, test)
+check: lint test
 
 # Build documentation
 docs-build:

@@ -62,13 +62,15 @@ class Tool:
             sig = inspect.signature(func)
 
             # Create a dynamic wrapper with the same signature but different name
+            # Use a single function definition to satisfy mypy's type checker
             if inspect.iscoroutinefunction(func):
-                # For async functions
+
                 async def tool_wrapper(*args: Any, **kwargs: Any) -> Any:
                     return await original_func(*args, **kwargs)
+
             else:
-                # For sync functions
-                def tool_wrapper(*args: Any, **kwargs: Any) -> Any:
+
+                def tool_wrapper(*args: Any, **kwargs: Any) -> Any:  # type: ignore[misc]
                     return original_func(*args, **kwargs)
 
             # Copy signature and set correct name

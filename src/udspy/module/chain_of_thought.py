@@ -1,11 +1,14 @@
 """Chain of Thought reasoning module."""
 
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from udspy.adapter import ChatAdapter
 from udspy.module.base import Module
 from udspy.module.predict import Predict
 from udspy.signature import Signature, make_signature
+from udspy.streaming import StreamEvent
+from udspy.tool import Tool
 
 
 class ChainOfThought(Module):
@@ -36,7 +39,7 @@ class ChainOfThought(Module):
         *,
         reasoning_description: str = "Step-by-step reasoning process",
         model: str | None = None,
-        tools: list[type] | None = None,
+        tools: list[Tool] | None = None,
         adapter: ChatAdapter | None = None,
         **kwargs: Any,
     ):
@@ -82,7 +85,9 @@ class ChainOfThought(Module):
             **kwargs,
         )
 
-    async def _aexecute(self, *, stream: bool = False, **inputs: Any):
+    async def _aexecute(  # type: ignore[override]
+        self, *, stream: bool = False, **inputs: Any
+    ) -> AsyncGenerator[StreamEvent, None]:
         """Execute chain of thought prediction.
 
         Delegates to the wrapped Predict module's _aexecute method.

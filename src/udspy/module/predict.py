@@ -544,7 +544,7 @@ class Predict(Module):
                 active_queue, completion_kwargs, emit_sentinel=False, emit_prediction=False
             )
         else:
-            queue = asyncio.Queue()
+            queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
             llm_task = asyncio.create_task(
                 self._process_llm_stream(queue, completion_kwargs, emit_sentinel=True)
             )
