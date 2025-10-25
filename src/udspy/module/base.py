@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from udspy.interrupt import HumanInTheLoopRequired
+from udspy.confirmation import ConfirmationRequired
 from udspy.streaming import Prediction, StreamEvent
 
 
@@ -109,28 +109,69 @@ class Module:
             except (ValueError, LookupError):
                 pass
 
-    async def aforward(self, **inputs: Any) -> Prediction:
+    async def aforward(self, *, resume_state: Any = None, **inputs: Any) -> Prediction:
         """Async non-streaming method. Returns final result directly.
 
         This method calls aexecute() with streaming disabled. If called from
         within a streaming context (i.e., another module is streaming), events
         will still be emitted to the active queue.
 
+        Supports resuming from a ConfirmationRequired exception by providing
+        resume_state. This enables loop-based confirmation handling.
+
         Args:
+            resume_state: Optional ResumeState containing exception and user response.
+                Can also be a raw ConfirmationRequired exception (will use "yes" as response).
             **inputs: Input values for the module
 
         Returns:
             Final Prediction object
+
+        Example:
+            ```python
+            from udspy import ResumeState
+
+            # Loop-based confirmation handling
+            resume_state = None
+
+            while True:
+                try:
+                    result = await agent.aforward(
+                        question="Delete files",
+                        resume_state=resume_state
+                    )
+                    break
+                except ConfirmationRequired as e:
+                    user_response = input(f"{e.question} (yes/no): ")
+                    resume_state = ResumeState(e, user_response)
+            ```
         """
+        if resume_state is not None:
+            # Support both ResumeState and raw ConfirmationRequired for backward compat
+            from udspy.confirmation import ConfirmationRequired, ResumeState
+
+            if isinstance(resume_state, ResumeState):
+                return await self.aresume(resume_state.user_response, resume_state.exception)
+            elif isinstance(resume_state, ConfirmationRequired):
+                # Backward compatibility: treat raw exception as "yes" response
+                return await self.aresume("yes", resume_state)
+            else:
+                # Assume it's the old-style state, try to resume
+                return await self.aresume("yes", resume_state)
         return await self.aexecute(stream=False, **inputs)
 
-    def forward(self, **inputs: Any) -> Prediction:
+    def forward(self, *, resume_state: Any = None, **inputs: Any) -> Prediction:
         """Sync non-streaming method. Wraps aforward() with async_to_sync.
 
         This provides sync compatibility for scripts and notebooks. Cannot be
         called from within an async context (use aforward() instead).
 
+        Supports resuming from a ConfirmationRequired exception by providing
+        resume_state. This enables loop-based confirmation handling.
+
         Args:
+            resume_state: Optional ResumeState containing exception and user response.
+                Can also be a raw ConfirmationRequired exception (will use "yes" as response).
             **inputs: Input values for the module (includes both input fields
                 and any module-specific parameters like auto_execute_tools)
 
@@ -139,6 +180,25 @@ class Module:
 
         Raises:
             RuntimeError: If called from within an async context
+
+        Example:
+            ```python
+            from udspy import ResumeState
+
+            # Loop-based confirmation handling
+            resume_state = None
+
+            while True:
+                try:
+                    result = agent.forward(
+                        question="Delete files",
+                        resume_state=resume_state
+                    )
+                    break
+                except ConfirmationRequired as e:
+                    user_response = input(f"{e.question} (yes/no): ")
+                    resume_state = ResumeState(e, user_response)
+            ```
         """
         # Check if we're already in an async context
         try:
@@ -153,27 +213,51 @@ class Module:
                 raise
 
         # Run async code from sync context
-        return asyncio.run(self.aforward(**inputs))
+        return asyncio.run(self.aforward(resume_state=resume_state, **inputs))
 
-    def __call__(self, **inputs: Any) -> Prediction:
+    def __call__(self, *, resume_state: Any = None, **inputs: Any) -> Prediction:
         """Sync convenience method. Calls forward().
 
+        Supports resuming from a ConfirmationRequired exception by providing
+        resume_state. This enables loop-based confirmation handling.
+
         Args:
+            resume_state: Optional ResumeState containing exception and user response.
+                Can also be a raw ConfirmationRequired exception (will use "yes" as response).
             **inputs: Input values for the module
 
         Returns:
             Final Prediction object
-        """
-        return self.forward(**inputs)
 
-    async def asuspend(self, exception: HumanInTheLoopRequired) -> Any:
+        Example:
+            ```python
+            from udspy import ResumeState
+
+            # Loop-based confirmation handling
+            resume_state = None
+
+            while True:
+                try:
+                    result = agent(
+                        question="Delete files",
+                        resume_state=resume_state
+                    )
+                    break
+                except ConfirmationRequired as e:
+                    user_response = input(f"{e.question} (yes/no): ")
+                    resume_state = ResumeState(e, user_response)
+            ```
+        """
+        return self.forward(resume_state=resume_state, **inputs)
+
+    async def asuspend(self, exception: ConfirmationRequired) -> Any:
         """Async suspend execution and save state.
 
-        Called when HumanInTheLoopRequired is raised. Subclasses should override
+        Called when ConfirmationRequired is raised. Subclasses should override
         to save any module-specific state needed for resumption.
 
         Args:
-            exception: The HumanInTheLoopRequired exception that was raised
+            exception: The ConfirmationRequired exception that was raised
 
         Returns:
             Saved state (can be any type, will be passed to aresume)
@@ -181,13 +265,13 @@ class Module:
         # Default implementation returns the exception itself as state
         return exception
 
-    def suspend(self, exception: HumanInTheLoopRequired) -> Any:
+    def suspend(self, exception: ConfirmationRequired) -> Any:
         """Sync suspend execution and save state.
 
         Wraps asuspend() with async_to_sync.
 
         Args:
-            exception: The HumanInTheLoopRequired exception that was raised
+            exception: The ConfirmationRequired exception that was raised
 
         Returns:
             Saved state (can be any type, will be passed to resume)
@@ -207,7 +291,7 @@ class Module:
     async def aresume(self, user_response: str, saved_state: Any) -> Prediction:
         """Async resume execution after user input.
 
-        Called to resume execution after a HumanInTheLoopRequired exception.
+        Called to resume execution after a ConfirmationRequired exception.
         Subclasses must override to implement resumption logic.
 
         Args:
