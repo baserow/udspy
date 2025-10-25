@@ -1,44 +1,21 @@
 """Tests for utility functions."""
 
-import asyncio
-
 import pytest
 
-from udspy.utils import asyncify
+from udspy.utils import ensure_sync_context
 
 
-def sync_function(x: int, y: int) -> int:
-    """A sync function for testing."""
-    return x + y
-
-
-async def async_function(x: int, y: int) -> int:
-    """An async function for testing."""
-    await asyncio.sleep(0)
-    return x + y
+def test_ensure_sync_context_allows_sync() -> None:
+    """Test that ensure_sync_context allows execution in sync context."""
+    # Should not raise - we're in sync context
+    ensure_sync_context("TestClass.method")
 
 
 @pytest.mark.asyncio
-async def test_asyncify_with_sync_function() -> None:
-    """Test asyncify wraps sync functions."""
-    wrapped = asyncify(sync_function)
+async def test_ensure_sync_context_blocks_async() -> None:
+    """Test that ensure_sync_context raises error in async context."""
+    with pytest.raises(RuntimeError) as exc_info:
+        ensure_sync_context("TestClass.method")
 
-    # Should be a coroutine function now
-    assert asyncio.iscoroutinefunction(wrapped)
-
-    # Should work correctly
-    result = await wrapped(5, 3)
-    assert result == 8
-
-
-@pytest.mark.asyncio
-async def test_asyncify_with_async_function() -> None:
-    """Test asyncify returns async functions as-is."""
-    wrapped = asyncify(async_function)
-
-    # Should be the same function
-    assert wrapped is async_function
-
-    # Should still work
-    result = await wrapped(5, 3)
-    assert result == 8
+    assert "Cannot call TestClass.method() from async context" in str(exc_info.value)
+    assert "await testClass.amethod(...)" in str(exc_info.value)

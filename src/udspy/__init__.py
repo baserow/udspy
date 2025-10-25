@@ -22,7 +22,6 @@ from udspy.settings import settings
 from udspy.signature import InputField, OutputField, Signature, make_signature
 from udspy.streaming import StreamChunk, StreamEvent, emit_event
 from udspy.tool import Tool, tool
-from udspy.utils import asyncify
 
 __version__ = "0.1.2"
 
@@ -59,6 +58,4 @@ __all__ = [
     # Tools
     "Tool",
     "tool",
-    # Utils
-    "asyncify",
 ]
