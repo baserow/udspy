@@ -68,7 +68,7 @@ The streaming system yields:
 Modules can contain other modules, creating powerful compositions:
 
 ```python
-from udspy import Module, Predict, ChainOfThought
+from udspy import Module, Predict, ChainOfThought, Prediction
 
 class Pipeline(Module):
     def __init__(self):
@@ -76,18 +76,22 @@ class Pipeline(Module):
         self.summarizer = ChainOfThought("text, analysis -> summary")
 
     async def aexecute(self, *, stream: bool = False, **inputs):
-        # First module
-        analysis = await self.analyzer.aforward(text=inputs["text"])
+        # First module: get analysis (stream=False since we need full result)
+        analysis = None
+        async for event in self.analyzer.aexecute(stream=False, text=inputs["text"]):
+            if isinstance(event, Prediction):
+                analysis = event
 
-        # Second module uses first module's output
-        result = await self.summarizer.aexecute(
+        if not analysis:
+            raise ValueError("First module did not produce a result")
+
+        # Second module: pass down stream parameter
+        async for event in self.summarizer.aexecute(
             stream=stream,
             text=inputs["text"],
             analysis=analysis.analysis
-        )
-
-        # Yield the final result
-        async for event in result:
+        ):
+            # Yield all events from second module
             yield event
 ```
 

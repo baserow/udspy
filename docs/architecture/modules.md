@@ -20,19 +20,29 @@ Every module implements:
 Modules can contain other modules:
 
 ```python
+from udspy import Module, Predict, ChainOfThought, Prediction
+
 class Pipeline(Module):
     def __init__(self):
         self.analyze = Predict("text -> analysis")
         self.summarize = ChainOfThought("text, analysis -> summary")
 
     async def aexecute(self, *, stream: bool = False, **inputs):
-        analysis = await self.analyze.aforward(text=inputs["text"])
-        result = self.summarize.aexecute(
+        # First module: get analysis (stream=False since we need full result)
+        analysis = None
+        async for event in self.analyze.aexecute(stream=False, text=inputs["text"]):
+            if isinstance(event, Prediction):
+                analysis = event
+
+        if not analysis:
+            raise ValueError("First module did not produce a result")
+
+        # Second module: pass down stream parameter
+        async for event in self.summarize.aexecute(
             stream=stream,
             text=inputs["text"],
             analysis=analysis.analysis
-        )
-        async for event in result:
+        ):
             yield event
 ```
 
@@ -147,18 +157,16 @@ class CustomModule(Module):
         # Custom logic before prediction
         processed_inputs = preprocess(inputs)
 
-        # Optionally yield streaming events
-        if stream:
-            yield StreamChunk(field="status", delta="Processing...")
-
-        # Run prediction
-        result = await self.predictor.aforward(**processed_inputs)
-
-        # Custom logic after prediction
-        final_result = postprocess(result)
-
-        # Always yield final prediction
-        yield Prediction(**final_result)
+        # Call nested module's aexecute, passing down stream parameter
+        async for event in self.predictor.aexecute(stream=stream, **processed_inputs):
+            if isinstance(event, Prediction):
+                # Custom logic after prediction
+                final_result = postprocess(event)
+                # Yield final prediction
+                yield Prediction(**final_result)
+            else:
+                # Pass through other events (StreamChunks, etc.)
+                yield event
 ```
 
 See [Base Module](modules/base.md) for detailed guidance.
