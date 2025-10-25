@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from conftest import make_mock_response
 from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 
@@ -64,16 +65,17 @@ async def test_predict_astream() -> None:
         ),
     ]
 
-    # Create async iterator mock
-    async def mock_stream():
-        for chunk in chunks:
-            yield chunk
-
-    # Import settings here to use the configured mock client
     from udspy import settings
 
+    async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
+        async def mock_stream():
+            for chunk in chunks:
+                yield chunk
+
+        return mock_stream()
+
     mock_async_client = settings.aclient
-    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_stream())
+    mock_async_client.chat.completions.create = mock_create
 
     predictor = Predict(QA)
     events_received = []
@@ -81,13 +83,10 @@ async def test_predict_astream() -> None:
     async for event in predictor.astream(question="What is the capital of France?"):
         events_received.append(event)
 
-    # Should receive stream events (chunks and final prediction)
     assert len(events_received) > 0
 
-    # Last event should be Prediction
     assert isinstance(events_received[-1], Prediction)
 
-    # Should have some StreamChunk events
     chunks_received = [e for e in events_received if isinstance(e, StreamChunk)]
     assert len(chunks_received) > 0
 
@@ -96,31 +95,11 @@ async def test_predict_astream() -> None:
 async def test_predict_aforward() -> None:
     """Test async non-streaming with Predict.aforward()."""
 
-    # Create mock streaming response (aforward internally uses astream)
-    chunks = [
-        ChatCompletionChunk(
-            id="test",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(content="[[ ## answer ## ]]\nParis", role="assistant"),
-                    finish_reason=None,
-                )
-            ],
-        ),
-    ]
-
-    async def mock_stream():
-        for chunk in chunks:
-            yield chunk
-
     from udspy import settings
 
     mock_async_client = settings.aclient
-    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_stream())
+    mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
+    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     predictor = Predict(QA)
     result = await predictor.aforward(question="What is the capital of France?")
@@ -132,31 +111,11 @@ async def test_predict_aforward() -> None:
 def test_predict_forward_sync() -> None:
     """Test sync non-streaming with Predict.forward()."""
 
-    # Create mock streaming response
-    chunks = [
-        ChatCompletionChunk(
-            id="test",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(content="[[ ## answer ## ]]\nParis", role="assistant"),
-                    finish_reason=None,
-                )
-            ],
-        ),
-    ]
-
-    async def mock_stream():
-        for chunk in chunks:
-            yield chunk
-
     from udspy import settings
 
     mock_async_client = settings.aclient
-    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_stream())
+    mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
+    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     predictor = Predict(QA)
     result = predictor(question="What is the capital of France?")
@@ -189,12 +148,10 @@ async def test_stream_chunk() -> None:
 async def test_emit_event() -> None:
     """Test emitting custom events to the stream."""
 
-    # Define custom event
     class CustomStatus(StreamEvent):
         def __init__(self, message: str):
             self.message = message
 
-    # Create mock streaming response with a tool that emits events
     chunks = [
         ChatCompletionChunk(
             id="test",
@@ -211,16 +168,18 @@ async def test_emit_event() -> None:
         ),
     ]
 
-    async def mock_stream():
-        # Emit custom event during stream
-        await emit_event(CustomStatus("Processing..."))
-        for chunk in chunks:
-            yield chunk
-
     from udspy import settings
 
+    async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
+        async def mock_stream():
+            await emit_event(CustomStatus("Processing..."))
+            for chunk in chunks:
+                yield chunk
+
+        return mock_stream()
+
     mock_async_client = settings.aclient
-    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_stream())
+    mock_async_client.chat.completions.create = mock_create
 
     predictor = Predict(QA)
     events_received = []

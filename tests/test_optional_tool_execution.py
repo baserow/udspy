@@ -1,12 +1,12 @@
 """Tests for optional tool execution."""
 
 import pytest
-from openai.types.chat import ChatCompletionChunk
-from openai.types.chat.chat_completion_chunk import (
-    Choice,
-    ChoiceDelta,
-    ChoiceDeltaToolCall,
-    ChoiceDeltaToolCallFunction,
+from conftest import make_mock_response
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice as CompletionChoice
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+    Function,
 )
 from pydantic import Field
 
@@ -39,57 +39,36 @@ class QA(Signature):
 @pytest.mark.asyncio
 async def test_auto_execute_tools_true() -> None:
     """Test with auto_execute_tools=True (default) - should execute automatically."""
-    # Mock first streaming response - LLM requests tool
-    first_chunks = [
-        ChatCompletionChunk(
-            id="test1",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        role="assistant",
-                        tool_calls=[
-                            ChoiceDeltaToolCall(
-                                index=0,
-                                id="call_123",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="Calculator",
-                                    arguments='{"operation": "multiply", "a": 5, "b": 3}',
-                                ),
-                            )
-                        ],
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
+    # Mock first response - LLM requests tool
+    first_response = ChatCompletion(
+        id="test1",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_123",
+                            type="function",
+                            function=Function(
+                                name="Calculator",
+                                arguments='{"operation": "multiply", "a": 5, "b": 3}',
+                            ),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
 
-    # Mock second streaming response - LLM provides final answer
-    second_chunks = [
-        ChatCompletionChunk(
-            id="test2",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(index=0, delta=ChoiceDelta(content="[[ ## answer ## ]]"), finish_reason=None)
-            ],
-        ),
-        ChatCompletionChunk(
-            id="test2",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(index=0, delta=ChoiceDelta(content="\nThe answer is 15"), finish_reason=None)
-            ],
-        ),
-    ]
+    # Mock second response - LLM provides final answer
+    second_response = make_mock_response("[[ ## answer ## ]]\nThe answer is 15")
 
     call_count = 0
 
@@ -98,19 +77,9 @@ async def test_auto_execute_tools_true() -> None:
         call_count += 1
 
         if call_count == 1:
-
-            async def first_stream():  # type: ignore[no-untyped-def]
-                for chunk in first_chunks:
-                    yield chunk
-
-            return first_stream()
+            return first_response
         else:
-
-            async def second_stream():  # type: ignore[no-untyped-def]
-                for chunk in second_chunks:
-                    yield chunk
-
-            return second_stream()
+            return second_response
 
     mock_aclient = settings.aclient
     mock_aclient.chat.completions.create = mock_create
@@ -127,47 +96,40 @@ async def test_auto_execute_tools_true() -> None:
 @pytest.mark.asyncio
 async def test_auto_execute_tools_false() -> None:
     """Test with auto_execute_tools=False - should return tool_calls without execution."""
-    # Mock streaming response - LLM requests tool
-    chunks = [
-        ChatCompletionChunk(
-            id="test1",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        role="assistant",
-                        tool_calls=[
-                            ChoiceDeltaToolCall(
-                                index=0,
-                                id="call_123",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="Calculator",
-                                    arguments='{"operation": "add", "a": 10, "b": 20}',
-                                ),
-                            )
-                        ],
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
+    # Mock response - LLM requests tool
+    response = ChatCompletion(
+        id="test1",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_123",
+                            type="function",
+                            function=Function(
+                                name="Calculator",
+                                arguments='{"operation": "add", "a": 10, "b": 20}',
+                            ),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
 
     call_count = 0
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
         nonlocal call_count
         call_count += 1
-
-        async def stream():  # type: ignore[no-untyped-def]
-            for chunk in chunks:
-                yield chunk
-
-        return stream()
+        return response
 
     mock_aclient = settings.aclient
     mock_aclient.chat.completions.create = mock_create
@@ -190,47 +152,40 @@ async def test_auto_execute_tools_false() -> None:
 
 def test_forward_with_auto_execute_tools_false() -> None:
     """Test sync forward() with auto_execute_tools=False."""
-    # Mock streaming response - LLM requests tool
-    chunks = [
-        ChatCompletionChunk(
-            id="test1",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        role="assistant",
-                        tool_calls=[
-                            ChoiceDeltaToolCall(
-                                index=0,
-                                id="call_456",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="Calculator",
-                                    arguments='{"operation": "subtract", "a": 50, "b": 25}',
-                                ),
-                            )
-                        ],
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
+    # Mock response - LLM requests tool
+    response = ChatCompletion(
+        id="test1",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_456",
+                            type="function",
+                            function=Function(
+                                name="Calculator",
+                                arguments='{"operation": "subtract", "a": 50, "b": 25}',
+                            ),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
 
     call_count = 0
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
         nonlocal call_count
         call_count += 1
-
-        async def stream():  # type: ignore[no-untyped-def]
-            for chunk in chunks:
-                yield chunk
-
-        return stream()
+        return response
 
     mock_aclient = settings.aclient
     mock_aclient.chat.completions.create = mock_create
@@ -251,42 +206,36 @@ def test_forward_with_auto_execute_tools_false() -> None:
 
 def test_call_with_auto_execute_tools_false() -> None:
     """Test __call__() with auto_execute_tools=False."""
-    # Mock streaming response - LLM requests tool
-    chunks = [
-        ChatCompletionChunk(
-            id="test1",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        role="assistant",
-                        tool_calls=[
-                            ChoiceDeltaToolCall(
-                                index=0,
-                                id="call_789",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="Calculator",
-                                    arguments='{"operation": "divide", "a": 100, "b": 5}',
-                                ),
-                            )
-                        ],
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
+    # Mock response - LLM requests tool
+    response = ChatCompletion(
+        id="test1",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_789",
+                            type="function",
+                            function=Function(
+                                name="Calculator",
+                                arguments='{"operation": "divide", "a": 100, "b": 5}',
+                            ),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
-        async def stream():  # type: ignore[no-untyped-def]
-            for chunk in chunks:
-                yield chunk
-
-        return stream()
+        return response
 
     mock_aclient = settings.aclient
     mock_aclient.chat.completions.create = mock_create

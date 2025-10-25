@@ -7,6 +7,7 @@ import pytest
 
 from udspy.interrupt import (
     HumanInTheLoopRequired,
+    InterruptRejected,
     ToolCall,
     clear_all_interrupts,
     clear_interrupt,
@@ -287,3 +288,56 @@ def test_interruptible_with_no_approval() -> None:
     for _ in range(3):
         with pytest.raises(HumanInTheLoopRequired):
             func()
+
+
+def test_interruptible_raises_rejected_when_user_rejects() -> None:
+    """Test that @interruptible raises InterruptRejected when user explicitly rejects."""
+    clear_all_interrupts()
+
+    @interruptible
+    def delete_file(path: str) -> str:
+        return f"Deleted {path}"
+
+    # First call - raises HumanInTheLoopRequired
+    with pytest.raises(HumanInTheLoopRequired) as exc_info:
+        delete_file("/tmp/test.txt")
+
+    interrupt_id = exc_info.value.interrupt_id
+
+    # User rejects the interrupt
+    set_interrupt_approval(interrupt_id, approved=False, status="rejected")
+
+    # Second call - should raise InterruptRejected
+    with pytest.raises(InterruptRejected) as rejected_exc:
+        delete_file("/tmp/test.txt")
+
+    assert rejected_exc.value.interrupt_id == interrupt_id
+    assert "rejected" in rejected_exc.value.message.lower()
+    assert rejected_exc.value.tool_call is not None
+    assert rejected_exc.value.tool_call.name == "delete_file"
+
+
+@pytest.mark.asyncio
+async def test_interruptible_async_raises_rejected() -> None:
+    """Test that @interruptible async function raises InterruptRejected on rejection."""
+    clear_all_interrupts()
+
+    @interruptible
+    async def async_delete(path: str) -> str:
+        return f"Deleted {path}"
+
+    # First call - raises HumanInTheLoopRequired
+    with pytest.raises(HumanInTheLoopRequired) as exc_info:
+        await async_delete("/tmp/test.txt")
+
+    interrupt_id = exc_info.value.interrupt_id
+
+    # User rejects
+    set_interrupt_approval(interrupt_id, approved=False, status="rejected")
+
+    # Second call - should raise InterruptRejected
+    with pytest.raises(InterruptRejected) as rejected_exc:
+        await async_delete("/tmp/test.txt")
+
+    assert rejected_exc.value.interrupt_id == interrupt_id
+    assert rejected_exc.value.tool_call is not None

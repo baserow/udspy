@@ -3,8 +3,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from openai.types.chat import ChatCompletionChunk
-from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 
 from udspy import InputField, OutputField, Predict, Prediction, Signature, settings
 
@@ -53,32 +51,11 @@ def test_predict_forward() -> None:
         question: str = InputField()
         answer: str = OutputField()
 
-    # Mock streaming response
-    chunks = [
-        ChatCompletionChunk(
-            id="test",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        content="[[ ## answer ## ]]\nParis",
-                        role="assistant",
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        ),
-    ]
+    from conftest import make_mock_response
 
-    async def mock_stream():
-        for chunk in chunks:
-            yield chunk
-
-    mock_async_client = settings.aclient
-    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_stream())
+    settings.aclient.chat.completions.create = AsyncMock(
+        return_value=make_mock_response("[[ ## answer ## ]]\nParis")
+    )
 
     predictor = Predict(QA)
     result = predictor(question="What is the capital of France?")

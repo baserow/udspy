@@ -148,3 +148,100 @@ def test_parse_value_with_pydantic_model() -> None:
     assert isinstance(result, TestModel)
     assert result.name == "Alice"
     assert result.age == 30
+
+
+def test_parse_outputs_with_extra_text_before_marker() -> None:
+    """Test that parse_outputs ignores text before field markers."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    adapter = ChatAdapter()
+    # LLM adds preamble before the marker
+    completion = "Let me answer your question.\n\n[[ ## answer ## ]]\nParis"
+
+    outputs = adapter.parse_outputs(QA, completion)
+
+    assert "answer" in outputs
+    assert outputs["answer"] == "Paris"
+
+
+def test_parse_outputs_with_extra_text_after_marker() -> None:
+    """Test that parse_outputs ignores text after field content."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    adapter = ChatAdapter()
+    # LLM adds extra text after the answer
+    completion = "[[ ## answer ## ]]\nParis\n\nI hope this helps!"
+
+    outputs = adapter.parse_outputs(QA, completion)
+
+    assert "answer" in outputs
+    # Should only capture "Paris", not the extra text
+    assert outputs["answer"] == "Paris\n\nI hope this helps!"
+
+
+def test_parse_outputs_strips_newlines() -> None:
+    """Test that parse_outputs strips leading/trailing newlines from content."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    adapter = ChatAdapter()
+    # Extra newlines after marker and before content
+    completion = "[[ ## answer ## ]]\n\n\nParis\n\n\n"
+
+    outputs = adapter.parse_outputs(QA, completion)
+
+    assert "answer" in outputs
+    # Should strip leading/trailing newlines
+    assert outputs["answer"] == "Paris"
+
+
+def test_parse_outputs_preserves_internal_newlines() -> None:
+    """Test that parse_outputs preserves newlines within content."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    adapter = ChatAdapter()
+    # Multi-line answer with internal newlines
+    completion = "[[ ## answer ## ]]\nLine 1\nLine 2\nLine 3"
+
+    outputs = adapter.parse_outputs(QA, completion)
+
+    assert "answer" in outputs
+    assert outputs["answer"] == "Line 1\nLine 2\nLine 3"
+
+
+def test_parse_outputs_with_varied_whitespace_in_markers() -> None:
+    """Test that parse_outputs handles varied whitespace in markers."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    adapter = ChatAdapter()
+    # Marker with extra spaces
+    completion = "[[  ##  answer  ##  ]]\nParis"
+
+    outputs = adapter.parse_outputs(QA, completion)
+
+    assert "answer" in outputs
+    assert outputs["answer"] == "Paris"

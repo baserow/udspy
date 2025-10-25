@@ -1,6 +1,13 @@
 """Tests for @tool decorator and automatic tool execution."""
 
 import pytest
+from conftest import make_mock_response
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice as CompletionChoice
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+    Function,
+)
 from pydantic import Field
 
 from udspy import InputField, OutputField, Predict, Signature, settings, tool
@@ -63,65 +70,37 @@ def test_tool_callable() -> None:
 @pytest.mark.asyncio
 async def test_predict_with_tool_automatic_execution() -> None:
     """Test Predict automatically executes tools and handles multi-turn."""
-    from openai.types.chat import ChatCompletionChunk
-    from openai.types.chat.chat_completion_chunk import (
-        Choice,
-        ChoiceDelta,
-        ChoiceDeltaToolCall,
-        ChoiceDeltaToolCallFunction,
+
+    # Mock first response - LLM requests tool
+    first_response = ChatCompletion(
+        id="test1",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_123",
+                            type="function",
+                            function=Function(
+                                name="Calculator",
+                                arguments='{"operation": "multiply", "a": 5, "b": 3}',
+                            ),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
     )
 
-    # Mock first streaming response - LLM requests tool
-    first_chunks = [
-        ChatCompletionChunk(
-            id="test1",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        role="assistant",
-                        tool_calls=[
-                            ChoiceDeltaToolCall(
-                                index=0,
-                                id="call_123",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="Calculator",
-                                    arguments='{"operation": "multiply", "a": 5, "b": 3}',
-                                ),
-                            )
-                        ],
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
-
-    # Mock second streaming response - LLM provides final answer after seeing tool result
-    second_chunks = [
-        ChatCompletionChunk(
-            id="test2",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(index=0, delta=ChoiceDelta(content="[[ ## answer ## ]]"), finish_reason=None)
-            ],
-        ),
-        ChatCompletionChunk(
-            id="test2",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(index=0, delta=ChoiceDelta(content="\nThe answer is 15"), finish_reason=None)
-            ],
-        ),
-    ]
+    # Mock second response - LLM provides final answer after seeing tool result
+    second_response = make_mock_response("[[ ## answer ## ]]\nThe answer is 15")
 
     call_count = 0
 
@@ -131,18 +110,10 @@ async def test_predict_with_tool_automatic_execution() -> None:
 
         if call_count == 1:
             # First call - return tool call
-            async def first_stream():  # type: ignore[no-untyped-def]
-                for chunk in first_chunks:
-                    yield chunk
-
-            return first_stream()
+            return first_response
         else:
             # Second call - return final answer
-            async def second_stream():  # type: ignore[no-untyped-def]
-                for chunk in second_chunks:
-                    yield chunk
-
-            return second_stream()
+            return second_response
 
     # Mock the client
     mock_aclient = settings.aclient
@@ -196,64 +167,41 @@ def test_tool_with_optional_types() -> None:
 @pytest.mark.asyncio
 async def test_tool_error_handling() -> None:
     """Test error handling when tool execution fails."""
-    from openai.types.chat import ChatCompletionChunk
-    from openai.types.chat.chat_completion_chunk import (
-        Choice,
-        ChoiceDelta,
-        ChoiceDeltaToolCall,
-        ChoiceDeltaToolCallFunction,
-    )
 
     @tool(name="FailingTool", description="A tool that fails")
     def failing_tool(value: int = Field(description="A value")) -> int:
         raise ValueError("Tool failed!")
 
-    # Mock first streaming response - LLM requests failing tool
-    first_chunks = [
-        ChatCompletionChunk(
-            id="test",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        role="assistant",
-                        tool_calls=[
-                            ChoiceDeltaToolCall(
-                                index=0,
-                                id="call_456",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="FailingTool",
-                                    arguments='{"value": 42}',
-                                ),
-                            )
-                        ],
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
+    # Mock first response - LLM requests failing tool
+    first_response = ChatCompletion(
+        id="test",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_456",
+                            type="function",
+                            function=Function(
+                                name="FailingTool",
+                                arguments='{"value": 42}',
+                            ),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
 
-    # Mock second streaming response - LLM provides answer after seeing error
-    second_chunks = [
-        ChatCompletionChunk(
-            id="test2",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(content="[[ ## answer ## ]]\nThe tool encountered an error"),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
+    # Mock second response - LLM provides answer after seeing error
+    second_response = make_mock_response("[[ ## answer ## ]]\nThe tool encountered an error")
 
     call_count = 0
     messages_log = []
@@ -264,19 +212,9 @@ async def test_tool_error_handling() -> None:
         messages_log.append(kwargs.get("messages", []))
 
         if call_count == 1:
-
-            async def first_stream():  # type: ignore[no-untyped-def]
-                for chunk in first_chunks:
-                    yield chunk
-
-            return first_stream()
+            return first_response
         else:
-
-            async def second_stream():  # type: ignore[no-untyped-def]
-                for chunk in second_chunks:
-                    yield chunk
-
-            return second_stream()
+            return second_response
 
     mock_aclient = settings.aclient
     mock_aclient.chat.completions.create = mock_create

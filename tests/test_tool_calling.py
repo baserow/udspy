@@ -3,24 +3,37 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from openai.types.chat import ChatCompletionChunk
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice as CompletionChoice
 from openai.types.chat.chat_completion_chunk import (
     Choice,
     ChoiceDelta,
     ChoiceDeltaToolCall,
     ChoiceDeltaToolCallFunction,
 )
-from pydantic import BaseModel, Field
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+    Function,
+)
+from pydantic import Field
 
-from udspy import InputField, OutputField, Predict, Prediction, Signature, settings
+from udspy import InputField, OutputField, Predict, Prediction, Signature, settings, tool
 
 
-class Calculator(BaseModel):
-    """Perform arithmetic operations."""
-
-    operation: str = Field(description="The operation: add, subtract, multiply, divide")
-    a: float = Field(description="First number")
-    b: float = Field(description="Second number")
+@tool(name="Calculator", description="Perform arithmetic operations")
+def calculator(
+    operation: str = Field(description="The operation: add, subtract, multiply, divide"),
+    a: float = Field(description="First number"),
+    b: float = Field(description="Second number"),
+) -> float:
+    """Calculator tool."""
+    ops = {
+        "add": a + b,
+        "subtract": a - b,
+        "multiply": a * b,
+        "divide": a / b if b != 0 else float("inf"),
+    }
+    return ops[operation]
 
 
 class MathQuery(Signature):
@@ -114,6 +127,20 @@ async def test_tool_calling_with_content() -> None:
                 )
             ],
         ),
+        # Final chunk with finish reason
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content=""),
+                    finish_reason="stop",
+                )
+            ],
+        ),
     ]
 
     async def mock_stream() -> list[ChatCompletionChunk]:
@@ -123,22 +150,20 @@ async def test_tool_calling_with_content() -> None:
     mock_aclient = settings.aclient
     mock_aclient.chat.completions.create = AsyncMock(return_value=mock_stream())
 
-    # Create predictor with tools
-    predictor = Predict(MathQuery, tools=[Calculator])
+    predictor = Predict(MathQuery, tools=[calculator])
 
-    # Test streaming
     events_received = []
-    async for event in predictor.astream(question="What is 157 multiplied by 234?"):
+    async for event in predictor.astream(
+        auto_execute_tools=False, question="What is 157 multiplied by 234?"
+    ):
         events_received.append(event)
 
     # Verify we got events
     assert len(events_received) > 0
 
-    # Get final prediction
     result = events_received[-1]
     assert isinstance(result, Prediction)
 
-    # Verify answer field
     assert result.answer == "36738"
 
     # Verify tool calls are present
@@ -155,47 +180,40 @@ async def test_tool_calling_with_content() -> None:
 async def test_tool_calling_without_content() -> None:
     """Test tool calls when there's no content response (only tool calls)."""
 
-    # Create mock streaming response with only tool calls, no content
-    chunks = [
-        ChatCompletionChunk(
-            id="test",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        role="assistant",
-                        tool_calls=[
-                            ChoiceDeltaToolCall(
-                                index=0,
-                                id="call_456",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="Calculator",
-                                    arguments='{"operation": "add", "a": 5, "b": 3}',
-                                ),
-                            )
-                        ],
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        ),
-    ]
-
-    async def mock_stream() -> list[ChatCompletionChunk]:
-        for chunk in chunks:
-            yield chunk
+    # Create mock response with only tool calls, no content
+    response = ChatCompletion(
+        id="test",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_456",
+                            type="function",
+                            function=Function(
+                                name="Calculator",
+                                arguments='{"operation": "add", "a": 5, "b": 3}',
+                            ),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
 
     mock_aclient = settings.aclient
-    mock_aclient.chat.completions.create = AsyncMock(return_value=mock_stream())
+    mock_aclient.chat.completions.create = AsyncMock(return_value=response)
 
-    predictor = Predict(MathQuery, tools=[Calculator])
+    predictor = Predict(MathQuery, tools=[calculator])
 
-    # Get result
-    result = await predictor.aforward(question="What is 5 plus 3?")
+    result = await predictor.aforward(auto_execute_tools=False, question="What is 5 plus 3?")
 
     # Verify tool calls are present even without content
     assert isinstance(result, Prediction)
@@ -212,53 +230,46 @@ async def test_tool_calling_without_content() -> None:
 async def test_multiple_tool_calls() -> None:
     """Test handling multiple tool calls in the same response."""
 
-    chunks = [
-        ChatCompletionChunk(
-            id="test",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        role="assistant",
-                        tool_calls=[
-                            ChoiceDeltaToolCall(
-                                index=0,
-                                id="call_1",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="Calculator",
-                                    arguments='{"operation": "add", "a": 5, "b": 3}',
-                                ),
+    response = ChatCompletion(
+        id="test",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=Function(
+                                name="Calculator",
+                                arguments='{"operation": "add", "a": 5, "b": 3}',
                             ),
-                            ChoiceDeltaToolCall(
-                                index=1,
-                                id="call_2",
-                                type="function",
-                                function=ChoiceDeltaToolCallFunction(
-                                    name="Calculator",
-                                    arguments='{"operation": "multiply", "a": 2, "b": 4}',
-                                ),
+                        ),
+                        ChatCompletionMessageToolCall(
+                            id="call_2",
+                            type="function",
+                            function=Function(
+                                name="Calculator",
+                                arguments='{"operation": "multiply", "a": 2, "b": 4}',
                             ),
-                        ],
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        ),
-    ]
-
-    async def mock_stream() -> list[ChatCompletionChunk]:
-        for chunk in chunks:
-            yield chunk
+                        ),
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
 
     mock_aclient = settings.aclient
-    mock_aclient.chat.completions.create = AsyncMock(return_value=mock_stream())
+    mock_aclient.chat.completions.create = AsyncMock(return_value=response)
 
-    predictor = Predict(MathQuery, tools=[Calculator])
-    result = await predictor.aforward(question="Calculate something")
+    predictor = Predict(MathQuery, tools=[calculator])
+    result = await predictor.aforward(auto_execute_tools=False, question="Calculate something")
 
     # Verify both tool calls are present
     assert isinstance(result, Prediction)

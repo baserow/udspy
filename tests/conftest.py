@@ -26,3 +26,52 @@ def configure_client() -> None:
 def api_key() -> str:
     """Get OpenAI API key from environment (for integration tests)."""
     return os.getenv("OPENAI_API_KEY", "sk-test-key")
+
+
+def make_mock_response(content: str, tool_calls: list | None = None, streaming: bool = False):
+    """Create OpenAI API mock response.
+
+    Returns streaming or non-streaming response based on streaming parameter.
+    This is the ONLY thing tests should mock - the LLM API response.
+    """
+    from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
+    from openai.types.chat.chat_completion import Choice as CompletionChoice
+    from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
+    from openai.types.chat.chat_completion_chunk import ChoiceDelta
+
+    if streaming:
+
+        async def stream():
+            yield ChatCompletionChunk(
+                id="test",
+                model="gpt-4o-mini",
+                object="chat.completion.chunk",
+                created=1234567890,
+                choices=[
+                    ChunkChoice(
+                        index=0,
+                        delta=ChoiceDelta(content=content, tool_calls=tool_calls),
+                        finish_reason=None,
+                    )
+                ],
+            )
+
+        return stream()
+    else:
+        return ChatCompletion(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                CompletionChoice(
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content=content,
+                        tool_calls=tool_calls,
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+        )

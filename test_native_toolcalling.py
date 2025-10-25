@@ -9,7 +9,7 @@ from pydantic import Field
 from udspy import HumanInTheLoopRequired, InputField, OutputField, ReAct, Signature, settings, tool
 
 # Enable debug logging
-logging.basicConfig(level=logging.DEBUG, format='%(name)s: %(message)s')
+logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
 
 
 # Configure with local LLM
@@ -81,6 +81,7 @@ async def test_basic():
     except Exception as e:
         print(f"✗ Test 1 failed: {e}\n")
         import traceback
+
         traceback.print_exc()
 
 
@@ -103,6 +104,7 @@ async def test_tool_confirmation():
     except Exception as e:
         print(f"✗ Test 2 failed with unexpected error: {e}\n")
         import traceback
+
         traceback.print_exc()
 
 
@@ -124,16 +126,18 @@ async def test_ask_to_user():
         # Now test resume
         print("\nResuming with user response...")
         try:
-            result = await agent.aresume_after_user_input("Python programming", e)
+            result = await agent.aresume("Python programming", e)
             print(f"Answer after resume: {result.answer}")
             print("\n✓ Test 3 passed\n")
         except Exception as resume_error:
             print(f"✗ Test 3 failed during resume: {resume_error}\n")
             import traceback
+
             traceback.print_exc()
     except Exception as e:
         print(f"✗ Test 3 failed with unexpected error: {e}\n")
         import traceback
+
         traceback.print_exc()
 
 

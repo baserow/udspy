@@ -1,5 +1,7 @@
 """Tests for History class."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
@@ -109,66 +111,21 @@ def test_history_repr() -> None:
 @pytest.mark.asyncio
 async def test_predict_with_history() -> None:
     """Test Predict with History for multi-turn conversation."""
-    # Mock streaming responses
-    first_chunks = [
-        ChatCompletionChunk(
-            id="test1",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        content="[[ ## answer ## ]]\nPython is a programming language"
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
+    from conftest import make_mock_response
 
-    second_chunks = [
-        ChatCompletionChunk(
-            id="test2",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        content="[[ ## answer ## ]]\nKey features include simplicity and readability"
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        )
+    responses = [
+        "[[ ## answer ## ]]\nPython is a programming language",
+        "[[ ## answer ## ]]\nKey features include simplicity and readability",
     ]
-
     call_count = 0
 
-    async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
+    async def mock_create(**_kwargs):  # type: ignore[no-untyped-def]
         nonlocal call_count
+        response = make_mock_response(responses[call_count])
         call_count += 1
+        return response
 
-        if call_count == 1:
-
-            async def first_stream():  # type: ignore[no-untyped-def]
-                for chunk in first_chunks:
-                    yield chunk
-
-            return first_stream()
-        else:
-
-            async def second_stream():  # type: ignore[no-untyped-def]
-                for chunk in second_chunks:
-                    yield chunk
-
-            return second_stream()
-
-    mock_aclient = settings.aclient
-    mock_aclient.chat.completions.create = mock_create
+    settings.aclient.chat.completions.create = mock_create
 
     predictor = Predict(QA)
     history = History()
@@ -190,32 +147,11 @@ async def test_predict_with_history() -> None:
 
 def test_predict_forward_with_history() -> None:
     """Test sync forward() with History."""
-    # Mock streaming response
-    chunks = [
-        ChatCompletionChunk(
-            id="test",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(content="[[ ## answer ## ]]\nTest response"),
-                    finish_reason=None,
-                )
-            ],
-        )
-    ]
+    from conftest import make_mock_response
 
-    async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
-        async def stream():  # type: ignore[no-untyped-def]
-            for chunk in chunks:
-                yield chunk
-
-        return stream()
-
-    mock_aclient = settings.aclient
-    mock_aclient.chat.completions.create = mock_create
+    settings.aclient.chat.completions.create = AsyncMock(
+        return_value=make_mock_response("[[ ## answer ## ]]\nTest response")
+    )
 
     predictor = Predict(QA)
     history = History()
@@ -251,3 +187,114 @@ def test_history_invalid_type_error() -> None:
     # Passing non-History object should raise TypeError
     with pytest.raises(TypeError, match="history must be a History object"):
         predictor(question="Test", history={"invalid": "type"})
+
+
+@pytest.mark.asyncio
+async def test_predict_with_history_and_tools() -> None:
+    """Test that history is updated correctly with tool calls and results."""
+    from conftest import make_mock_response
+    from openai.types.chat import ChatCompletion, ChatCompletionMessage
+    from openai.types.chat.chat_completion import Choice as CompletionChoice
+    from openai.types.chat.chat_completion_message_tool_call import (
+        ChatCompletionMessageToolCall,
+        Function,
+    )
+    from pydantic import Field
+
+    from udspy import tool
+
+    @tool(name="Calculator", description="Do math")
+    def calculator(a: int = Field(...), b: int = Field(...)) -> int:
+        """Add two numbers."""
+        return a + b
+
+    # Mock first response with tool call
+    response1 = ChatCompletion(
+        id="test",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_123",
+                            type="function",
+                            function=Function(name="Calculator", arguments='{"a": 10, "b": 20}'),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
+
+    # Mock second response with final answer
+    response2 = make_mock_response("[[ ## answer ## ]]\nThe result is 30")
+
+    call_count = {"count": 0}
+
+    async def mock_create(**_kwargs):  # type: ignore[no-untyped-def]
+        call_count["count"] += 1
+        if call_count["count"] == 1:
+            return response1
+        return response2
+
+    settings.aclient.chat.completions.create = mock_create
+
+    predictor = Predict(QA, tools=[calculator])
+    history = History()
+
+    result = await predictor.aforward(question="What is 10 + 20?", history=history)
+
+    assert "30" in result.answer
+
+    # Verify history contains the tool call and result
+    tool_messages = [msg for msg in history.messages if msg["role"] == "tool"]
+    assert len(tool_messages) == 1
+    assert tool_messages[0]["tool_call_id"] == "call_123"
+    assert "30" in tool_messages[0]["content"]
+
+    # Verify history contains assistant message with tool_calls
+    assistant_with_tools = [
+        msg for msg in history.messages if msg["role"] == "assistant" and "tool_calls" in msg
+    ]
+    assert len(assistant_with_tools) == 1
+
+
+@pytest.mark.asyncio
+async def test_predict_history_preserves_context() -> None:
+    """Test that history correctly preserves conversation context across multiple calls."""
+    from conftest import make_mock_response
+
+    responses = [
+        "[[ ## answer ## ]]\nPython is a programming language",
+        "[[ ## answer ## ]]\nIt was created by Guido van Rossum",
+    ]
+    call_count = 0
+
+    async def mock_create(**_kwargs):  # type: ignore[no-untyped-def]
+        nonlocal call_count
+        response = make_mock_response(responses[call_count])
+        call_count += 1
+        return response
+
+    settings.aclient.chat.completions.create = mock_create
+
+    predictor = Predict(QA)
+    history = History()
+
+    # First question
+    result1 = await predictor.aforward(question="What is Python?", history=history)
+    assert "Python" in result1.answer
+
+    # Second question - should have context from first
+    result2 = await predictor.aforward(question="Who created it?", history=history)
+    assert "Guido" in result2.answer
+
+    # Verify history has multiple turns
+    assert len(history) >= 4  # At least 2 user + 2 assistant messages

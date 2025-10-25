@@ -2,9 +2,6 @@
 
 from unittest.mock import AsyncMock
 
-from openai.types.chat import ChatCompletionChunk
-from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
-
 from udspy import ChainOfThought, InputField, OutputField, Signature, settings
 
 
@@ -51,37 +48,15 @@ def test_chain_of_thought_forward() -> None:
         question: str = InputField()
         answer: str = OutputField()
 
-    # Mock streaming response with reasoning and answer
-    chunks = [
-        ChatCompletionChunk(
-            id="test",
-            model="gpt-4o-mini",
-            object="chat.completion.chunk",
-            created=1234567890,
-            choices=[
-                Choice(
-                    index=0,
-                    delta=ChoiceDelta(
-                        content=(
-                            "[[ ## reasoning ## ]]\n"
-                            "Let's think step by step. 2+2 is basic addition.\n"
-                            "[[ ## answer ## ]]\n"
-                            "4"
-                        ),
-                        role="assistant",
-                    ),
-                    finish_reason=None,
-                )
-            ],
-        ),
-    ]
+    from conftest import make_mock_response
 
-    async def mock_stream():
-        for chunk in chunks:
-            yield chunk
-
-    mock_async_client = settings.aclient
-    mock_async_client.chat.completions.create = AsyncMock(return_value=mock_stream())
+    content = (
+        "[[ ## reasoning ## ]]\n"
+        "Let's think step by step. 2+2 is basic addition.\n"
+        "[[ ## answer ## ]]\n"
+        "4"
+    )
+    settings.aclient.chat.completions.create = AsyncMock(return_value=make_mock_response(content))
 
     cot = ChainOfThought(QA)
     result = cot(question="What is 2+2?")
