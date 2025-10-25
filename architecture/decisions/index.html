@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#design-decisions" class="md-skip">
+        <a href="#architectural-decision-records-adr" class="md-skip">
           Skip to content
         </a>
       
@@ -495,33 +495,625 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#native-tool-calling" class="md-nav__link">
+  <a href="#table-of-contents" class="md-nav__link">
     <span class="md-ellipsis">
-      Native Tool Calling
+      Table of Contents
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#pydantic-v2-for-models" class="md-nav__link">
+  <a href="#adr-001-initial-project-setup" class="md-nav__link">
     <span class="md-ellipsis">
-      Pydantic v2 for Models
+      ADR-001: Initial Project Setup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-001: Initial Project Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#async-first-streaming" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
     <span class="md-ellipsis">
-      Async-First Streaming
+      Decision
     </span>
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#key-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Design Decisions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Design Decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-native-tool-calling" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Native Tool Calling
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-minimal-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Minimal Dependencies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-pydantic-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Pydantic v2
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-streaming-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Streaming Architecture
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-module-abstraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Module Abstraction
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
+  <a href="#adr-002-context-manager-for-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-002: Context Manager for Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-002: Context Manager for Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Details
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-003-chain-of-thought-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-003: Chain of Thought Module
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-003: Chain of Thought Module">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-approach" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Approach
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#research-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      Research Evidence
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparison-with-dspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Comparison with DSPy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#future-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Future Considerations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-004-human-in-the-loop-with-interruptible-decorator" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-004: Human-in-the-Loop with Interruptible Decorator
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-004: Human-in-the-Loop with Interruptible Decorator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Details
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-005-react-agent-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-005: ReAct Agent Module
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-005: ReAct Agent Module">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-approach_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Approach
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#research-evidence_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Research Evidence
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparison-with-dspy_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Comparison with DSPy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#future-considerations_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Future Considerations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-006-unified-module-execution-pattern-aexecute" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-006: Unified Module Execution Pattern (aexecute)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-006: Unified Module Execution Pattern (aexecute)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Details
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-benefits" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Benefits
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#before-and-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      Before and After
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#naming-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      Naming Rationale
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#additional-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Additional Design Decisions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Additional Design Decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#field-markers-for-parsing" class="md-nav__link">
     <span class="md-ellipsis">
       Field Markers for Parsing
@@ -529,31 +1121,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#minimal-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      Minimal Dependencies
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#module-composition" class="md-nav__link">
-    <span class="md-ellipsis">
-      Module Composition
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#settings-as-global-singleton" class="md-nav__link">
-    <span class="md-ellipsis">
-      Settings as Global Singleton
-    </span>
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -563,6 +1133,84 @@
       See Also
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#template-for-future-adrs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Template for Future ADRs
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-xxx-decision-title" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-XXX: Decision Title
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-XXX: Decision Title">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Details
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide-if-applicable" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide (if applicable)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -864,6 +1512,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../examples/react/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    ReAct
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../examples/history/" class="md-nav__link">
         
   
@@ -1077,6 +1748,52 @@
   
   
     <li class="md-nav__item">
+      <a href="../../api/react/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    ReAct
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tools
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../api/settings/" class="md-nav__link">
         
   
@@ -1127,33 +1844,625 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#native-tool-calling" class="md-nav__link">
+  <a href="#table-of-contents" class="md-nav__link">
     <span class="md-ellipsis">
-      Native Tool Calling
+      Table of Contents
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#pydantic-v2-for-models" class="md-nav__link">
+  <a href="#adr-001-initial-project-setup" class="md-nav__link">
     <span class="md-ellipsis">
-      Pydantic v2 for Models
+      ADR-001: Initial Project Setup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-001: Initial Project Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#async-first-streaming" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
     <span class="md-ellipsis">
-      Async-First Streaming
+      Decision
     </span>
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#key-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Design Decisions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Design Decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-native-tool-calling" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Native Tool Calling
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-minimal-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Minimal Dependencies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-pydantic-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Pydantic v2
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-streaming-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Streaming Architecture
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-module-abstraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Module Abstraction
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
+  <a href="#adr-002-context-manager-for-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-002: Context Manager for Settings
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-002: Context Manager for Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Details
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-003-chain-of-thought-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-003: Chain of Thought Module
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-003: Chain of Thought Module">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-approach" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Approach
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#research-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      Research Evidence
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparison-with-dspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Comparison with DSPy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#future-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Future Considerations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-004-human-in-the-loop-with-interruptible-decorator" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-004: Human-in-the-Loop with Interruptible Decorator
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-004: Human-in-the-Loop with Interruptible Decorator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Details
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-005-react-agent-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-005: ReAct Agent Module
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-005: ReAct Agent Module">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-approach_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Approach
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-features_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#research-evidence_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Research Evidence
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-cases_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparison-with-dspy_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Comparison with DSPy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#future-considerations_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Future Considerations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-006-unified-module-execution-pattern-aexecute" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-006: Unified Module Execution Pattern (aexecute)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-006: Unified Module Execution Pattern (aexecute)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Details
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-benefits" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Benefits
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#before-and-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      Before and After
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#naming-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      Naming Rationale
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#additional-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Additional Design Decisions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Additional Design Decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#field-markers-for-parsing" class="md-nav__link">
     <span class="md-ellipsis">
       Field Markers for Parsing
@@ -1161,31 +2470,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#minimal-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      Minimal Dependencies
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#module-composition" class="md-nav__link">
-    <span class="md-ellipsis">
-      Module Composition
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#settings-as-global-singleton" class="md-nav__link">
-    <span class="md-ellipsis">
-      Settings as Global Singleton
-    </span>
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1195,6 +2482,84 @@
       See Also
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#template-for-future-adrs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Template for Future ADRs
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-xxx-decision-title" class="md-nav__link">
+    <span class="md-ellipsis">
+      ADR-XXX: Decision Title
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ADR-XXX: Decision Title">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decision
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementation Details
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consequences
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives Considered
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration-guide-if-applicable" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Guide (if applicable)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1217,44 +2582,584 @@
   
 
 
-<h1 id="design-decisions">Design Decisions</h1>
-<p>This document explains key architectural decisions made in udspy.</p>
-<h2 id="native-tool-calling">Native Tool Calling</h2>
-<p><strong>Decision</strong>: Use OpenAI's native function calling instead of custom prompt-based tools.</p>
+<h1 id="architectural-decision-records-adr">Architectural Decision Records (ADR)</h1>
+<p>This document tracks major architectural decisions made in udspy, presented chronologically with context, rationale, and consequences.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#adr-001-initial-project-setup">Initial Project Setup (2025-01-24)</a></li>
+<li><a href="#adr-002-context-manager-for-settings">Context Manager for Settings (2025-01-24)</a></li>
+<li><a href="#adr-003-chain-of-thought-module">Chain of Thought Module (2025-01-24)</a></li>
+<li><a href="#adr-004-human-in-the-loop-with-interruptible-decorator">Human-in-the-Loop with Interruptible Decorator (2025-01-25)</a></li>
+<li><a href="#adr-005-react-agent-module">ReAct Agent Module (2025-01-25)</a></li>
+<li><a href="#adr-006-unified-module-execution-pattern-aexecute">Unified Module Execution Pattern (aexecute) (2025-01-25)</a></li>
+</ol>
+<hr />
+<h2 id="adr-001-initial-project-setup">ADR-001: Initial Project Setup</h2>
+<p><strong>Date</strong>: 2025-01-24</p>
+<p><strong>Status</strong>: Accepted</p>
+<h3 id="context">Context</h3>
+<p>Created a minimal DSPy-inspired library focused on resource-constrained environments where DSPy's ~200MB memory footprint (due to LiteLLM) is prohibitive.</p>
+<h3 id="decision">Decision</h3>
+<p>Build a lightweight alternative with:
+- Native OpenAI tool calling instead of custom adapters
+- Minimal dependencies (~10MB: <code>openai</code> + <code>pydantic</code>)
+- Streaming support for reasoning and output fields
+- Modern Python tooling (uv, ruff, justfile)</p>
+<h3 id="key-design-decisions">Key Design Decisions</h3>
+<h4 id="1-native-tool-calling">1. Native Tool Calling</h4>
+<p>Use OpenAI's native function calling API instead of custom adapters and field markers.</p>
 <p><strong>Rationale</strong>:
 - OpenAI's tool calling is optimized and well-tested
-- Reduces prompt complexity and token usage
+- Reduces complexity and leverages provider's optimizations
 - Better reliability for structured tool invocation
-- Forward compatible with future OpenAI improvements</p>
+- Forward compatible with future improvements</p>
 <p><strong>Trade-offs</strong>:
-- Couples to OpenAI's API (less provider-agnostic)
+- Couples to OpenAI's API format (but works with any OpenAI-compatible provider)
 - May need adapters for other providers in future</p>
-<p><strong>Alternative Considered</strong>: Custom field markers like DSPy's adapter system</p>
-<hr />
-<h2 id="pydantic-v2-for-models">Pydantic v2 for Models</h2>
-<p><strong>Decision</strong>: Use Pydantic v2 exclusively for all data modeling.</p>
+<h4 id="2-minimal-dependencies">2. Minimal Dependencies</h4>
+<p>Only <code>openai</code> and <code>pydantic</code> in core dependencies.</p>
+<p><strong>Rationale</strong>:
+- Keeps the library lightweight and maintainable (~10MB vs ~200MB)
+- Reduces potential dependency conflicts
+- Faster installation and lower memory usage
+- Suitable for serverless, edge, and embedded deployments</p>
+<p><strong>Trade-offs</strong>:
+- Can't leverage broader ecosystem for advanced features
+- Users need to install extras for dev tools</p>
+<h4 id="3-pydantic-v2">3. Pydantic v2</h4>
+<p>Use Pydantic v2 for all models and validation.</p>
 <p><strong>Rationale</strong>:
 - Modern, fast, well-maintained
 - Excellent JSON schema generation for tools
 - Built-in validation and type coercion
+- Better performance than v1
 - Great developer experience with IDE support</p>
 <p><strong>Trade-offs</strong>:
-- Breaking changes from Pydantic v1 (not an issue for new project)
 - Requires Python 3.7+ (we target 3.11+)</p>
-<hr />
-<h2 id="async-first-streaming">Async-First Streaming</h2>
-<p><strong>Decision</strong>: Streaming uses async/await, not callbacks or threads.</p>
+<h4 id="4-streaming-architecture">4. Streaming Architecture</h4>
+<p>Async-first design using Python's async/await.</p>
 <p><strong>Rationale</strong>:
 - Python's async is the standard for I/O-bound operations
+- Native support from OpenAI SDK
 - Better composability with other async code
-- Easier to reason about than callbacks
-- Native support from OpenAI SDK</p>
+- Easier to reason about than callbacks</p>
 <p><strong>Trade-offs</strong>:
 - Requires async runtime (asyncio)
 - Steeper learning curve for beginners</p>
-<p><strong>Alternative Considered</strong>: Synchronous generator with threads</p>
+<h4 id="5-module-abstraction">5. Module Abstraction</h4>
+<p>Modules compose via Python class inheritance.</p>
+<p><strong>Rationale</strong>:
+- Similar to DSPy but simplified
+- Familiar Python patterns (no custom DSL)
+- Good IDE and type checker support
+- Signatures define I/O contracts using Pydantic models
+- Predict is the core primitive for LLM calls</p>
+<p><strong>Trade-offs</strong>:
+- Less "magical" than DSPy's meta-programming
+- Requires more explicit code</p>
+<h3 id="consequences">Consequences</h3>
+<p><strong>Benefits</strong>:
+- 20x smaller memory footprint (~10MB vs ~200MB)
+- Works in resource-constrained environments
+- Simple, maintainable codebase
+- Compatible with any OpenAI-compatible provider</p>
+<p><strong>Trade-offs</strong>:
+- Less feature-complete than DSPy
+- Fewer LLM providers supported out-of-the-box
+- No built-in optimizers or teleprompters</p>
+<h3 id="alternatives-considered">Alternatives Considered</h3>
+<ul>
+<li><strong>Fork DSPy</strong>: Too much baggage and complexity</li>
+<li><strong>Use LangChain</strong>: Even larger footprint, different philosophy</li>
+<li><strong>Build from scratch</strong>: Chose this - learn from DSPy's excellent patterns</li>
+</ul>
 <hr />
-<h2 id="field-markers-for-parsing">Field Markers for Parsing</h2>
+<h2 id="adr-002-context-manager-for-settings">ADR-002: Context Manager for Settings</h2>
+<p><strong>Date</strong>: 2025-01-24</p>
+<p><strong>Status</strong>: Accepted</p>
+<h3 id="context_1">Context</h3>
+<p>Need to support different API keys and models in different contexts (e.g., multi-tenant apps, different users, testing scenarios, concurrent async operations).</p>
+<h3 id="decision_1">Decision</h3>
+<p>Implement thread-safe context manager using Python's <code>contextvars</code> module:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Global settings</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;global-key&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Temporary override in context</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;user-key&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>  <span class="c1"># Uses user-key and gpt-4</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Back to global settings</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>  <span class="c1"># Uses global-key and gpt-4o-mini</span>
+</code></pre></div>
+<h3 id="implementation-details">Implementation Details</h3>
+<ul>
+<li>Added <code>ContextVar</code> fields to <code>Settings</code> class for each configurable attribute</li>
+<li>Properties now check context first, then fall back to global settings</li>
+<li>Context manager saves/restores context state using try/finally</li>
+<li>Proper cleanup ensures no context leakage</li>
+</ul>
+<h3 id="key-features">Key Features</h3>
+<ol>
+<li><strong>Thread-Safe</strong>: Uses <code>ContextVar</code> for thread-safe context isolation</li>
+<li><strong>Nestable</strong>: Contexts can be nested with proper inheritance</li>
+<li><strong>Comprehensive</strong>: Supports overriding api_key, model, client, async_client, and any kwargs</li>
+<li><strong>Clean API</strong>: Simple context manager interface</li>
+<li><strong>Backwards Compatible</strong>: Existing code continues to work without changes</li>
+</ol>
+<h3 id="use-cases">Use Cases</h3>
+<ol>
+<li>
+<p><strong>Multi-tenant applications</strong>: Different API keys per user
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">api_key</span><span class="p">):</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">question</span><span class="p">)</span>
+</code></pre></div></p>
+</li>
+<li>
+<p><strong>Model selection per request</strong>: Use different models for different tasks
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">):</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">expensive_predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="n">complex_question</span><span class="p">)</span>
+</code></pre></div></p>
+</li>
+<li>
+<p><strong>Testing</strong>: Isolate test settings without affecting global state
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-test&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="k">assert</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;2+2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">answer</span> <span class="o">==</span> <span class="s2">&quot;4&quot;</span>
+</code></pre></div></p>
+</li>
+<li>
+<p><strong>Async operations</strong>: Safe concurrent operations with different settings
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">handle_user</span><span class="p">(</span><span class="n">user</span><span class="p">):</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">api_key</span><span class="p">):</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">streaming_predictor</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>            <span class="k">yield</span> <span class="n">chunk</span>
+</code></pre></div></p>
+</li>
+</ol>
+<h3 id="consequences_1">Consequences</h3>
+<p><strong>Benefits</strong>:
+- Clean separation of concerns (global vs context-specific settings)
+- No need to pass settings through function parameters
+- Thread-safe and asyncio task-safe for concurrent operations
+- Flexible and composable</p>
+<p><strong>Trade-offs</strong>:
+- Slight complexity increase in Settings class
+- Context variables have a small performance overhead (negligible)
+- Must remember to use context manager (but gracefully degrades to global settings)</p>
+<h3 id="alternatives-considered_1">Alternatives Considered</h3>
+<ul>
+<li><strong>Dependency Injection</strong>: More verbose, harder to use</li>
+<li><strong>Environment Variables</strong>: Not dynamic enough for multi-tenant use cases</li>
+<li><strong>Pass settings everywhere</strong>: Too cumbersome</li>
+</ul>
+<h3 id="migration-guide">Migration Guide</h3>
+<p>No migration needed - feature is additive and backwards compatible.</p>
+<hr />
+<h2 id="adr-003-chain-of-thought-module">ADR-003: Chain of Thought Module</h2>
+<p><strong>Date</strong>: 2025-01-24</p>
+<p><strong>Status</strong>: Accepted</p>
+<h3 id="context_2">Context</h3>
+<p>Chain of Thought (CoT) is a proven prompting technique that improves LLM reasoning by explicitly requesting step-by-step thinking. Research shows ~25-30% accuracy improvement on math and reasoning tasks (Wei et al., 2022).</p>
+<h3 id="decision_2">Decision</h3>
+<p>Implement <code>ChainOfThought</code> module that automatically adds a reasoning field to any signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">QA</span><span class="p">(</span><span class="n">Signature</span><span class="p">):</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Answer questions.&quot;&quot;&quot;</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">question</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">InputField</span><span class="p">()</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">OutputField</span><span class="p">()</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># Automatically extends to: question -&gt; reasoning, answer</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">cot</span> <span class="o">=</span> <span class="n">ChainOfThought</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">result</span> <span class="o">=</span> <span class="n">cot</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is 15 * 23?&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">reasoning</span><span class="p">)</span>  <span class="c1"># Shows step-by-step calculation</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">answer</span><span class="p">)</span>     <span class="c1"># &quot;345&quot;</span>
+</code></pre></div>
+<h3 id="implementation-approach">Implementation Approach</h3>
+<p>Unlike DSPy which uses a <code>signature.prepend()</code> method, udspy takes a simpler approach:</p>
+<ol>
+<li><strong>Extract fields</strong> from original signature</li>
+<li><strong>Create extended outputs</strong> with reasoning prepended: <code>{"reasoning": str, **original_outputs}</code></li>
+<li><strong>Use make_signature</strong> to create new signature dynamically</li>
+<li><strong>Wrap in Predict</strong> with the extended signature</li>
+</ol>
+<p>This approach:
+- Doesn't require adding prepend/insert methods to Signature
+- Leverages existing <code>make_signature</code> utility
+- Keeps ChainOfThought as a pure Module wrapper
+- Only ~45 lines of code</p>
+<h3 id="key-features_1">Key Features</h3>
+<ol>
+<li><strong>Automatic reasoning field</strong>: No manual signature modification needed</li>
+<li><strong>Customizable description</strong>: Override reasoning field description</li>
+<li><strong>Works with any signature</strong>: Single or multiple outputs</li>
+<li><strong>Transparent</strong>: Reasoning is always accessible in results</li>
+<li><strong>Configurable</strong>: All Predict parameters (model, temperature, tools) supported</li>
+</ol>
+<h3 id="research-evidence">Research Evidence</h3>
+<p>Chain of Thought prompting improves performance on:
+- <strong>Math</strong>: ~25-30% accuracy improvement (Wei et al., 2022)
+- <strong>Reasoning</strong>: Significant gains on logic puzzles
+- <strong>Multi-step</strong>: Better at complex multi-hop reasoning
+- <strong>Transparency</strong>: Shows reasoning for verification</p>
+<h3 id="use-cases_1">Use Cases</h3>
+<ol>
+<li>
+<p><strong>Math and calculation</strong>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">cot</span> <span class="o">=</span> <span class="n">ChainOfThought</span><span class="p">(</span><span class="n">QA</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">cot</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is 157 * 234?&quot;</span><span class="p">)</span>
+</code></pre></div></p>
+</li>
+<li>
+<p><strong>Analysis and decision-making</strong>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Decision</span><span class="p">(</span><span class="n">Signature</span><span class="p">):</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">scenario</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">InputField</span><span class="p">()</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">decision</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">OutputField</span><span class="p">()</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">justification</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">OutputField</span><span class="p">()</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">decider</span> <span class="o">=</span> <span class="n">ChainOfThought</span><span class="p">(</span><span class="n">Decision</span><span class="p">)</span>
+</code></pre></div></p>
+</li>
+<li>
+<p><strong>Educational applications</strong>: Show work/reasoning</p>
+</li>
+<li><strong>High-stakes decisions</strong>: Require explicit justification</li>
+<li><strong>Debugging</strong>: Understand why LLM made specific choices</li>
+</ol>
+<h3 id="consequences_2">Consequences</h3>
+<p><strong>Benefits</strong>:
+- Improved accuracy on reasoning tasks
+- Transparent reasoning process
+- Easy to verify correctness
+- Simple API (just wrap any signature)
+- Minimal code overhead</p>
+<p><strong>Trade-offs</strong>:
+- Increased token usage (~2-3x for simple tasks)
+- Slightly higher latency
+- Not always needed for simple factual queries
+- Reasoning quality depends on model capability</p>
+<h3 id="comparison-with-dspy">Comparison with DSPy</h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>udspy</th>
+<th>DSPy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API</td>
+<td><code>ChainOfThought(signature)</code></td>
+<td><code>dspy.ChainOfThought(signature, rationale_field=...)</code></td>
+</tr>
+<tr>
+<td>Implementation</td>
+<td>Dynamic signature creation</td>
+<td>Signature.prepend() method</td>
+</tr>
+<tr>
+<td>Customization</td>
+<td><code>reasoning_description</code> param</td>
+<td>Full <code>rationale_field</code> control</td>
+</tr>
+<tr>
+<td>Complexity</td>
+<td>~45 lines</td>
+<td>~40 lines</td>
+</tr>
+<tr>
+<td>Dependencies</td>
+<td>Uses <code>make_signature</code></td>
+<td>Uses signature mutation</td>
+</tr>
+</tbody>
+</table>
+<p>Both are equally effective; udspy's approach is simpler but less flexible in edge cases.</p>
+<h3 id="alternatives-considered_2">Alternatives Considered</h3>
+<ul>
+<li><strong>Prompt Engineering</strong>: Less reliable than structured reasoning field</li>
+<li><strong>Tool-based Reasoning</strong>: Too heavyweight for simple reasoning</li>
+<li><strong>Custom Signature per Use</strong>: Too much boilerplate</li>
+</ul>
+<h3 id="future-considerations">Future Considerations</h3>
+<ol>
+<li><strong>Streaming support</strong>: StreamingChainOfThought for incremental reasoning</li>
+<li><strong>Few-shot examples</strong>: Add example reasoning patterns to improve quality</li>
+<li><strong>Verification</strong>: Automatic reasoning quality checks</li>
+<li><strong>Caching</strong>: Built-in caching for repeated queries</li>
+</ol>
+<h3 id="migration-guide_1">Migration Guide</h3>
+<p>Feature is additive - no migration needed.</p>
+<hr />
+<h2 id="adr-004-human-in-the-loop-with-interruptible-decorator">ADR-004: Human-in-the-Loop with Interruptible Decorator</h2>
+<p><strong>Date</strong>: 2025-01-25</p>
+<p><strong>Status</strong>: Accepted</p>
+<h3 id="context_3">Context</h3>
+<p>Many agent applications require human approval for certain actions (e.g., deleting files, sending emails, making purchases). We needed a clean way to suspend execution, ask for user input, and resume where we left off.</p>
+<h3 id="decision_3">Decision</h3>
+<p>Implement an <code>@interruptible</code> decorator that:
+- Suspends function execution before it runs
+- Raises <code>HumanInTheLoopRequired</code> exception with context
+- Allows resumption with user approval/rejection/modifications
+- Uses thread-safe <code>contextvars</code> for state management
+- Generates stable interrupt IDs based on function + arguments</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">interruptible</span><span class="p">,</span> <span class="n">HumanInTheLoopRequired</span><span class="p">,</span> <span class="n">set_interrupt_approval</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nd">@interruptible</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_file</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Deleted </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="n">delete_file</span><span class="p">(</span><span class="s2">&quot;/important.txt&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="k">except</span> <span class="n">HumanInTheLoopRequired</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="c1"># User approves</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="n">set_interrupt_approval</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">interrupt_id</span><span class="p">,</span> <span class="n">approved</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="n">delete_file</span><span class="p">(</span><span class="s2">&quot;/important.txt&quot;</span><span class="p">)</span>  <span class="c1"># Now executes</span>
+</code></pre></div>
+<h3 id="implementation-details_1">Implementation Details</h3>
+<ol>
+<li><strong>Stable Interrupt IDs</strong>: Generated from <code>function_name:hash(args)</code> to allow same call to resume</li>
+<li><strong>Context Variables</strong>: Thread-safe and async-safe state storage</li>
+<li><strong>Rejection Support</strong>: <code>InterruptRejected</code> exception distinguishes "user said no" from "pending"</li>
+<li><strong>Argument Modification</strong>: Users can edit arguments before approval</li>
+<li><strong>Automatic Cleanup</strong>: Interrupts are cleared after successful execution</li>
+</ol>
+<h3 id="key-features_2">Key Features</h3>
+<ol>
+<li><strong>Decorator-based</strong>: Simple to apply to any function</li>
+<li><strong>Thread-safe</strong>: Works with concurrent requests</li>
+<li><strong>Async-safe</strong>: Works with asyncio tasks</li>
+<li><strong>Resumable</strong>: Same function call can be resumed after approval</li>
+<li><strong>Integrated with Tools</strong>: Works seamlessly with <code>@tool</code> decorator</li>
+</ol>
+<h3 id="use-cases_2">Use Cases</h3>
+<ol>
+<li><strong>Dangerous Operations</strong>: File deletion, system commands</li>
+<li><strong>User Confirmation</strong>: Sending emails, making purchases</li>
+<li><strong>Clarification</strong>: Ask user for additional information</li>
+<li><strong>Argument Editing</strong>: Let user modify parameters before execution</li>
+</ol>
+<h3 id="consequences_3">Consequences</h3>
+<p><strong>Benefits</strong>:
+- Clean separation of business logic from approval logic
+- Works naturally with ReAct agent workflows
+- Thread-safe and async-safe out of the box
+- Easy to test (deterministic based on interrupt state)</p>
+<p><strong>Trade-offs</strong>:
+- Requires exception handling (but this is explicit and clear)
+- Interrupt state needs to be managed (cleared on success)
+- Not suitable for purely synchronous, single-threaded apps (but works fine there too)</p>
+<h3 id="alternatives-considered_3">Alternatives Considered</h3>
+<ul>
+<li><strong>Callback-based</strong>: More complex, harder to reason about flow</li>
+<li><strong>Middleware pattern</strong>: Too heavyweight for this use case</li>
+<li><strong>Manual state management</strong>: Error-prone, not thread-safe</li>
+</ul>
+<h3 id="migration-guide_2">Migration Guide</h3>
+<p>Feature is additive - no migration needed.</p>
+<hr />
+<h2 id="adr-005-react-agent-module">ADR-005: ReAct Agent Module</h2>
+<p><strong>Date</strong>: 2025-01-25</p>
+<p><strong>Status</strong>: Accepted</p>
+<h3 id="context_4">Context</h3>
+<p>The ReAct (Reasoning + Acting) pattern combines chain-of-thought reasoning with tool usage in an iterative loop. This is essential for building agents that can solve complex tasks by breaking them down and using tools.</p>
+<h3 id="decision_4">Decision</h3>
+<p>Implement a <code>ReAct</code> module that:
+- Alternates between reasoning and tool execution
+- Supports human-in-the-loop for clarifications and confirmations
+- Tracks full trajectory of reasoning and actions
+- Handles errors gracefully with retries
+- Works with both streaming and non-streaming modes</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReAct</span><span class="p">,</span> <span class="n">InputField</span><span class="p">,</span> <span class="n">OutputField</span><span class="p">,</span> <span class="n">Signature</span><span class="p">,</span> <span class="n">tool</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nd">@tool</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;search&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="k">return</span> <span class="n">search_api</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">ResearchTask</span><span class="p">(</span><span class="n">Signature</span><span class="p">):</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Research and answer questions.&quot;&quot;&quot;</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">question</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">InputField</span><span class="p">()</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">OutputField</span><span class="p">()</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReAct</span><span class="p">(</span><span class="n">ResearchTask</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">search</span><span class="p">],</span> <span class="n">max_iters</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="n">result</span> <span class="o">=</span> <span class="n">agent</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is the population of Tokyo?&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="implementation-approach_1">Implementation Approach</h3>
+<ol>
+<li><strong>Iterative Loop</strong>: Continues until final answer or max iterations</li>
+<li><strong>Dynamic Signature</strong>: Extends signature with reasoning_N, tool_name_N, tool_args_N fields</li>
+<li><strong>Tool Execution</strong>: Automatically executes tools and adds results to context</li>
+<li><strong>Error Handling</strong>: Retries with error feedback if tool execution fails</li>
+<li><strong>Human Interrupts</strong>: Integrates with <code>@interruptible</code> for user input</li>
+</ol>
+<h3 id="key-features_3">Key Features</h3>
+<ol>
+<li><strong>Flexible Tool Usage</strong>: Agent decides when and which tools to use</li>
+<li><strong>Self-Correction</strong>: Can retry if tool execution fails</li>
+<li><strong>Trajectory Tracking</strong>: Full history of reasoning and actions</li>
+<li><strong>Streaming Support</strong>: Can stream reasoning in real-time</li>
+<li><strong>Human-in-the-Loop</strong>: Built-in support for asking users</li>
+</ol>
+<h3 id="research-evidence_1">Research Evidence</h3>
+<p>ReAct improves performance on:
+- <strong>Complex Tasks</strong>: 15-30% improvement on multi-step reasoning (Yao et al., 2023)
+- <strong>Tool Usage</strong>: More accurate tool selection vs. pure CoT
+- <strong>Error Recovery</strong>: Better handling of failed tool calls</p>
+<h3 id="use-cases_3">Use Cases</h3>
+<ol>
+<li><strong>Research Agents</strong>: Answer questions using search and APIs</li>
+<li><strong>Task Automation</strong>: Multi-step workflows with tool usage</li>
+<li><strong>Data Analysis</strong>: Fetch data, analyze, and summarize</li>
+<li><strong>Interactive Assistants</strong>: Ask users for clarification when needed</li>
+</ol>
+<h3 id="consequences_4">Consequences</h3>
+<p><strong>Benefits</strong>:
+- Powerful agent capabilities with minimal code
+- Transparent reasoning process
+- Handles complex multi-step tasks
+- Built-in error handling and retries</p>
+<p><strong>Trade-offs</strong>:
+- Higher token usage due to multiple iterations
+- Slower than single-shot predictions
+- Quality depends on LLM's reasoning ability
+- Can get stuck in loops if not properly configured</p>
+<h3 id="comparison-with-dspy_1">Comparison with DSPy</h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>udspy</th>
+<th>DSPy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API</td>
+<td><code>ReAct(signature, tools=[...])</code></td>
+<td><code>dspy.ReAct(signature, tools=[...])</code></td>
+</tr>
+<tr>
+<td>Human-in-Loop</td>
+<td>Built-in with <code>@interruptible</code></td>
+<td>External handling</td>
+</tr>
+<tr>
+<td>Streaming</td>
+<td>Supported</td>
+<td>Limited</td>
+</tr>
+<tr>
+<td>Tool Execution</td>
+<td>Automatic with error handling</td>
+<td>Automatic</td>
+</tr>
+<tr>
+<td>Max Iterations</td>
+<td>Configurable with <code>max_iters</code></td>
+<td>Configurable</td>
+</tr>
+</tbody>
+</table>
+<h3 id="alternatives-considered_4">Alternatives Considered</h3>
+<ul>
+<li><strong>Chain-based approach</strong>: Too rigid, hard to add dynamic behavior</li>
+<li><strong>State machine</strong>: Overly complex for the use case</li>
+<li><strong>Pure prompting</strong>: Less reliable than structured approach</li>
+</ul>
+<h3 id="future-considerations_1">Future Considerations</h3>
+<ol>
+<li><strong>Memory/History</strong>: Long-term memory across sessions</li>
+<li><strong>Tool Chaining</strong>: Automatic sequencing of tool calls</li>
+<li><strong>Parallel Tool Execution</strong>: Execute independent tools concurrently</li>
+<li><strong>Learning</strong>: Optimize tool selection based on feedback</li>
+</ol>
+<h3 id="migration-guide_3">Migration Guide</h3>
+<p>Feature is additive - no migration needed.</p>
+<hr />
+<h2 id="adr-006-unified-module-execution-pattern-aexecute">ADR-006: Unified Module Execution Pattern (aexecute)</h2>
+<p><strong>Date</strong>: 2025-01-25</p>
+<p><strong>Status</strong>: Accepted</p>
+<h3 id="context_5">Context</h3>
+<p>Initially, <code>astream()</code> and <code>aforward()</code> had duplicated logic for executing modules. This made maintenance difficult and increased the chance of bugs when updating behavior.</p>
+<h3 id="decision_5">Decision</h3>
+<p>Introduce a single <code>aexecute()</code> method that handles both streaming and non-streaming execution:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Module</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">aexecute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">stream</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Core execution logic - handles both streaming and non-streaming.&quot;&quot;&quot;</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>        <span class="c1"># Implementation here</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">astream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Public streaming API.&quot;&quot;&quot;</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aexecute</span><span class="p">(</span><span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>            <span class="k">yield</span> <span class="n">event</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">aforward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Public non-streaming API.&quot;&quot;&quot;</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aexecute</span><span class="p">(</span><span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">Prediction</span><span class="p">):</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>                <span class="k">return</span> <span class="n">event</span>
+</code></pre></div>
+<h3 id="implementation-details_2">Implementation Details</h3>
+<ol>
+<li><strong>Single Source of Truth</strong>: All execution logic in <code>aexecute()</code></li>
+<li><strong>Stream Parameter</strong>: Boolean flag controls behavior</li>
+<li><strong>Generator Pattern</strong>: Always yields events, even in non-streaming mode</li>
+<li><strong>Clean Separation</strong>: Public methods are thin wrappers</li>
+</ol>
+<h3 id="key-benefits">Key Benefits</h3>
+<ol>
+<li><strong>No Duplication</strong>: Write logic once, use in both modes</li>
+<li><strong>Easier Testing</strong>: Test one method instead of two</li>
+<li><strong>Consistent Behavior</strong>: Streaming and non-streaming guaranteed to behave identically</li>
+<li><strong>Maintainable</strong>: Changes only need to be made in one place</li>
+<li><strong>Extensible</strong>: Easy to add new execution modes</li>
+</ol>
+<h3 id="consequences_5">Consequences</h3>
+<p><strong>Benefits</strong>:
+- Reduced code duplication (~40% less code in modules)
+- Easier to maintain and debug
+- Consistent behavior across modes
+- Simpler to understand (one execution path)</p>
+<p><strong>Trade-offs</strong>:
+- Slightly more complex to implement initially
+- Need to handle both streaming and non-streaming cases in same method
+- Generator pattern requires understanding of async generators</p>
+<h3 id="before-and-after">Before and After</h3>
+<p><strong>Before:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">astream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="c1"># 100 lines of logic</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="o">...</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">aforward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="c1"># 100 lines of DUPLICATED logic with minor differences</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="o">...</span>
+</code></pre></div></p>
+<p><strong>After:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">aexecute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">stream</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="c1"># 100 lines of logic (used by both)</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="o">...</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">astream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aexecute</span><span class="p">(</span><span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>        <span class="k">yield</span> <span class="n">event</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">aforward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aexecute</span><span class="p">(</span><span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">Prediction</span><span class="p">):</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>            <span class="k">return</span> <span class="n">event</span>
+</code></pre></div></p>
+<h3 id="naming-rationale">Naming Rationale</h3>
+<p>We chose <code>aexecute()</code> (without underscore prefix) because:
+- <strong>Public Method</strong>: This is the main extension point for subclasses
+- <strong>Clear Intent</strong>: "Execute" is explicit about what it does
+- <strong>Python Conventions</strong>: No underscore = public API, expected to be overridden
+- <strong>Not Abbreviated</strong>: Full word avoids ambiguity (vs <code>aexec</code> or <code>acall</code>)</p>
+<h3 id="migration-guide_4">Migration Guide</h3>
+<p><strong>For Users</strong>: No changes needed - public API remains the same</p>
+<p><strong>For Module Authors</strong>: When creating custom modules, implement <code>aexecute()</code> instead of both <code>astream()</code> and <code>aforward()</code>.</p>
+<hr />
+<h2 id="additional-design-decisions">Additional Design Decisions</h2>
+<h3 id="field-markers-for-parsing">Field Markers for Parsing</h3>
 <p><strong>Decision</strong>: Use <code>[[ ## field_name ## ]]</code> markers to delineate fields in completions.</p>
 <p><strong>Rationale</strong>:
 - Simple, regex-parseable format
@@ -1265,47 +3170,37 @@
 - Requires careful prompt engineering
 - LLM might not always respect markers
 - Uses extra tokens</p>
-<p><strong>Alternative Considered</strong>: JSON-only output format (less readable in prompts)</p>
-<hr />
-<h2 id="minimal-dependencies">Minimal Dependencies</h2>
-<p><strong>Decision</strong>: Core library only depends on <code>openai</code> and <code>pydantic</code>.</p>
-<p><strong>Rationale</strong>:
-- Easier to maintain and debug
-- Faster installation
-- Fewer security vulnerabilities
-- Clearer responsibility boundaries</p>
-<p><strong>Trade-offs</strong>:
-- Users need to install extras for dev tools
-- Can't leverage ecosystem for advanced features</p>
-<hr />
-<h2 id="module-composition">Module Composition</h2>
-<p><strong>Decision</strong>: Modules compose via Python class inheritance and composition.</p>
-<p><strong>Rationale</strong>:
-- Familiar Python patterns
-- No custom DSL to learn
-- Good IDE and type checker support
-- Easy to test and mock</p>
-<p><strong>Trade-offs</strong>:
-- Less "magical" than DSPy's meta-programming
-- Requires more explicit code</p>
-<hr />
-<h2 id="settings-as-global-singleton">Settings as Global Singleton</h2>
-<p><strong>Decision</strong>: Configuration via global <code>settings</code> object.</p>
-<p><strong>Rationale</strong>:
-- Convenient for most use cases
-- Matches Django/Flask patterns
-- Easy to override per-module
-- Thread-safe with context managers (future)</p>
-<p><strong>Trade-offs</strong>:
-- Global state can complicate testing
-- Not ideal for multi-tenant applications</p>
-<p><strong>Alternative Considered</strong>: Dependency injection (more verbose)</p>
 <hr />
 <h2 id="see-also">See Also</h2>
 <ul>
-<li><a href="../../CLAUDE.md">CLAUDE.md</a> - Chronological architectural changes</li>
+<li><a href="https://github.com/silvestrid/udspy/blob/main/CLAUDE.md">CLAUDE.md</a> - Chronological architectural changes (development log)</li>
 <li><a href="../overview/">Architecture Overview</a> - Component relationships</li>
+<li><a href="https://github.com/silvestrid/udspy/blob/main/CONTRIBUTING.md">Contributing Guide</a> - How to propose new decisions</li>
 </ul>
+<hr />
+<h2 id="template-for-future-adrs">Template for Future ADRs</h2>
+<p>When adding new architectural decisions, use this template:</p>
+<h2 id="adr-xxx-decision-title">ADR-XXX: Decision Title</h2>
+<p><strong>Date</strong>: YYYY-MM-DD</p>
+<p><strong>Status</strong>: Proposed | Accepted | Deprecated | Superseded</p>
+<h3 id="context_6">Context</h3>
+<p>Why was this change needed? What problem does it solve?</p>
+<h3 id="decision_6">Decision</h3>
+<p>What was decided and implemented? Include code examples if relevant.</p>
+<h3 id="implementation-details_3">Implementation Details</h3>
+<p>How is this implemented? Key technical details.</p>
+<h3 id="consequences_6">Consequences</h3>
+<p><strong>Benefits</strong>:
+- What are the advantages?</p>
+<p><strong>Trade-offs</strong>:
+- What are the disadvantages or limitations?</p>
+<h3 id="alternatives-considered_5">Alternatives Considered</h3>
+<ul>
+<li>What other approaches were considered?</li>
+<li>Why were they rejected?</li>
+</ul>
+<h3 id="migration-guide-if-applicable">Migration Guide (if applicable)</h3>
+<p>How should users update their code?</p>
 
 
 
