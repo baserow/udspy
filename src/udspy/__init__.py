@@ -2,7 +2,13 @@
 
 from udspy.adapter import ChatAdapter
 from udspy.history import History
-from udspy.interrupt import HumanInTheLoopRequired, ToolCall, get_interrupt_status
+from udspy.interrupt import (
+    HumanInTheLoopRequired,
+    InterruptRejected,
+    ToolCall,
+    get_interrupt_status,
+    set_interrupt_approval,
+)
 from udspy.module import (
     ChainOfThought,
     Module,
@@ -33,8 +39,10 @@ __all__ = [
     "ChainOfThought",
     "ReAct",
     "HumanInTheLoopRequired",
+    "InterruptRejected",
     "ToolCall",
     "get_interrupt_status",
+    "set_interrupt_approval",
     # Adapter
     "ChatAdapter",
     # History

@@ -78,6 +78,61 @@ class HumanInTheLoopRequired(Exception):
         self.context = context or {}
 
 
+class InterruptRejected(Exception):
+    """Raised when user rejects an interrupt/tool execution.
+
+    This signals that the user explicitly does not want the operation to proceed,
+    as opposed to just pending approval. This allows calling code to distinguish
+    between "waiting for approval" and "user said no".
+
+    Example:
+        ```python
+        from udspy import interruptible, HumanInTheLoopRequired, InterruptRejected
+        from udspy import set_interrupt_approval
+
+        @interruptible
+        def delete_database() -> str:
+            return "Database deleted"
+
+        try:
+            delete_database()
+        except HumanInTheLoopRequired as e:
+            # User rejects the dangerous operation
+            set_interrupt_approval(e.interrupt_id, approved=False, status="rejected")
+
+        try:
+            delete_database()  # Try again
+        except InterruptRejected as e:
+            print(f"Operation stopped: {e.message}")
+            # Can handle rejection differently than pending approval
+        ```
+
+    Attributes:
+        message: Description of what was rejected
+        interrupt_id: The interrupt ID that was rejected
+        tool_call: Optional ToolCall information if raised by a tool
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        interrupt_id: str | None = None,
+        tool_call: ToolCall | None = None,
+    ):
+        """Initialize InterruptRejected exception.
+
+        Args:
+            message: Description of what was rejected
+            interrupt_id: The interrupt ID that was rejected
+            tool_call: Optional tool call information
+        """
+        super().__init__(message)
+        self.message = message
+        self.interrupt_id = interrupt_id
+        self.tool_call = tool_call
+
+
 def get_interrupt_context() -> dict[str, Any]:
     """Get the current interrupt context.
 
@@ -152,32 +207,172 @@ def clear_all_interrupts() -> None:
     _interrupt_context.set({})
 
 
+def _generate_interrupt_id(
+    func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[str, dict[str, Any]]:
+    """Generate a stable interrupt ID from function name and arguments.
+
+    Creates a unique identifier for an interrupt based on the function being called
+    and its arguments. This allows the same function call to be resumed after interruption.
+
+    Args:
+        func: The function being called
+        args: Positional arguments
+        kwargs: Keyword arguments
+
+    Returns:
+        Tuple of (interrupt_id, normalized_kwargs) where:
+        - interrupt_id: Stable ID in format "function_name:hash(args)"
+        - normalized_kwargs: All arguments converted to kwargs dict
+    """
+    import json
+
+    func_name = func.__name__
+
+    # Convert positional args to kwargs for consistent handling
+    sig = inspect.signature(func)
+    bound_args = sig.bind(*args, **kwargs)
+    bound_args.apply_defaults()
+    all_kwargs = dict(bound_args.arguments)
+
+    # Create stable ID from function name and arguments
+    args_repr = json.dumps({"kwargs": all_kwargs}, sort_keys=True, default=str)
+    interrupt_id = f"{func_name}:{hash(args_repr)}"
+
+    return interrupt_id, all_kwargs
+
+
+def _handle_interrupt_approval(
+    interrupt_id: str, func_name: str, all_kwargs: dict[str, Any]
+) -> dict[str, Any]:
+    """Check interrupt approval status and handle accordingly.
+
+    This function checks if an interrupt has been approved, rejected, or is pending.
+    Based on the status, it either:
+    - Returns modified kwargs if approved (possibly with user edits)
+    - Raises InterruptRejected if user explicitly rejected
+    - Raises HumanInTheLoopRequired if pending approval
+
+    Args:
+        interrupt_id: The interrupt ID to check
+        func_name: Name of the function being called
+        all_kwargs: Normalized keyword arguments for the function
+
+    Returns:
+        Modified kwargs to use for execution (if approved)
+
+    Raises:
+        InterruptRejected: If user rejected the interrupt
+        HumanInTheLoopRequired: If interrupt is pending approval
+    """
+    import json
+
+    ctx = _interrupt_context.get()
+    approval = ctx.get(interrupt_id) if ctx is not None else None
+
+    if approval:
+        is_approved = approval.get("approved", False)
+        status = approval.get("status", "pending")
+
+        if is_approved:
+            # Use modified args if provided, otherwise original
+            return approval.get("data") or all_kwargs
+        elif status == "rejected":
+            # User explicitly rejected
+            raise InterruptRejected(
+                message=f"User rejected execution of {func_name}",
+                interrupt_id=interrupt_id,
+                tool_call=ToolCall(name=func_name, args=all_kwargs),
+            )
+
+    # No approval yet - ask user
+    raise HumanInTheLoopRequired(
+        question=f"Confirm execution of {func_name} with args: {json.dumps(all_kwargs)}? (yes/no/feedback/edit)",
+        interrupt_id=interrupt_id,
+        tool_call=ToolCall(name=func_name, args=all_kwargs),
+    )
+
+
+async def _execute_function_async(func: Callable[..., Any], kwargs: dict[str, Any]) -> Any:
+    """Execute a function asynchronously, handling both sync and async functions.
+
+    Args:
+        func: Function to execute (can be sync or async)
+        kwargs: Keyword arguments to pass
+
+    Returns:
+        Function result
+    """
+    if inspect.iscoroutinefunction(func):
+        return await func(**kwargs)
+    else:
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: func(**kwargs))
+
+
 def interruptible(func: F) -> F:
     """Decorator that makes a function interruptible.
 
-    When called, the decorator:
-    1. Checks if an interrupt ID exists in the context
-    2. If approved: proceeds with execution
-    3. If not approved: raises HumanInTheLoopRequired
+    When called, the decorator checks the interrupt context and behaves as follows:
+    1. **Pending** (no approval): Raises HumanInTheLoopRequired
+    2. **Approved**: Proceeds with execution (possibly with modified args)
+    3. **Rejected**: Raises InterruptRejected
 
     The interrupt ID is generated based on function name and arguments to ensure
-    the same call can be resumed.
+    the same call can be resumed after approval.
 
-    Example:
+    Example (Approval Flow):
         ```python
+        from udspy import interruptible, HumanInTheLoopRequired, set_interrupt_approval
+
         @interruptible
         def delete_file(path: str) -> str:
             os.remove(path)
             return f"Deleted {path}"
 
-        # First call - raises HumanInTheLoopRequired
+        # First call - pending, raises HumanInTheLoopRequired
         try:
             delete_file("/tmp/test.txt")
         except HumanInTheLoopRequired as e:
-            # User confirms
+            print(f"Confirm: {e.question}")
+            # User approves
             set_interrupt_approval(e.interrupt_id, approved=True)
-            # Retry - now proceeds
-            result = delete_file("/tmp/test.txt")
+
+        # Retry - approved, executes normally
+        result = delete_file("/tmp/test.txt")
+        print(result)  # "Deleted /tmp/test.txt"
+        ```
+
+    Example (Rejection Flow):
+        ```python
+        from udspy import InterruptRejected
+
+        try:
+            delete_file("/tmp/important.txt")
+        except HumanInTheLoopRequired as e:
+            # User rejects
+            set_interrupt_approval(e.interrupt_id, approved=False, status="rejected")
+
+        # Retry - rejected, raises InterruptRejected
+        try:
+            delete_file("/tmp/important.txt")
+        except InterruptRejected as e:
+            print(f"Operation rejected: {e.message}")
+        ```
+
+    Example (Modified Arguments):
+        ```python
+        try:
+            delete_file("/tmp/test.txt")
+        except HumanInTheLoopRequired as e:
+            # User modifies the path
+            modified_args = {"path": "/tmp/different.txt"}
+            set_interrupt_approval(e.interrupt_id, approved=True, data=modified_args)
+
+        # Retry - executes with modified arguments
+        result = delete_file("/tmp/test.txt")  # Actually deletes /tmp/different.txt
         ```
 
     Args:
@@ -189,87 +384,28 @@ def interruptible(func: F) -> F:
 
     @functools.wraps(func)
     async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Generate interrupt ID based on function and args
-        import json
+        interrupt_id, all_kwargs = _generate_interrupt_id(func, args, kwargs)
 
-        func_name = func.__name__
+        # Check approval status and get kwargs to use
+        execution_kwargs = _handle_interrupt_approval(interrupt_id, func.__name__, all_kwargs)
 
-        # Convert positional args to kwargs for consistent handling
-        sig = inspect.signature(func)
-        bound_args = sig.bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        all_kwargs = dict(bound_args.arguments)
-
-        # Create stable ID from function name and arguments
-        args_repr = json.dumps({"kwargs": all_kwargs}, sort_keys=True, default=str)
-        interrupt_id = f"{func_name}:{hash(args_repr)}"
-
-        # Check if this interrupt is approved
-        ctx = _interrupt_context.get()
-        approval = ctx.get(interrupt_id) if ctx is not None else None
-
-        if approval and approval.get("approved"):
-            # Approved - proceed with execution
-            # Use modified data if provided, otherwise use original kwargs
-            if approval.get("data"):
-                all_kwargs = approval["data"]
-
-            # Execute the function with kwargs only (no positional args)
-            if inspect.iscoroutinefunction(func):
-                result = await func(**all_kwargs)
-            else:
-                import asyncio
-
-                loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(None, lambda: func(**all_kwargs))
-
-            # Clear the interrupt after successful execution
-            clear_interrupt(interrupt_id)
-            return result
-        else:
-            # Not approved - raise interrupt exception
-            raise HumanInTheLoopRequired(
-                question=f"Confirm execution of {func_name} with args: {json.dumps(all_kwargs)}? (yes/no/feedback/edit)",
-                interrupt_id=interrupt_id,
-                tool_call=ToolCall(name=func_name, args=all_kwargs),
-            )
+        # Execute and cleanup
+        result = await _execute_function_async(func, execution_kwargs)
+        clear_interrupt(interrupt_id)
+        return result
 
     @functools.wraps(func)
     def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-        # For sync functions, we still need to check interrupt context
-        import json
+        interrupt_id, all_kwargs = _generate_interrupt_id(func, args, kwargs)
 
-        func_name = func.__name__
+        # Check approval status and get kwargs to use
+        execution_kwargs = _handle_interrupt_approval(interrupt_id, func.__name__, all_kwargs)
 
-        # Convert positional args to kwargs for consistent handling
-        sig = inspect.signature(func)
-        bound_args = sig.bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        all_kwargs = dict(bound_args.arguments)
+        # Execute and cleanup
+        result = func(**execution_kwargs)
+        clear_interrupt(interrupt_id)
+        return result
 
-        args_repr = json.dumps({"kwargs": all_kwargs}, sort_keys=True, default=str)
-        interrupt_id = f"{func_name}:{hash(args_repr)}"
-
-        ctx = _interrupt_context.get()
-        approval = ctx.get(interrupt_id) if ctx is not None else None
-
-        if approval and approval.get("approved"):
-            # Approved - proceed with execution
-            if approval.get("data"):
-                all_kwargs = approval["data"]
-
-            result = func(**all_kwargs)
-            clear_interrupt(interrupt_id)
-            return result
-        else:
-            # Not approved - raise interrupt exception
-            raise HumanInTheLoopRequired(
-                question=f"Confirm execution of {func_name} with args: {json.dumps(all_kwargs)}? (yes/no/feedback/edit)",
-                interrupt_id=interrupt_id,
-                tool_call=ToolCall(name=func_name, args=all_kwargs),
-            )
-
-    # Return appropriate wrapper based on whether function is async
     if inspect.iscoroutinefunction(func):
         return async_wrapper  # type: ignore
     else:
