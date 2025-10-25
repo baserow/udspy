@@ -53,7 +53,7 @@ The core abstractions (Signatures, Modules, Predictions) are **heavily** inspire
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/silvestrid/udspy
 cd udspy
 
 # Install dependencies and package in editable mode

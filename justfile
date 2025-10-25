@@ -17,12 +17,12 @@ test-cov:
 
 # Run linter
 lint:
-    uv run ruff check src tests
+    uv run ruff check src tests examples
 
 # Format code and fix linting issues
 fmt:
-    uv run ruff check --fix src tests
-    uv run ruff format src tests
+    uv run ruff check --fix src tests examples
+    uv run ruff format src tests examples
 
 # Run type checker
 typecheck:

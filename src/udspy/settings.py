@@ -120,7 +120,8 @@ class Settings:
     @contextmanager
     def context(
         self,
-        api_key: str | None = None,
+        api_key: str = "",
+        base_url: str | None = None,
         model: str | None = None,
         aclient: AsyncOpenAI | None = None,
         **kwargs: Any,
@@ -168,8 +169,8 @@ class Settings:
             # Set context-specific values
             if aclient:
                 self._context_aclient.set(aclient)
-            elif api_key:
-                self._context_aclient.set(AsyncOpenAI(api_key=api_key))
+            else:
+                self._context_aclient.set(AsyncOpenAI(api_key=api_key, base_url=base_url))
 
             if model:
                 self._context_model.set(model)
