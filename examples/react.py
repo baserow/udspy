@@ -11,7 +11,7 @@ import asyncio
 
 from pydantic import Field
 
-from udspy import HumanInTheLoopRequired, InputField, OutputField, ReAct, Signature, settings, tool
+from udspy import ConfirmationRequired, InputField, OutputField, ReAct, Signature, settings, tool
 
 settings.configure(
     model="gpt-oss:120b-cloud",
@@ -49,7 +49,11 @@ def calculator(expression: str = Field(description="Mathematical expression to e
         return f"Error evaluating expression: {str(e)}"
 
 
-@tool(name="delete_file", description="Delete a file (requires confirmation)", interruptible=True)
+@tool(
+    name="delete_file",
+    description="Delete a file (requires confirmation)",
+    require_confirmation=True,
+)
 def delete_file(path: str = Field(description="Path to the file to delete")) -> str:
     """Mock file deletion tool - requires user confirmation."""
     # In a real application, this would actually delete the file
@@ -107,7 +111,7 @@ async def user_clarification_example():
     try:
         result = await agent.aforward(question=question)
         print(f"Answer: {result.answer}\n")
-    except HumanInTheLoopRequired as e:
+    except ConfirmationRequired as e:
         # Agent needs clarification
         print(f"Agent asks: {e.question}\n")
 
@@ -146,7 +150,7 @@ async def tool_confirmation_example():
     try:
         result = await agent.aforward(question=question)
         print(f"Answer: {result.answer}\n")
-    except HumanInTheLoopRequired as e:
+    except ConfirmationRequired as e:
         # Agent needs confirmation for destructive operation
         print(f"Confirmation needed: {e.question}\n")
 

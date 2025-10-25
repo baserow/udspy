@@ -11,7 +11,7 @@ API documentation for creating and using tools with native OpenAI function calli
     name: str | None = None,
     description: str | None = None,
     *,
-    interruptible: bool = False,
+    require_confirmation: bool = False,
 ) -> Callable[[Callable], Tool]
 ```
 
@@ -24,9 +24,9 @@ Decorator to mark a function as a tool for use with `Predict` and `ReAct` module
 - **`description`** (`str | None`, default: `None`): Tool description visible to the LLM
   - If not provided, uses the function's docstring
   - This helps the LLM decide when to use the tool
-- **`interruptible`** (`bool`, default: `False`): Whether to require user confirmation before execution
-  - If `True`, wraps the tool with `@interruptible` decorator
-  - Raises `HumanInTheLoopRequired` on first call, executes after approval
+- **`require_confirmation`** (`bool`, default: `False`): Whether to require user confirmation before execution
+  - If `True`, wraps the tool with `@confirm_first` decorator
+  - Raises `ConfirmationRequired` on first call, executes after approval
   - Useful for destructive or sensitive operations
 
 **Returns:**
@@ -55,7 +55,7 @@ def calculator(
     return ops[operation]
 ```
 
-### Tool Interruption Example
+### Tool Confirmation Example
 
 ```python
 import os
@@ -65,7 +65,7 @@ from udspy import tool
 @tool(
     name="delete_file",
     description="Delete a file from the filesystem",
-    interruptible=True  # Requires user confirmation
+    require_confirmation=True  # Requires user confirmation
 )
 def delete_file(path: str = Field(description="File path to delete")) -> str:
     """Delete a file (requires confirmation)."""
@@ -93,7 +93,7 @@ def __init__(
     name: str | None = None,
     description: str | None = None,
     *,
-    interruptible: bool = False,
+    require_confirmation: bool = False,
     desc: str | None = None,
     args: dict[str, str] | None = None,
 )
@@ -104,7 +104,7 @@ def __init__(
 - **`func`** (`Callable`): The function to wrap
 - **`name`** (`str | None`): Tool name (defaults to function name)
 - **`description`** (`str | None`): Tool description (defaults to docstring)
-- **`interruptible`** (`bool`, default: `False`): Whether to require confirmation before execution
+- **`require_confirmation`** (`bool`, default: `False`): Whether to require confirmation before execution
 - **`desc`** (`str | None`): Alias for `description` (DSPy compatibility)
 - **`args`** (`dict[str, str] | None`): Manual argument specification (DSPy compatibility)
 
@@ -155,10 +155,10 @@ description: str
 
 The tool's description as seen by the LLM.
 
-#### `interruptible`
+#### `require_confirmation`
 
 ```python
-interruptible: bool
+require_confirmation: bool
 ```
 
 Whether this tool requires user confirmation before execution.
@@ -240,8 +240,8 @@ result = add(2, 3)  # Returns 5
 Call the wrapped function asynchronously.
 
 - If the function is async, awaits it directly
-- If the function is sync, runs it in an executor to avoid blocking (unless `interruptible=True`)
-- If `interruptible=True`, may raise `HumanInTheLoopRequired` before execution
+- If the function is sync, runs it in an executor to avoid blocking (unless `require_confirmation=True`)
+- If `require_confirmation=True`, may raise `ConfirmationRequired` before execution
 
 **Parameters:**
 
@@ -253,7 +253,7 @@ Call the wrapped function asynchronously.
 
 **Raises:**
 
-- `HumanInTheLoopRequired`: If `interruptible=True` and not yet approved
+- `ConfirmationRequired`: If `require_confirmation=True` and not yet approved
 
 **Example:**
 
@@ -393,19 +393,19 @@ def example_tool(
 
 ---
 
-## Tool Interruption
+## Tool Confirmation
 
-For destructive or sensitive operations, use `interruptible=True`:
+For destructive or sensitive operations, use `require_confirmation=True`:
 
 ```python
 import os
 from pydantic import Field
-from udspy import tool, HumanInTheLoopRequired
+from udspy import tool, ConfirmationRequired
 
 @tool(
     name="delete_all_files",
     description="Delete all files in a directory",
-    interruptible=True  # Requires confirmation
+    require_confirmation=True  # Requires confirmation
 )
 def delete_all_files(
     directory: str = Field(description="Directory path")
@@ -415,14 +415,14 @@ def delete_all_files(
         os.remove(os.path.join(directory, file))
     return f"Deleted all files in {directory}"
 
-# When ReAct tries to call this tool, it raises HumanInTheLoopRequired on first call
+# When ReAct tries to call this tool, it raises ConfirmationRequired on first call
 # After user approves, the tool executes normally
 ```
 
 **How it works:**
 
 1. LLM decides to call the tool
-2. Tool function (wrapped with `@interruptible`) raises `HumanInTheLoopRequired` on first call
+2. Tool function (wrapped with `@confirm_first`) raises `ConfirmationRequired` on first call
 3. User sees confirmation prompt: `"Confirm execution of delete_all_files with args: {...}? (yes/no)"`
 4. User responds with `"yes"`, `"no"`, or modified arguments
 5. ReAct resumes execution based on user's response
@@ -519,9 +519,9 @@ print(search.args)  # {"query": "str - Search query"}
    )
    ```
 
-3. **Require confirmation for destructive ops**: Use `interruptible=True`
+3. **Require confirmation for destructive ops**: Use `require_confirmation=True`
    ```python
-   @tool(name="delete", description="Delete data", interruptible=True)
+   @tool(name="delete", description="Delete data", require_confirmation=True)
    ```
 
 4. **Handle errors gracefully**: Return error messages as strings
@@ -557,7 +557,7 @@ def tool(
     name: str | None = None,
     description: str | None = None,
     *,
-    interruptible: bool = False,
+    require_confirmation: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]: ...
 
 # Tool class
@@ -565,7 +565,7 @@ class Tool:
     func: Callable[..., Any]
     name: str
     description: str
-    interruptible: bool
+    require_confirmation: bool
     parameters: dict[str, dict[str, Any]]
     desc: str  # Alias for description
     args: dict[str, str]  # DSPy compatibility
@@ -579,7 +579,7 @@ class Tool:
 
 ## See Also
 
-- [Interrupt API](interrupt.md) - Interrupt system and `@interruptible` decorator
+- [Confirmation API](confirmation.md) - Confirmation system and `@confirm_first` decorator
 - [ReAct API](react.md) - Using tools with ReAct agents
 - [ReAct Examples](../examples/react.md) - Tool usage examples
 - [Module API](module.md) - Base module documentation

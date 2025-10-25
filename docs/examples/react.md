@@ -80,7 +80,7 @@ print(result.result)
 When the user's request is ambiguous, the agent can ask for clarification:
 
 ```python
-from udspy import HumanInTheLoopRequired
+from udspy import ConfirmationRequired, ResumeState
 
 agent = ReAct(
     ResearchTask,
@@ -90,13 +90,13 @@ agent = ReAct(
 
 try:
     result = agent(question="Tell me about it")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     # Agent needs clarification
     print(f"Agent asks: {e.question}")
     # "What topic would you like to know about?"
 
     # User provides clarification
-    user_response = "The Python programming language"
+    response = "The Python programming language"
 
     # Resume execution
     result = agent.resume(user_response, e)
@@ -133,7 +133,7 @@ For destructive or sensitive operations, you can require user confirmation:
 @tool(
     name="delete_file",
     description="Delete a file",
-    interruptible=True  # Require confirmation
+    require_confirmation=True  # Require confirmation
 )
 def delete_file(path: str = Field(description="File path")) -> str:
     os.remove(path)
@@ -146,7 +146,7 @@ agent = ReAct(
 
 try:
     result = agent(question="Delete /tmp/old_data.txt")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     # Agent asks for confirmation
     print(f"Confirm: {e.question}")
     # "Confirm execution of delete_file with args: {'path': '/tmp/old_data.txt'}? (yes/no)"
@@ -230,7 +230,7 @@ async def main():
     # Or use the async resume method
     try:
         result = await agent.aforward(question="Tell me about it")
-    except HumanInTheLoopRequired as e:
+    except ConfirmationRequired as e:
         result = await agent.aresume("Python", e)
 
 asyncio.run(main())
@@ -318,7 +318,7 @@ Save and restore execution state:
 ```python
 try:
     result = agent(question="Delete important files")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     # Save state
     saved_state = e
     saved_question = e.question
@@ -328,7 +328,7 @@ except HumanInTheLoopRequired as e:
     saved_input_args = e.context["input_args"]
 
     # Later, restore and continue
-    user_response = input(f"{saved_question} ")
+    response = input(f"{saved_question} ")
     result = agent.resume(user_response, saved_state)
 ```
 
@@ -353,8 +353,8 @@ print(search.args)   # Dict of argument specs
 1. **Provide clear tool descriptions**: The LLM uses descriptions to select tools
 2. **Use Field() for parameters**: Provide descriptions for all tool parameters
 3. **Limit max_iters**: Prevent infinite loops with reasonable iteration limits
-4. **Enable confirmation for destructive ops**: Use `interruptible=True`
-5. **Handle HumanInTheLoopRequired**: Always catch and handle clarification requests
+4. **Enable confirmation for destructive ops**: Use `require_confirmation=True`
+5. **Handle ConfirmationRequired**: Always catch and handle clarification requests
 6. **Use specific signatures**: Clear input/output fields help the agent understand the task
 7. **Test with mock tools**: Use simple mock tools to validate agent logic
 
@@ -449,8 +449,77 @@ agent = ReAct(
 )
 ```
 
+## Loop-Based Confirmation Handling
+
+For applications requiring multiple confirmations or interactive workflows, use the loop-based pattern with `resume_state`:
+
+### Basic Loop Pattern
+
+```python
+from udspy import ConfirmationRequired, ResumeState
+
+resume_state = None
+
+while True:
+    try:
+        result = agent(
+            question="Your task here",
+            resume_state=resume_state
+        )
+        print(f"Success: {result.answer}")
+        break
+
+    except ConfirmationRequired as e:
+        print(f"Confirmation needed: {e.question}")
+        response = input("Your response (yes/no): ")
+        resume_state = ResumeState(e, response)
+```
+
+### Advantages of Loop Pattern
+
+- **Multiple confirmations**: Handle as many confirmations as needed
+- **Uniform handling**: Same code path for all confirmations
+- **Stateless API calls**: Ideal for web APIs and distributed systems
+- **Simpler control flow**: No need to track separate resume calls
+
+### Comparison with `aresume()`
+
+**Using `aresume()` (explicit):**
+```python
+try:
+    result = await agent.aforward(question="Delete files")
+except ConfirmationRequired as e:
+    result = await agent.aresume("yes", e)
+```
+
+**Using loop pattern (uniform):**
+```python
+resume_state = None
+
+while True:
+    try:
+        result = await agent.aforward(
+            question="Delete files",
+            resume_state=resume_state
+        )
+        break
+    except ConfirmationRequired as e:
+        response = input(f"{e.question} (yes/no): ")
+        resume_state = ResumeState(e, response)
+```
+
+The loop pattern is especially useful when:
+- You expect multiple confirmations
+- Building interactive CLIs
+- Implementing web API endpoints
+- Want predictable, uniform handling
+
+For comprehensive examples and patterns, see the [Confirmation Examples](confirmation.md) guide.
+
 ## See Also
 
+- [Confirmation Examples](confirmation.md) - Detailed confirmation patterns
+- [Confirmation Architecture](../architecture/confirmation.md) - Design and implementation
 - [Tool Calling Guide](tool_calling.md) - Creating custom tools
 - [Chain of Thought](chain_of_thought.md) - Simpler reasoning module
 - [ReAct API Reference](../api/react.md) - Full API documentation

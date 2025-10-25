@@ -12,7 +12,7 @@ from openai.types.chat.chat_completion_message_tool_call import (
 )
 from pydantic import Field
 
-from udspy import HumanInTheLoopRequired, InputField, OutputField, ReAct, Signature, settings, tool
+from udspy import ConfirmationRequired, InputField, OutputField, ReAct, Signature, settings, tool
 
 
 # Test tools
@@ -30,7 +30,7 @@ def calculator_tool(expression: str = Field(description="Math expression")) -> s
     return "42"
 
 
-@tool(name="delete_file", description="Delete a file", interruptible=True)
+@tool(name="delete_file", description="Delete a file", require_confirmation=True)
 def delete_file_tool(path: str = Field(description="File path")) -> str:
     """Mock destructive tool requiring confirmation."""
     return f"Deleted {path}"
@@ -221,8 +221,8 @@ async def test_react_tool_confirmation() -> None:
 
     react = ReAct(QA, tools=[delete_file_tool], enable_ask_to_user=False)
 
-    # Should raise HumanInTheLoopRequired for confirmation
-    with pytest.raises(HumanInTheLoopRequired) as exc_info:
+    # Should raise ConfirmationRequired for confirmation
+    with pytest.raises(ConfirmationRequired) as exc_info:
         await react.aforward(question="Delete the test file")
 
     assert "Confirm execution" in exc_info.value.question
@@ -284,11 +284,11 @@ def test_react_forward_sync() -> None:
     assert result.answer == "Test answer"
 
 
-def test_tool_with_interruptible_flag() -> None:
-    """Test that tool interruptible flag is properly set."""
-    assert delete_file_tool.interruptible is True
-    assert search_tool.interruptible is False
-    assert calculator_tool.interruptible is False
+def test_tool_with_require_confirmation_flag() -> None:
+    """Test that tool require_confirmation flag is properly set."""
+    assert delete_file_tool.require_confirmation is True
+    assert search_tool.require_confirmation is False
+    assert calculator_tool.require_confirmation is False
 
 
 def test_tool_desc_and_args_aliases() -> None:
@@ -314,7 +314,7 @@ async def test_tool_execution_after_confirmation() -> None:
         func=tracked_delete,
         name="delete_file",
         description="Delete a file",
-        interruptible=True,
+        require_confirmation=True,
     )
 
     # Mock response for initial call (LLM decides to delete)
@@ -393,11 +393,11 @@ async def test_tool_execution_after_confirmation() -> None:
 
     agent = ReAct(QA, tools=[tracked_tool], enable_ask_to_user=False)
 
-    # Step 1: Initial execution should raise HumanInTheLoopRequired
+    # Step 1: Initial execution should raise ConfirmationRequired
     try:
         await agent.aforward(question="Delete /tmp/test.txt")
-        raise AssertionError("Should have raised HumanInTheLoopRequired")
-    except HumanInTheLoopRequired as e:
+        raise AssertionError("Should have raised ConfirmationRequired")
+    except ConfirmationRequired as e:
         assert e.tool_call is not None
         assert e.tool_call.name == "delete_file"
         assert e.tool_call.args == {"path": "/tmp/test.txt"}
@@ -527,8 +527,8 @@ async def test_user_feedback_triggers_re_reasoning() -> None:
     # Step 1: Agent asks for clarification
     try:
         await agent.aforward(question="Tell me about it")
-        raise AssertionError("Should have raised HumanInTheLoopRequired")
-    except HumanInTheLoopRequired as e:
+        raise AssertionError("Should have raised ConfirmationRequired")
+    except ConfirmationRequired as e:
         assert e.tool_call is not None
         assert e.tool_call.name == "ask_to_user"
         saved_state = e
@@ -599,9 +599,9 @@ async def test_react_with_string_signature() -> None:
 @pytest.mark.asyncio
 async def test_react_resume_with_pending_tool_call() -> None:
     """Test ReAct resumption executes pending_tool_call (lines 265-287 in react.py)."""
-    from udspy import set_interrupt_approval
+    from udspy import respond_to_confirmation
 
-    # First response: agent calls interruptible tool
+    # First response: agent calls tool with require_confirmation
     response1 = ChatCompletion(
         id="test",
         model="gpt-4o-mini",
@@ -670,14 +670,14 @@ async def test_react_resume_with_pending_tool_call() -> None:
 
     agent = ReAct(QA, tools=[delete_file_tool], max_iters=5)
 
-    # First call - should raise HumanInTheLoopRequired
+    # First call - should raise ConfirmationRequired
     try:
         await agent.aforward(question="Delete /tmp/test.txt")
-        pytest.fail("Should have raised HumanInTheLoopRequired")
-    except HumanInTheLoopRequired as e:
+        pytest.fail("Should have raised ConfirmationRequired")
+    except ConfirmationRequired as e:
         saved_state = e
-        # Approve the interrupt
-        set_interrupt_approval(e.interrupt_id, approved=True, status="approved")
+        # Approve the confirmation
+        respond_to_confirmation(e.confirmation_id, approved=True, status="approved")
 
     # Resume - this tests the pending_tool_call execution path (lines 265-287)
     result = await agent.aresume("yes", saved_state)
@@ -691,14 +691,14 @@ async def test_react_resume_with_pending_tool_call() -> None:
 @pytest.mark.asyncio
 async def test_react_resume_pending_tool_call_with_exception() -> None:
     """Test pending_tool_call exception handling (lines 276-287 in react.py)."""
-    from udspy import set_interrupt_approval
+    from udspy import respond_to_confirmation
 
-    @tool(name="failing_tool", description="Tool that fails", interruptible=True)
+    @tool(name="failing_tool", description="Tool that fails", require_confirmation=True)
     def failing_tool(x: int = Field(...)) -> str:
         """Failing tool."""
         raise ValueError("Tool failed!")
 
-    # Agent calls interruptible tool
+    # Agent calls tool with require_confirmation
     response1 = ChatCompletion(
         id="test",
         model="gpt-4o-mini",
@@ -765,13 +765,13 @@ async def test_react_resume_pending_tool_call_with_exception() -> None:
 
     agent = ReAct(QA, tools=[failing_tool], max_iters=5)
 
-    # First call - raises HumanInTheLoopRequired
+    # First call - raises ConfirmationRequired
     try:
         await agent.aforward(question="Test")
-        pytest.fail("Should have raised HumanInTheLoopRequired")
-    except HumanInTheLoopRequired as e:
+        pytest.fail("Should have raised ConfirmationRequired")
+    except ConfirmationRequired as e:
         saved_state = e
-        set_interrupt_approval(e.interrupt_id, approved=True)
+        respond_to_confirmation(e.confirmation_id, approved=True)
 
     # Resume - pending_tool_call execution hits exception path (lines 285-287)
     result = await agent.aresume("yes", saved_state)

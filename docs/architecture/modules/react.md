@@ -102,12 +102,12 @@ agent = ReAct(QA, tools=[search], enable_ask_to_user=False)
 
 ## Human-in-the-Loop
 
-ReAct supports interruptible tools that require human confirmation:
+ReAct supports tools with require_confirmation that require human confirmation:
 
 ```python
-from udspy import HumanInTheLoopRequired, tool
+from udspy import ConfirmationRequired, tool
 
-@tool(name="delete_file", interruptible=True)
+@tool(name="delete_file", require_confirmation=True)
 def delete_file(path: str = Field(...)) -> str:
     return f"Deleted {path}"
 
@@ -115,7 +115,7 @@ agent = ReAct(QA, tools=[delete_file])
 
 try:
     result = await agent.aforward(question="Delete /tmp/test.txt")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     print(f"Confirm: {e.question}")
     print(f"Tool: {e.tool_call.name}")
     print(f"Args: {e.tool_call.args}")
@@ -132,14 +132,14 @@ except HumanInTheLoopRequired as e:
 
 ### Resumption Flow
 
-When an interrupt occurs:
+When a confirmation is requested:
 
-1. Agent pauses and raises `HumanInTheLoopRequired`
+1. Agent pauses and raises `ConfirmationRequired`
 2. Exception contains saved state and pending tool call
 3. User reviews and responds
 4. Call `aresume(response, saved_state)` to continue
 
-See [Interrupt API](../../api/interrupt.md) for details.
+See [Confirmation API](../../api/confirmation.md) for details.
 
 ## Streaming
 
@@ -282,7 +282,7 @@ The built-in `ask_to_user` tool allows agents to:
 - Ask for additional information
 - Interact naturally with users
 
-It's implemented as an interruptible tool, so users can provide responses that the agent incorporates into its reasoning.
+It's implemented as a tool with require_confirmation, so users can provide responses that the agent incorporates into its reasoning.
 
 ### Why finish Tool?
 
@@ -318,7 +318,7 @@ result = researcher(topic="AI Safety")
 def read_file(path: str = Field(...)) -> str:
     return open(path).read()
 
-@tool(name="write_file", interruptible=True)
+@tool(name="write_file", require_confirmation=True)
 def write_file(path: str = Field(...), content: str = Field(...)) -> str:
     with open(path, 'w') as f:
         f.write(content)
@@ -361,6 +361,6 @@ result = solver(problem="Convert 100 fahrenheit to celsius and add 10")
 - [Base Module](base.md) - Module foundation
 - [Predict Module](predict.md) - Core prediction
 - [Tool API](../../api/tool.md) - Creating tools
-- [Interrupt API](../../api/interrupt.md) - Human-in-the-loop
+- [Confirmation API](../../api/confirmation.md) - Human-in-the-loop
 - [ADR-005: ReAct Module](../decisions.md#adr-005-react-agent-module)
-- [ADR-004: Interruptible Decorator](../decisions.md#adr-004-human-in-the-loop-with-interruptible-decorator)
+- [ADR-004: Confirmation System](../decisions.md#adr-004-human-in-the-loop-with-confirmation-system)

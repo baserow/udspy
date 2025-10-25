@@ -75,7 +75,7 @@ Synchronous forward pass through the ReAct loop.
 
 **Raises:**
 
-- `HumanInTheLoopRequired`: When user input is needed
+- `ConfirmationRequired`: When user input is needed
   - Raised when `ask_to_user` is called
   - Raised when tool requires confirmation
   - Contains saved state for resumption
@@ -127,10 +127,10 @@ Resume execution after user provides input (synchronous).
   - `"no"` or `"n"`: Reject and let agent decide next action
   - Free text: Treated as feedback for the agent
   - JSON with `"edit"` key: Modify tool name/args (e.g., `{"edit": {"name": "new_tool", "args": {...}}}`)
-- **`saved_state`** (`HumanInTheLoopRequired`): The exception that was raised
+- **`saved_state`** (`ConfirmationRequired`): The exception that was raised
   - Contains `context` dict with: `trajectory`, `iteration`, `input_args`
   - Contains `tool_call` with pending tool information
-  - Contains `interrupt_id` for tracking
+  - Contains `confirmation_id` for tracking
 
 **Returns:**
 
@@ -139,11 +139,11 @@ Resume execution after user provides input (synchronous).
 **Example:**
 
 ```python
-from udspy import HumanInTheLoopRequired
+from udspy import ConfirmationRequired
 
 try:
     result = agent(question="Delete my files")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     print(f"Agent asks: {e.question}")
     if e.tool_call:
         print(f"Tool: {e.tool_call.name}")
@@ -169,7 +169,7 @@ Resume execution after user provides input (async).
 ```python
 try:
     result = await agent.aforward(question="Delete my files")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     print(f"Agent asks: {e.question}")
     response = get_user_input(e.question)
     result = await agent.aresume(response, e)
@@ -217,30 +217,30 @@ Internal signature for extracting the final answer from the trajectory.
 
 ---
 
-### `HumanInTheLoopRequired`
+### `ConfirmationRequired`
 
 ```python
-class HumanInTheLoopRequired(Exception):
+class ConfirmationRequired(Exception):
     """Raised when human input is needed to proceed."""
 ```
 
-**Note**: This exception has been moved to the `interrupt` module. See the [Interrupt API](interrupt.md) for full documentation.
+**Note**: This exception has been moved to the `confirmation` module. See the [Confirmation API](confirmation.md) for full documentation.
 
 Exception that pauses ReAct execution and saves state for resumption. This exception can be raised by:
 - The `ask_to_user` tool when the agent needs clarification
-- Tools with `interruptible=True` before execution
+- Tools with `require_confirmation=True` before execution
 - Custom tools that need human input
 
 #### Constructor
 
 ```python
-from udspy.interrupt import HumanInTheLoopRequired, ToolCall
+from udspy.confirmation import ConfirmationRequired, ToolCall
 
 def __init__(
     self,
     question: str,
     *,
-    interrupt_id: str | None = None,
+    confirmation_id: str | None = None,
     tool_call: ToolCall | None = None,
     context: dict[str, Any] | None = None,
 )
@@ -249,7 +249,7 @@ def __init__(
 **Parameters:**
 
 - **`question`** (`str`): Question to ask the user
-- **`interrupt_id`** (`str | None`): Unique interrupt ID (auto-generated if not provided)
+- **`confirmation_id`** (`str | None`): Unique confirmation ID (auto-generated if not provided)
 - **`tool_call`** (`ToolCall | None`): Optional tool call information
   - Has attributes: `.name` (tool name), `.args` (arguments dict), `.call_id` (optional ID)
 - **`context`** (`dict[str, Any] | None`): Module-specific state dictionary
@@ -270,28 +270,28 @@ The question being asked to the user.
 ```python
 try:
     result = agent(question="Delete files")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     print(e.question)  # "Confirm execution of delete_file...?"
 ```
 
-##### `interrupt_id`
+##### `confirmation_id`
 
 ```python
-interrupt_id: str
+confirmation_id: str
 ```
 
-Unique identifier for this interrupt. Used with `get_interrupt_status()` to check approval status.
+Unique identifier for this confirmation. Used with `get_confirmation_status()` to check approval status.
 
 **Example:**
 
 ```python
-from udspy import get_interrupt_status
+from udspy import get_confirmation_status
 
 try:
     result = agent(question="Delete files")
-except HumanInTheLoopRequired as e:
-    print(e.interrupt_id)  # "abc-123-def-456"
-    status = get_interrupt_status(e.interrupt_id)
+except ConfirmationRequired as e:
+    print(e.confirmation_id)  # "abc-123-def-456"
+    status = get_confirmation_status(e.confirmation_id)
     print(status)  # "pending"
 ```
 
@@ -301,7 +301,7 @@ except HumanInTheLoopRequired as e:
 tool_call: ToolCall | None
 ```
 
-Information about the tool call that triggered this interrupt (if applicable).
+Information about the tool call that triggered this confirmation (if applicable).
 
 **Attributes:**
 - `name` (`str`): Tool name
@@ -313,7 +313,7 @@ Information about the tool call that triggered this interrupt (if applicable).
 ```python
 try:
     result = agent(question="Delete my files")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     if e.tool_call:
         print(f"Tool: {e.tool_call.name}")  # "delete_file"
         print(f"Args: {e.tool_call.args}")  # {"path": "/tmp/test.txt"}
@@ -336,7 +336,7 @@ Module-specific state dictionary. For ReAct agents, contains:
 ```python
 try:
     result = agent(question="What is 2+2?")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     # Access ReAct-specific state
     trajectory = e.context["trajectory"]
     print(trajectory)
@@ -389,7 +389,7 @@ Tool for requesting user clarification (if enabled).
 
 The agent can call this whenever it needs clarification or more information from the user.
 
-Raises `HumanInTheLoopRequired` exception.
+Raises `ConfirmationRequired` exception.
 
 **Notes:**
 - Can be disabled with `enable_ask_to_user=False`
@@ -472,9 +472,9 @@ The string signature is parsed into:
 
 ---
 
-## Tool Interruption
+## Tool Confirmation
 
-Tools can require user confirmation before execution using the `interruptible` parameter:
+Tools can require user confirmation before execution using the `require_confirmation` parameter:
 
 ```python
 from udspy import tool
@@ -483,14 +483,14 @@ from pydantic import Field
 @tool(
     name="delete_file",
     description="Delete a file",
-    interruptible=True  # Require confirmation before execution
+    require_confirmation=True  # Require confirmation before execution
 )
 def delete_file(path: str = Field(...)) -> str:
     os.remove(path)
     return f"Deleted {path}"
 ```
 
-When the agent tries to call this tool, it raises `HumanInTheLoopRequired` with a confirmation question on the first call. After the user approves, the tool executes normally.
+When the agent tries to call this tool, it raises `ConfirmationRequired` with a confirmation question on the first call. After the user approves, the tool executes normally.
 
 **Confirmation Message Format:**
 
@@ -508,7 +508,7 @@ When the agent tries to call this tool, it raises `HumanInTheLoopRequired` with 
 ```python
 try:
     result = agent(question="Delete all temporary files")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     print(e.question)  # "Confirm execution of delete_file..."
     # User approves
     result = agent.resume("yes", e)
@@ -554,7 +554,7 @@ result = agent(question="Complex task")
 
 ```python
 from typing import Callable, Any
-from udspy import ReAct, Signature, Tool, Prediction, HumanInTheLoopRequired
+from udspy import ReAct, Signature, Tool, Prediction, ConfirmationRequired
 
 # Constructor types
 signature: type[Signature] | str
@@ -567,11 +567,11 @@ def forward(**input_args: Any) -> Prediction: ...
 async def aforward(**input_args: Any) -> Prediction: ...
 def resume(
     user_response: str,
-    saved_state: HumanInTheLoopRequired
+    saved_state: ConfirmationRequired
 ) -> Prediction: ...
 async def aresume(
     user_response: str,
-    saved_state: HumanInTheLoopRequired
+    saved_state: ConfirmationRequired
 ) -> Prediction: ...
 ```
 
@@ -580,7 +580,7 @@ async def aresume(
 ## See Also
 
 - [ReAct Examples](../examples/react.md) - Usage guide and examples
-- [Interrupt API](interrupt.md) - Interrupt system and `HumanInTheLoopRequired` documentation
+- [Confirmation API](confirmation.md) - Confirmation system and `ConfirmationRequired` documentation
 - [Tool API](tool.md) - Creating and configuring tools
 - [Module API](module.md) - Base module documentation
 - [Signature API](signature.md) - Signature documentation

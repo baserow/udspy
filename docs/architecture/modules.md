@@ -208,8 +208,8 @@ class MyComplexModule(ChainOfThought):
 ```python
 try:
     result = await module.aforward(**inputs)
-except HumanInTheLoopRequired as e:
-    # Handle interrupts
+except ConfirmationRequired as e:
+    # Handle confirmations
     result = await module.aresume(user_input, e)
 except Exception as e:
     # Handle other errors

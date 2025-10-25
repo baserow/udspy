@@ -8,7 +8,7 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from udspy.interrupt import HumanInTheLoopRequired, set_interrupt_approval
+from udspy.confirmation import ConfirmationRequired, respond_to_confirmation
 from udspy.module.base import Module
 from udspy.module.chain_of_thought import ChainOfThought
 from udspy.module.predict import Predict
@@ -29,8 +29,8 @@ class ReAct(Module):
 
     - Iterative reasoning with tool execution
     - Built-in ask_to_user tool for clarification
-    - Tool interruption support for confirmations
-    - State saving/restoration for resumption after interrupts
+    - Tool confirmation support for confirmations
+    - State saving/restoration for resumption after confirmation requests
     - Real-time streaming of reasoning and tool usage
 
     Example (Basic Usage):
@@ -63,11 +63,11 @@ class ReAct(Module):
 
         See examples/react_streaming.py for a complete streaming example.
 
-    Example (Interruptible Tools):
+    Example (Tools with Confirmation):
         ```python
-        from udspy import HumanInTheLoopRequired, InterruptRejected
+        from udspy import ConfirmationRequired, ConfirmationRejected
 
-        @tool(name="delete_file", interruptible=True)
+        @tool(name="delete_file", require_confirmation=True)
         def delete_file(path: str = Field(...)) -> str:
             return f"Deleted {path}"
 
@@ -75,11 +75,11 @@ class ReAct(Module):
 
         try:
             result = await react.aforward(question="Delete /tmp/test.txt")
-        except HumanInTheLoopRequired as e:
+        except ConfirmationRequired as e:
             # User is asked for confirmation
             print(f"Confirm: {e.question}")
-            # Approve: set_interrupt_approval(e.interrupt_id, approved=True)
-            # Reject: set_interrupt_approval(e.interrupt_id, approved=False, status="rejected")
+            # Approve: respond_to_confirmation(e.confirmation_id, approved=True)
+            # Reject: respond_to_confirmation(e.confirmation_id, approved=False, status="rejected")
             result = await react.aresume("yes", e)
         ```
     """
@@ -153,7 +153,7 @@ class ReAct(Module):
                 func=ask_to_user_impl,
                 name="ask_to_user",
                 description="Ask the user for clarification when needed. Use this when you need more information or when the request is ambiguous.",
-                interruptible=True,
+                require_confirmation=True,
             )
 
         react_input_fields: dict[str, type] = {}
@@ -241,7 +241,7 @@ class ReAct(Module):
             should_stop: Whether to stop the ReAct loop
 
         Raises:
-            HumanInTheLoopRequired: When human input is needed
+            ConfirmationRequired: When human input is needed
         """
         if pending_tool_call:
             tool_name = pending_tool_call["name"]
@@ -255,14 +255,14 @@ class ReAct(Module):
                 tool = self.tools[tool_name]
                 if inspect.iscoroutinefunction(tool.func):
                     observation = await tool.func(**tool_args)
-                elif tool.interruptible:
+                elif tool.require_confirmation:
                     observation = tool.func(**tool_args)
                 else:
                     import asyncio
 
                     loop = asyncio.get_event_loop()
                     observation = await loop.run_in_executor(None, lambda: tool.func(**tool_args))
-            except HumanInTheLoopRequired as e:
+            except ConfirmationRequired as e:
                 e.context = {
                     "trajectory": trajectory.copy(),
                     "iteration": idx,
@@ -315,7 +315,7 @@ class ReAct(Module):
         try:
             tool = self.tools[tool_name]
             observation = await tool.acall(**tool_args)
-        except HumanInTheLoopRequired as e:
+        except ConfirmationRequired as e:
             e.context = {
                 "trajectory": trajectory.copy(),
                 "iteration": idx,
@@ -344,7 +344,7 @@ class ReAct(Module):
             Prediction with trajectory and output fields
 
         Raises:
-            HumanInTheLoopRequired: When human input is needed
+            ConfirmationRequired: When human input is needed
         """
         max_iters = input_args.pop("max_iters", self.max_iters)
         trajectory: dict[str, Any] = {}
@@ -400,7 +400,7 @@ class ReAct(Module):
             Final prediction after resuming
 
         Raises:
-            HumanInTheLoopRequired: If another human input is needed
+            ConfirmationRequired: If another human input is needed
         """
         trajectory = saved_state.context.get("trajectory", {}).copy()
         start_idx = saved_state.context.get("iteration", 0)
@@ -410,8 +410,10 @@ class ReAct(Module):
         pending_tool_call: dict[str, Any] | None = None
 
         if user_response_lower in ("yes", "y"):
-            if saved_state.interrupt_id:
-                set_interrupt_approval(saved_state.interrupt_id, approved=True, status="approved")
+            if saved_state.confirmation_id:
+                respond_to_confirmation(
+                    saved_state.confirmation_id, approved=True, status="approved"
+                )
             if saved_state.tool_call:
                 pending_tool_call = {
                     "name": saved_state.tool_call.name,
@@ -421,17 +423,19 @@ class ReAct(Module):
             else:
                 pending_tool_call = None
         elif user_response_lower in ("no", "n"):
-            if saved_state.interrupt_id:
-                set_interrupt_approval(saved_state.interrupt_id, approved=False, status="rejected")
+            if saved_state.confirmation_id:
+                respond_to_confirmation(
+                    saved_state.confirmation_id, approved=False, status="rejected"
+                )
             trajectory[f"observation_{start_idx}"] = "User rejected the operation"
             start_idx += 1
         else:
             try:
                 modified_args = json.loads(user_response)
                 if isinstance(modified_args, dict):
-                    if saved_state.interrupt_id:
-                        set_interrupt_approval(
-                            saved_state.interrupt_id,
+                    if saved_state.confirmation_id:
+                        respond_to_confirmation(
+                            saved_state.confirmation_id,
                             approved=True,
                             data=modified_args,
                             status="edited",
@@ -445,16 +449,16 @@ class ReAct(Module):
                     else:
                         pending_tool_call = None
                 else:
-                    if saved_state.interrupt_id:
-                        set_interrupt_approval(
-                            saved_state.interrupt_id, approved=False, status="feedback"
+                    if saved_state.confirmation_id:
+                        respond_to_confirmation(
+                            saved_state.confirmation_id, approved=False, status="feedback"
                         )
                     trajectory[f"observation_{start_idx}"] = f"User feedback: {user_response}"
                     start_idx += 1
             except json.JSONDecodeError:
-                if saved_state.interrupt_id:
-                    set_interrupt_approval(
-                        saved_state.interrupt_id, approved=False, status="feedback"
+                if saved_state.confirmation_id:
+                    respond_to_confirmation(
+                        saved_state.confirmation_id, approved=False, status="feedback"
                     )
                 trajectory[f"observation_{start_idx}"] = f"User feedback: {user_response}"
                 start_idx += 1

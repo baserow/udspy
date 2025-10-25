@@ -7,7 +7,7 @@ This document tracks major architectural decisions made in udspy, presented chro
 1. [Initial Project Setup (2025-01-24)](#adr-001-initial-project-setup)
 2. [Context Manager for Settings (2025-01-24)](#adr-002-context-manager-for-settings)
 3. [Chain of Thought Module (2025-01-24)](#adr-003-chain-of-thought-module)
-4. [Human-in-the-Loop with Interruptible Decorator (2025-01-25)](#adr-004-human-in-the-loop-with-interruptible-decorator)
+4. [Human-in-the-Loop with Confirmation System (2025-01-25)](#adr-004-human-in-the-loop-with-confirmation-system)
 5. [ReAct Agent Module (2025-01-25)](#adr-005-react-agent-module)
 6. [Unified Module Execution Pattern (aexecute) (2025-01-25)](#adr-006-unified-module-execution-pattern-aexecute)
 
@@ -346,7 +346,7 @@ Feature is additive - no migration needed.
 
 ---
 
-## ADR-004: Human-in-the-Loop with Interruptible Decorator
+## ADR-004: Human-in-the-Loop with Confirmation System
 
 **Date**: 2025-01-25
 
@@ -358,36 +358,36 @@ Many agent applications require human approval for certain actions (e.g., deleti
 
 ### Decision
 
-Implement an `@interruptible` decorator that:
+Implement an `@confirm_first` decorator that:
 - Suspends function execution before it runs
-- Raises `HumanInTheLoopRequired` exception with context
+- Raises `ConfirmationRequired` exception with context
 - Allows resumption with user approval/rejection/modifications
 - Uses thread-safe `contextvars` for state management
-- Generates stable interrupt IDs based on function + arguments
+- Generates stable confirmation IDs based on function + arguments
 
 ```python
-from udspy import interruptible, HumanInTheLoopRequired, set_interrupt_approval
+from udspy import confirm_first, ConfirmationRequired, respond_to_confirmation
 
-@interruptible
+@confirm_first
 def delete_file(path: str) -> str:
     os.remove(path)
     return f"Deleted {path}"
 
 try:
     delete_file("/important.txt")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     # User approves
-    set_interrupt_approval(e.interrupt_id, approved=True)
+    respond_to_confirmation(e.confirmation_id, approved=True)
     delete_file("/important.txt")  # Now executes
 ```
 
 ### Implementation Details
 
-1. **Stable Interrupt IDs**: Generated from `function_name:hash(args)` to allow same call to resume
+1. **Stable Confirmation IDs**: Generated from `function_name:hash(args)` to allow same call to resume
 2. **Context Variables**: Thread-safe and async-safe state storage
-3. **Rejection Support**: `InterruptRejected` exception distinguishes "user said no" from "pending"
+3. **Rejection Support**: `ConfirmationRejected` exception distinguishes "user said no" from "pending"
 4. **Argument Modification**: Users can edit arguments before approval
-5. **Automatic Cleanup**: Interrupts are cleared after successful execution
+5. **Automatic Cleanup: Confirmations are cleared after successful execution
 
 ### Key Features
 
@@ -410,11 +410,11 @@ except HumanInTheLoopRequired as e:
 - Clean separation of business logic from approval logic
 - Works naturally with ReAct agent workflows
 - Thread-safe and async-safe out of the box
-- Easy to test (deterministic based on interrupt state)
+- Easy to test (deterministic based on confirmation state)
 
 **Trade-offs**:
 - Requires exception handling (but this is explicit and clear)
-- Interrupt state needs to be managed (cleared on success)
+- Confirmation state needs to be managed (cleared on success)
 - Not suitable for purely synchronous, single-threaded apps (but works fine there too)
 
 ### Alternatives Considered
@@ -470,7 +470,7 @@ result = agent(question="What is the population of Tokyo?")
 2. **Dynamic Signature**: Extends signature with reasoning_N, tool_name_N, tool_args_N fields
 3. **Tool Execution**: Automatically executes tools and adds results to context
 4. **Error Handling**: Retries with error feedback if tool execution fails
-5. **Human Interrupts**: Integrates with `@interruptible` for user input
+5. **Human Confirmations**: Integrates with `@confirm_first` for user input
 
 ### Key Features
 
@@ -513,7 +513,7 @@ ReAct improves performance on:
 | Aspect | udspy | DSPy |
 |--------|-------|------|
 | API | `ReAct(signature, tools=[...])` | `dspy.ReAct(signature, tools=[...])` |
-| Human-in-Loop | Built-in with `@interruptible` | External handling |
+| Human-in-Loop | Built-in with `@confirm_first` | External handling |
 | Streaming | Supported | Limited |
 | Tool Execution | Automatic with error handling | Automatic |
 | Max Iterations | Configurable with `max_iters` | Configurable |
