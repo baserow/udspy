@@ -7,19 +7,45 @@
 [![codecov](https://codecov.io/gh/silvestrid/udspy/branch/main/graph/badge.svg)](https://codecov.io/gh/silvestrid/udspy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A minimal DSPy-inspired library with native OpenAI tool calling, conversation history, and streaming support.
+A lightweight DSPy-inspired library optimized for resource-constrained environments, with native OpenAI tool calling, human-in-the-loop workflows, and conversation history.
 
-**Topics:** `python` `openai` `llm` `dspy` `pydantic` `async` `ai-framework` `function-calling` `tool-calling` `streaming` `conversational-ai` `prompt-engineering` `type-hints` `pytest` `chatbot` `agent`
+**Topics:** `python` `openai` `llm` `dspy` `pydantic` `async` `ai-framework` `function-calling` `tool-calling` `streaming` `conversational-ai` `prompt-engineering` `type-hints` `pytest` `chatbot` `agent` `human-in-the-loop`
+
+## About This Project
+
+**[DSPy](https://github.com/stanfordnlp/dspy)** is a fantastic, production-ready framework with many more features and a thriving ecosystem. If you're looking for a comprehensive solution with extensive provider support, optimizers, and advanced features, **DSPy is the recommended choice**.
+
+This project exists to address a specific use case: **resource-constrained environments**. DSPy's dependency on LiteLLM (which requires ~200MB of memory when loaded) makes it challenging to use in contexts with limited resources, such as:
+- Serverless functions with memory limits
+- Edge deployments
+- Embedded systems
+- Cost-sensitive cloud environments
+
+**udspy** takes the excellent developer experience and core concepts from DSPy (for which we're deeply grateful) and provides:
+- **Minimal footprint**: Uses the OpenAI library directly (~10MB vs ~200MB)
+- **OpenAI-compatible providers**: Works with any provider compatible with OpenAI's API (OpenAI, Azure OpenAI, Together AI, Groq, etc.)
+- **Additional features** for common patterns:
+  - Human-in-the-loop workflows with state management
+  - Automatic tool calling with multi-turn conversations
+  - Built-in conversation history management
+  - Interruptible tools for user confirmation
+
+The core abstractions (Signatures, Modules, Predictions) are **heavily** inspired by DSPy's elegant design. If resource constraints aren't a concern for your use case, we strongly encourage you to check out [DSPy](https://github.com/stanfordnlp/dspy) for a more feature-complete solution.
 
 ## Features
 
 - **Pydantic-based Signatures**: Define inputs, outputs, and tools using Pydantic models
+- **Human-in-the-Loop Workflows**: Built-in interrupt system for user confirmation, clarification, and feedback
+  - `@interruptible` decorator for function-level interruption
+  - Thread-safe and asyncio task-safe state management
+  - Support for approval, rejection, argument modification, and feedback
 - **Automatic Tool Calling**: Use `@tool` decorator for automatic tool execution with multi-turn conversations
+- **ReAct Agent**: Reasoning and acting agent with tool calling and self-reflection
 - **Conversation History**: Built-in `History` class for managing multi-turn conversations
 - **Optional Tool Execution**: Control whether tools execute automatically or return for manual handling
-- **Module Abstraction**: Compose LLM calls with reusable modules
+- **Module Abstraction**: Compose LLM calls with reusable modules (`Predict`, `ChainOfThought`, `ReAct`)
 - **Streaming Support**: Stream reasoning and output fields incrementally with async generators
-- **Minimal Dependencies**: Only requires `openai` and `pydantic`
+- **Minimal Dependencies**: Only requires `openai` and `pydantic` (~10MB total footprint)
 
 ## Installation
 
@@ -105,6 +131,38 @@ def calculator(
 predictor = Predict(QA, tools=[calculator])
 result = predictor(question="What is 157 times 234?")
 print(result.answer)  # Tools are automatically executed
+```
+
+### With Human-in-the-Loop
+
+```python
+from udspy import ReAct, HumanInTheLoopRequired, tool
+from pydantic import Field
+import os
+
+@tool(
+    name="delete_file",
+    description="Delete a file",
+    interruptible=True  # Requires user confirmation
+)
+def delete_file(path: str = Field(description="File path")) -> str:
+    os.remove(path)
+    return f"Deleted {path}"
+
+class FileTask(Signature):
+    """Perform file operations safely."""
+    request: str = InputField()
+    result: str = OutputField()
+
+agent = ReAct(FileTask, tools=[delete_file])
+
+try:
+    result = agent(request="Delete /tmp/old_data.txt")
+except HumanInTheLoopRequired as e:
+    print(f"Agent asks: {e.question}")
+    # User confirms: "yes", "no", or provides feedback
+    result = agent.resume("yes", e)
+    print(result.result)
 ```
 
 ## Development
