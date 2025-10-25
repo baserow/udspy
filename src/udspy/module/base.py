@@ -6,6 +6,7 @@ from typing import Any
 
 from udspy.confirmation import ConfirmationRequired
 from udspy.streaming import Prediction, StreamEvent
+from udspy.utils import ensure_sync_context
 
 
 class Module:
@@ -200,19 +201,7 @@ class Module:
                     resume_state = ResumeState(e, user_response)
             ```
         """
-        # Check if we're already in an async context
-        try:
-            asyncio.get_running_loop()
-            raise RuntimeError(
-                f"Cannot call {self.__class__.__name__}.forward() from async context. "
-                f"Use 'await {self.__class__.__name__[0].lower() + self.__class__.__name__[1:]}.aforward(...)' instead."
-            )
-        except RuntimeError as e:
-            # No running loop - we're in sync context, proceed
-            if "no running event loop" not in str(e).lower():
-                raise
-
-        # Run async code from sync context
+        ensure_sync_context(f"{self.__class__.__name__}.forward")
         return asyncio.run(self.aforward(resume_state=resume_state, **inputs))
 
     def __call__(self, *, resume_state: Any = None, **inputs: Any) -> Prediction:
@@ -276,16 +265,7 @@ class Module:
         Returns:
             Saved state (can be any type, will be passed to resume)
         """
-        try:
-            asyncio.get_running_loop()
-            raise RuntimeError(
-                f"Cannot call {self.__class__.__name__}.suspend() from async context. "
-                f"Use 'await {self.__class__.__name__[0].lower() + self.__class__.__name__[1:]}.asuspend(...)' instead."
-            )
-        except RuntimeError as e:
-            if "no running event loop" not in str(e).lower():
-                raise
-
+        ensure_sync_context(f"{self.__class__.__name__}.suspend")
         return asyncio.run(self.asuspend(exception))
 
     async def aresume(self, user_response: str, saved_state: Any) -> Prediction:
@@ -322,14 +302,5 @@ class Module:
         Returns:
             Final Prediction object
         """
-        try:
-            asyncio.get_running_loop()
-            raise RuntimeError(
-                f"Cannot call {self.__class__.__name__}.resume() from async context. "
-                f"Use 'await {self.__class__.__name__[0].lower() + self.__class__.__name__[1:]}.aresume(...)' instead."
-            )
-        except RuntimeError as e:
-            if "no running event loop" not in str(e).lower():
-                raise
-
+        ensure_sync_context(f"{self.__class__.__name__}.resume")
         return asyncio.run(self.aresume(user_response, saved_state))
