@@ -1,6 +1,6 @@
 # udspy
 
-[![PyPI version](https://badge.fury.io/py/udspy.svg)](https://badge.fury.io/py/udspy)
+[![PyPI version](https://img.shields.io/pypi/v/udspy.svg)](https://pypi.org/project/udspy/)
 [![Python versions](https://img.shields.io/pypi/pyversions/udspy.svg)](https://pypi.org/project/udspy/)
 [![Tests](https://github.com/silvestrid/udspy/actions/workflows/test.yml/badge.svg)](https://github.com/silvestrid/udspy/actions/workflows/test.yml)
 [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://silvestrid.github.io/udspy)
