@@ -60,7 +60,7 @@ docs-serve:
 
 # Deploy documentation to GitHub Pages
 docs-deploy:
-    uv run mkdocs gh-deploy
+    uv run mkdocs gh-deploy --force
 
 # Clean build artifacts
 clean:
