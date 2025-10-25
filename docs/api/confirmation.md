@@ -1,18 +1,18 @@
-# Interrupt API Reference
+# Confirmation API Reference
 
-API documentation for the interrupt system that enables human-in-the-loop workflows.
+API documentation for the confirmation system that enables human-in-the-loop workflows.
 
-## Module: `udspy.interrupt`
+## Module: `udspy.confirmation`
 
-The interrupt system provides a general-purpose mechanism for pausing execution to request human input or approval. It's designed to be:
+The confirmation system provides a general-purpose mechanism for pausing execution to request human input or approval. It's designed to be:
 - **Thread-safe**: Works correctly with multi-threaded applications
 - **Task-safe**: Compatible with asyncio concurrent tasks
 - **Module-agnostic**: Can be used by any module, not just ReAct
 
-### `HumanInTheLoopRequired`
+### `ConfirmationRequired`
 
 ```python
-class HumanInTheLoopRequired(Exception):
+class ConfirmationRequired(Exception):
     """Raised when human input is needed to proceed."""
 ```
 
@@ -25,7 +25,7 @@ def __init__(
     self,
     question: str,
     *,
-    interrupt_id: str | None = None,
+    confirmation_id: str | None = None,
     tool_call: ToolCall | None = None,
     context: dict[str, Any] | None = None,
 )
@@ -36,12 +36,12 @@ def __init__(
 - **`question`** (`str`): The question to ask the user
   - Should be clear and actionable
   - Example: "Confirm execution of delete_file with args: {'path': '/tmp/test.txt'}?"
-- **`interrupt_id`** (`str | None`, optional): Unique interrupt identifier
+- **`confirmation_id`** (`str | None`, optional): Unique confirmation identifier
   - Auto-generated UUID if not provided
-  - Used to track interrupt status
-- **`tool_call`** (`ToolCall | None`, optional): Information about the tool call that triggered this interrupt
+  - Used to track confirmation status
+- **`tool_call`** (`ToolCall | None`, optional): Information about the tool call that triggered this confirmation
   - Contains tool name, arguments, and optional call ID
-  - Can be `None` for non-tool interrupts
+  - Can be `None` for non-tool confirmations
 - **`context`** (`dict[str, Any] | None`, optional): Module-specific state dictionary
   - Used to save execution state for resumption
   - Each module defines its own context structure
@@ -49,13 +49,13 @@ def __init__(
 **Example:**
 
 ```python
-from udspy.interrupt import HumanInTheLoopRequired, ToolCall
+from udspy.confirmation import ConfirmationRequired, ToolCall
 
-# Simple interrupt with just a question
-raise HumanInTheLoopRequired("Do you want to proceed?")
+# Simple confirmation with just a question
+raise ConfirmationRequired("Do you want to proceed?")
 
-# Interrupt with tool call information
-raise HumanInTheLoopRequired(
+# Confirmation with tool call information
+raise ConfirmationRequired(
     question="Confirm deletion?",
     tool_call=ToolCall(
         name="delete_file",
@@ -63,8 +63,8 @@ raise HumanInTheLoopRequired(
     )
 )
 
-# Interrupt with module state
-raise HumanInTheLoopRequired(
+# Confirmation with module state
+raise ConfirmationRequired(
     question="Need clarification",
     context={
         "iteration": 5,
@@ -84,13 +84,13 @@ question: str
 
 The question being asked to the user.
 
-##### `interrupt_id`
+##### `confirmation_id`
 
 ```python
-interrupt_id: str
+confirmation_id: str
 ```
 
-Unique identifier for this interrupt. Use with `get_interrupt_status()` and `set_interrupt_approval()`.
+Unique identifier for this confirmation. Use with `get_confirmation_status()` and `respond_to_confirmation()`.
 
 ##### `tool_call`
 
@@ -114,7 +114,7 @@ Module-specific state dictionary. Structure depends on the module that raised th
 
 ```python
 class ToolCall:
-    """Information about a tool call that triggered an interrupt."""
+    """Information about a tool call that triggered a confirmation."""
 ```
 
 Encapsulates information about a tool invocation.
@@ -139,7 +139,7 @@ def __init__(
 **Example:**
 
 ```python
-from udspy.interrupt import ToolCall
+from udspy.confirmation import ToolCall
 
 tool_call = ToolCall(
     name="search",
@@ -176,10 +176,10 @@ Optional call ID from the LLM provider.
 
 ---
 
-### `@interruptible`
+### `@confirm_first`
 
 ```python
-def interruptible(func: Callable) -> Callable:
+def confirm_first(func: Callable) -> Callable:
     """Decorator that makes a function require approval before execution."""
 ```
 
@@ -187,8 +187,8 @@ Decorator that wraps a function to require human approval on first call. Subsequ
 
 **How it works:**
 
-1. First call: Raises `HumanInTheLoopRequired` with tool call information
-2. User approves: Call `set_interrupt_approval(interrupt_id, approved=True)`
+1. First call: Raises `ConfirmationRequired` with tool call information
+2. User approves: Call `respond_to_confirmation(confirmation_id, approved=True)`
 3. Subsequent calls: Execute normally if approved
 
 **Supports:**
@@ -199,9 +199,9 @@ Decorator that wraps a function to require human approval on first call. Subsequ
 **Example:**
 
 ```python
-from udspy.interrupt import interruptible, HumanInTheLoopRequired, set_interrupt_approval
+from udspy.confirmation import confirm_first, ConfirmationRequired, respond_to_confirmation
 
-@interruptible
+@confirm_first
 def delete_file(path: str) -> str:
     os.remove(path)
     return f"Deleted {path}"
@@ -209,12 +209,12 @@ def delete_file(path: str) -> str:
 # First call raises
 try:
     delete_file("/tmp/test.txt")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     print(e.question)  # "Confirm execution of delete_file..."
-    interrupt_id = e.interrupt_id
+    confirmation_id = e.confirmation_id
 
     # User approves
-    set_interrupt_approval(interrupt_id, approved=True)
+    respond_to_confirmation(confirmation_id, approved=True)
 
     # Second call succeeds
     result = delete_file("/tmp/test.txt")
@@ -224,7 +224,7 @@ except HumanInTheLoopRequired as e:
 **With async functions:**
 
 ```python
-@interruptible
+@confirm_first
 async def async_delete(path: str) -> str:
     await asyncio.sleep(0.1)
     os.remove(path)
@@ -232,8 +232,8 @@ async def async_delete(path: str) -> str:
 
 try:
     await async_delete("/tmp/test.txt")
-except HumanInTheLoopRequired as e:
-    set_interrupt_approval(e.interrupt_id, approved=True)
+except ConfirmationRequired as e:
+    respond_to_confirmation(e.confirmation_id, approved=True)
     result = await async_delete("/tmp/test.txt")
 ```
 
@@ -242,10 +242,10 @@ except HumanInTheLoopRequired as e:
 ```python
 try:
     delete_file("/tmp/test.txt")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     # Approve with modified arguments
     modified_args = {"path": "/tmp/safe.txt"}
-    set_interrupt_approval(e.interrupt_id, approved=True, data=modified_args)
+    respond_to_confirmation(e.confirmation_id, approved=True, data=modified_args)
 
     # Next call uses modified args
     result = delete_file("/tmp/test.txt")
@@ -254,18 +254,18 @@ except HumanInTheLoopRequired as e:
 
 ---
 
-### `get_interrupt_status()`
+### `get_confirmation_status()`
 
 ```python
-def get_interrupt_status(interrupt_id: str) -> str | None:
-    """Get the status of an interrupt."""
+def get_confirmation_status(confirmation_id: str) -> str | None:
+    """Get the status of a confirmation."""
 ```
 
-Returns the current status of an interrupt by its ID.
+Returns the current status of a confirmation by its ID.
 
 **Parameters:**
 
-- **`interrupt_id`** (`str`): The interrupt ID to query
+- **`confirmation_id`** (`str`): The confirmation ID to query
 
 **Returns:**
 
@@ -279,44 +279,44 @@ Returns the current status of an interrupt by its ID.
 **Example:**
 
 ```python
-from udspy.interrupt import get_interrupt_status, HumanInTheLoopRequired
+from udspy.confirmation import get_confirmation_status, ConfirmationRequired
 
 try:
     agent(question="Delete files")
-except HumanInTheLoopRequired as e:
-    status = get_interrupt_status(e.interrupt_id)
+except ConfirmationRequired as e:
+    status = get_confirmation_status(e.confirmation_id)
     print(status)  # "pending"
 
     # After user responds
     agent.resume("yes", e)
-    status = get_interrupt_status(e.interrupt_id)
+    status = get_confirmation_status(e.confirmation_id)
     print(status)  # "approved"
 ```
 
 ---
 
-### `set_interrupt_approval()`
+### `respond_to_confirmation()`
 
 ```python
-def set_interrupt_approval(
-    interrupt_id: str,
+def respond_to_confirmation(
+    confirmation_id: str,
     approved: bool = True,
     data: Any = None,
     status: str | None = None
 ) -> None:
-    """Mark an interrupt as approved or rejected."""
+    """Mark a confirmation as approved or rejected."""
 ```
 
-Sets the approval status for an interrupt, optionally providing modified data.
+Sets the approval status for a confirmation, optionally providing modified data.
 
 **Parameters:**
 
-- **`interrupt_id`** (`str`): The interrupt ID to update
+- **`confirmation_id`** (`str`): The confirmation ID to update
 - **`approved`** (`bool`, default: `True`): Whether to approve or reject
   - `True`: Allow execution to proceed
   - `False`: Block execution
 - **`data`** (`Any`, optional): Modified arguments or feedback data
-  - For `@interruptible` functions: Dict with modified arguments
+  - For `@confirm_first` functions: Dict with modified arguments
   - For modules: Any data to pass back
 - **`status`** (`str | None`, optional): Explicit status to set
   - If not provided, inferred from `approved` and `data`
@@ -325,23 +325,23 @@ Sets the approval status for an interrupt, optionally providing modified data.
 **Example:**
 
 ```python
-from udspy.interrupt import set_interrupt_approval
+from udspy.confirmation import respond_to_confirmation
 
 # Simple approval
-set_interrupt_approval("abc-123", approved=True)
+respond_to_confirmation("abc-123", approved=True)
 
 # Rejection
-set_interrupt_approval("abc-123", approved=False)
+respond_to_confirmation("abc-123", approved=False)
 
 # Approval with modified arguments
-set_interrupt_approval(
+respond_to_confirmation(
     "abc-123",
     approved=True,
     data={"path": "/safe/location.txt"}
 )
 
 # Explicit status
-set_interrupt_approval(
+respond_to_confirmation(
     "abc-123",
     approved=True,
     status="feedback"
@@ -350,26 +350,26 @@ set_interrupt_approval(
 
 ---
 
-### `get_interrupt_context()`
+### `get_confirmation_context()`
 
 ```python
-def get_interrupt_context() -> dict[str, dict[str, Any]]:
-    """Get the current interrupt context dictionary."""
+def get_confirmation_context() -> dict[str, dict[str, Any]]:
+    """Get the current confirmation context dictionary."""
 ```
 
-Returns the complete interrupt context for the current thread/task. Mostly used for debugging.
+Returns the complete confirmation context for the current thread/task. Mostly used for debugging.
 
 **Returns:**
 
-- `dict[str, dict[str, Any]]`: Dictionary mapping interrupt IDs to their state:
+- `dict[str, dict[str, Any]]`: Dictionary mapping confirmation IDs to their state:
   ```python
   {
-      "interrupt-id-1": {
+      "confirmation-id-1": {
           "approved": True,
           "data": {...},
           "status": "approved"
       },
-      "interrupt-id-2": {
+      "confirmation-id-2": {
           "approved": False,
           "status": "rejected"
       }
@@ -379,62 +379,62 @@ Returns the complete interrupt context for the current thread/task. Mostly used 
 **Example:**
 
 ```python
-from udspy.interrupt import get_interrupt_context
+from udspy.confirmation import get_confirmation_context
 
-context = get_interrupt_context()
-print(f"Active interrupts: {len(context)}")
-for interrupt_id, state in context.items():
-    print(f"{interrupt_id}: {state['status']}")
+context = get_confirmation_context()
+print(f"Active confirmations: {len(context)}")
+for confirmation_id, state in context.items():
+    print(f"{confirmation_id}: {state['status']}")
 ```
 
 ---
 
-### `clear_interrupt()`
+### `clear_confirmation()`
 
 ```python
-def clear_interrupt(interrupt_id: str) -> None:
-    """Remove an interrupt from the context."""
+def clear_confirmation(confirmation_id: str) -> None:
+    """Remove an confirmation from the context."""
 ```
 
-Clears a specific interrupt from the context. Usually done automatically after successful execution.
+Clears a specific confirmation from the context. Usually done automatically after successful execution.
 
 **Parameters:**
 
-- **`interrupt_id`** (`str`): The interrupt ID to clear
+- **`confirmation_id`** (`str`): The confirmation ID to clear
 
 **Example:**
 
 ```python
-from udspy.interrupt import clear_interrupt
+from udspy.confirmation import clear_confirmation
 
-clear_interrupt("abc-123")
+clear_confirmation("abc-123")
 ```
 
 ---
 
-### `clear_all_interrupts()`
+### `clear_all_confirmations()`
 
 ```python
-def clear_all_interrupts() -> None:
-    """Clear all interrupts from the context."""
+def clear_all_confirmations() -> None:
+    """Clear all confirmations from the context."""
 ```
 
-Removes all interrupts from the current context. Useful for cleanup or testing.
+Removes all confirmations from the current context. Useful for cleanup or testing.
 
 **Example:**
 
 ```python
-from udspy.interrupt import clear_all_interrupts
+from udspy.confirmation import clear_all_confirmations
 
 # Start fresh
-clear_all_interrupts()
+clear_all_confirmations()
 ```
 
 ---
 
-## Interrupt Status Lifecycle
+## Confirmation Status Lifecycle
 
-The status of an interrupt follows this lifecycle:
+The status of a confirmation follows this lifecycle:
 
 ```
 pending (initial)
@@ -457,9 +457,9 @@ pending (initial)
 
 ## Thread Safety
 
-The interrupt system uses `contextvars.ContextVar` for thread-safe and asyncio task-safe storage:
+The confirmation system uses `contextvars.ContextVar` for thread-safe and asyncio task-safe storage:
 
-- Each thread has its own interrupt context
+- Each thread has its own confirmation context
 - Each asyncio task inherits parent task's context
 - No cross-contamination between threads/tasks
 
@@ -467,18 +467,18 @@ The interrupt system uses `contextvars.ContextVar` for thread-safe and asyncio t
 
 ```python
 import threading
-from udspy.interrupt import interruptible, HumanInTheLoopRequired, set_interrupt_approval
+from udspy.confirmation import confirm_first, ConfirmationRequired, respond_to_confirmation
 
-@interruptible
+@confirm_first
 def thread_func(thread_id: int) -> str:
     return f"Thread {thread_id}"
 
 def worker(thread_id: int):
     try:
         thread_func(thread_id)
-    except HumanInTheLoopRequired as e:
-        # Each thread has its own interrupt context
-        set_interrupt_approval(e.interrupt_id, approved=True)
+    except ConfirmationRequired as e:
+        # Each thread has its own confirmation context
+        respond_to_confirmation(e.confirmation_id, approved=True)
         result = thread_func(thread_id)
         print(result)
 
@@ -493,9 +493,9 @@ for t in threads:
 
 ## Integration with Modules
 
-Modules can use the interrupt system by:
+Modules can use the confirmation system by:
 
-1. Raising `HumanInTheLoopRequired` when human input is needed
+1. Raising `ConfirmationRequired` when human input is needed
 2. Saving state in the `context` dict
 3. Implementing `resume()` and `aresume()` methods to restore state
 
@@ -503,14 +503,14 @@ Modules can use the interrupt system by:
 
 ```python
 from udspy import Module, Prediction
-from udspy.interrupt import HumanInTheLoopRequired
+from udspy.confirmation import ConfirmationRequired
 
 class MyModule(Module):
     def forward(self, input: str) -> Prediction:
         # ... some work ...
 
         if needs_human_input:
-            raise HumanInTheLoopRequired(
+            raise ConfirmationRequired(
                 question="Please confirm",
                 context={
                     "current_step": 5,
@@ -522,7 +522,7 @@ class MyModule(Module):
         # ... continue work ...
         return Prediction(output="result")
 
-    def resume(self, user_response: str, saved_state: HumanInTheLoopRequired) -> Prediction:
+    def resume(self, user_response: str, saved_state: ConfirmationRequired) -> Prediction:
         # Restore state from context
         current_step = saved_state.context["current_step"]
         partial_result = saved_state.context["partial_result"]
@@ -541,7 +541,7 @@ class MyModule(Module):
 
 ## Integration with Tools
 
-Tools can use `interruptible=True` parameter to require confirmation:
+Tools can use `require_confirmation=True` parameter to require confirmation:
 
 ```python
 from udspy import tool
@@ -550,19 +550,19 @@ from pydantic import Field
 @tool(
     name="delete_file",
     description="Delete a file",
-    interruptible=True  # Wraps function with @interruptible decorator
+    require_confirmation=True  # Wraps function with @confirm_first decorator
 )
 def delete_file(path: str = Field(...)) -> str:
     os.remove(path)
     return f"Deleted {path}"
 ```
 
-The `@tool` decorator automatically wraps the function with `@interruptible` when this parameter is set.
+The `@tool` decorator automatically wraps the function with `@confirm_first` when this parameter is set.
 
 ---
 
 ## See Also
 
-- [ReAct API](react.md) - ReAct agent that uses the interrupt system
-- [Tool API](tool.md) - Creating interruptible tools
+- [ReAct API](react.md) - ReAct agent that uses the confirmation system
+- [Tool API](tool.md) - Creating tools with require_confirmation
 - [Module API](module.md) - Base module with suspend/resume methods

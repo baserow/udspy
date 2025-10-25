@@ -1,14 +1,16 @@
 """udspy: A minimal DSPy-inspired library with native OpenAI tool calling."""
 
 from udspy.adapter import ChatAdapter
-from udspy.history import History
-from udspy.interrupt import (
-    HumanInTheLoopRequired,
-    InterruptRejected,
+from udspy.confirmation import (
+    ConfirmationRejected,
+    ConfirmationRequired,
+    ResumeState,
     ToolCall,
-    get_interrupt_status,
-    set_interrupt_approval,
+    confirm_first,
+    get_confirmation_status,
+    respond_to_confirmation,
 )
+from udspy.history import History
 from udspy.module import (
     ChainOfThought,
     Module,
@@ -38,11 +40,14 @@ __all__ = [
     "Prediction",
     "ChainOfThought",
     "ReAct",
-    "HumanInTheLoopRequired",
-    "InterruptRejected",
+    # Confirmation
+    "ConfirmationRequired",
+    "ConfirmationRejected",
+    "ResumeState",
+    "confirm_first",
     "ToolCall",
-    "get_interrupt_status",
-    "set_interrupt_approval",
+    "get_confirmation_status",
+    "respond_to_confirmation",
     # Adapter
     "ChatAdapter",
     # History
