@@ -1,6 +1,7 @@
 """Adapter for formatting LLM inputs/outputs with Pydantic models."""
 
 import json
+import re
 from typing import Any
 
 from pydantic import BaseModel
@@ -152,6 +153,9 @@ class ChatAdapter:
     ) -> dict[str, Any]:
         """Parse LLM completion into structured outputs.
 
+        Uses regex to extract field content, ignoring any text before/after markers.
+        Field content is stripped of leading/trailing whitespace (including newlines).
+
         Args:
             signature: The signature defining expected outputs
             completion: Raw completion string from LLM
@@ -162,29 +166,26 @@ class ChatAdapter:
         output_fields = signature.get_output_fields()
         outputs: dict[str, Any] = {}
 
-        # Split completion into sections by field markers
-        sections: list[tuple[str | None, list[str]]] = [(None, [])]
+        # Pattern: [[ ## field_name ## ]] followed by content until next marker or end
+        # (?:...) = non-capturing group
+        # [\s\S]*? = match any character (including newlines) non-greedily
+        pattern = r"\[\[\s*##\s*(\w+)\s*##\s*\]\]\s*\n?([\s\S]*?)(?=\[\[\s*##\s*\w+\s*##\s*\]\]|$)"
 
-        for line in completion.splitlines():
-            # Check for field marker: [[ ## field_name ## ]]
-            if line.strip().startswith("[[ ## ") and line.strip().endswith(" ## ]]"):
-                field_name = line.strip()[6:-5].strip()
-                sections.append((field_name, []))
-            else:
-                sections[-1][1].append(line)
+        for match in re.finditer(pattern, completion):
+            field_name = match.group(1).strip()
+            content = match.group(
+                2
+            ).strip()  # strip() removes leading/trailing whitespace and newlines
 
-        # Parse each section
-        for field_name, lines in sections:  # type: ignore[assignment]
-            if field_name and field_name in output_fields:
+            if field_name in output_fields:
                 field_info = output_fields[field_name]
-                value_str = "\n".join(lines).strip()
 
                 # Parse according to field type
                 try:
-                    outputs[field_name] = parse_value(value_str, field_info.annotation)  # type: ignore[arg-type]
+                    outputs[field_name] = parse_value(content, field_info.annotation)  # type: ignore[arg-type]
                 except Exception:
                     # Fallback: keep as string
-                    outputs[field_name] = value_str
+                    outputs[field_name] = content
 
         return outputs
 
