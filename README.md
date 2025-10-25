@@ -13,30 +13,30 @@ A lightweight DSPy-inspired library optimized for resource-constrained environme
 
 ## About This Project
 
-**[DSPy](https://github.com/stanfordnlp/dspy)** is a fantastic, production-ready framework with many more features and a thriving ecosystem. If you're looking for a comprehensive solution with extensive provider support, optimizers, and advanced features, **DSPy is the recommended choice**.
+This project is inspired by **[DSPy](https://github.com/stanfordnlp/dspy)**'s elegant design and core abstractions (Signatures, Modules, Predictions).
 
-This project exists to address a specific use case: **resource-constrained environments**. DSPy's dependency on LiteLLM (which requires ~200MB of memory when loaded) makes it challenging to use in contexts with limited resources, such as:
+**udspy** addresses a specific use case: **resource-constrained environments**. DSPy's dependency on LiteLLM (which requires ~200MB of memory when loaded) makes it challenging to use in contexts with limited resources, such as:
 - Serverless functions with memory limits
 - Edge deployments
 - Embedded systems
 - Cost-sensitive cloud environments
 
-**udspy** takes the excellent developer experience and core concepts from DSPy (for which we're deeply grateful) and provides:
+**udspy** provides:
 - **Minimal footprint**: Uses the OpenAI library directly (~10MB vs ~200MB)
 - **OpenAI-compatible providers**: Works with any provider compatible with OpenAI's API (OpenAI, Azure OpenAI, Together AI, Groq, etc.)
 - **Additional features** for common patterns:
   - Human-in-the-loop workflows with state management
   - Automatic tool calling with multi-turn conversations
   - Built-in conversation history management
-  - Interruptible tools for user confirmation
+  - Confirmation system for user approval of critical operations
 
-The core abstractions (Signatures, Modules, Predictions) are **heavily** inspired by DSPy's elegant design. If resource constraints aren't a concern for your use case, we strongly encourage you to check out [DSPy](https://github.com/stanfordnlp/dspy) for a more feature-complete solution.
+If resource constraints aren't a concern for your use case, consider [DSPy](https://github.com/stanfordnlp/dspy) for a more feature-complete solution.
 
 ## Features
 
 - **Pydantic-based Signatures**: Define inputs, outputs, and tools using Pydantic models
-- **Human-in-the-Loop Workflows**: Built-in interrupt system for user confirmation, clarification, and feedback
-  - `@interruptible` decorator for function-level interruption
+- **Human-in-the-Loop Workflows**: Built-in confirmation system for user approval, clarification, and feedback
+  - `@confirm_first` decorator for requiring confirmation before execution
   - Thread-safe and asyncio task-safe state management
   - Support for approval, rejection, argument modification, and feedback
 - **Automatic Tool Calling**: Use `@tool` decorator for automatic tool execution with multi-turn conversations
@@ -143,7 +143,7 @@ import os
 @tool(
     name="delete_file",
     description="Delete a file",
-    interruptible=True  # Requires user confirmation
+    require_confirmation=True  # Requires user confirmation
 )
 def delete_file(path: str = Field(description="File path")) -> str:
     os.remove(path)

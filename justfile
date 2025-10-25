@@ -17,8 +17,8 @@ test-cov:
 
 # Run linter and type checker (matches CI exactly)
 lint:
-    uv run ruff check src tests
-    uv run ruff format --check src tests
+    uv run ruff check src tests examples
+    uv run ruff format --check src tests examples
     uv run mypy src
 
 # Format code and fix linting issues
