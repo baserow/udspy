@@ -15,9 +15,10 @@ test:
 test-cov:
     uv run pytest --cov --cov-report=html --cov-report=term
 
-# Run linter and type checker
+# Run linter and type checker (matches CI exactly)
 lint:
-    uv run ruff check src tests examples
+    uv run ruff check src tests
+    uv run ruff format --check src tests
     uv run mypy src
 
 # Format code and fix linting issues

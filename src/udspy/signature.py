@@ -183,8 +183,7 @@ class Signature(BaseModel, metaclass=SignatureMeta):
         parts = spec.split("->")
         if len(parts) != 2:
             raise ValueError(
-                f"Invalid signature format: '{spec}'. "
-                "Must have exactly one '->' separator"
+                f"Invalid signature format: '{spec}'. Must have exactly one '->' separator"
             )
 
         # Parse inputs (comma-separated, trimmed)
