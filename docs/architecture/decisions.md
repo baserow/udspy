@@ -364,9 +364,9 @@ Feature is additive - no migration needed.
 
 ## See Also
 
-- [CLAUDE.md](../../CLAUDE.md) - Chronological architectural changes (development log)
+- [CLAUDE.md](https://github.com/silvestrid/udspy/blob/main/CLAUDE.md) - Chronological architectural changes (development log)
 - [Architecture Overview](overview.md) - Component relationships
-- [Contributing Guide](../../CONTRIBUTING.md) - How to propose new decisions
+- [Contributing Guide](https://github.com/silvestrid/udspy/blob/main/CONTRIBUTING.md) - How to propose new decisions
 
 ---
 
