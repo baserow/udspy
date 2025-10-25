@@ -83,7 +83,9 @@ async def basic_research_example():
     result = await agent.aforward(question=question)
 
     print(f"Answer: {result.answer}\n")
-    print(f"Number of reasoning steps: {len([k for k in result.trajectory if k.startswith('reasoning_')])}\n")
+    print(
+        f"Number of reasoning steps: {len([k for k in result.trajectory if k.startswith('reasoning_')])}\n"
+    )
 
 
 async def user_clarification_example():
@@ -115,13 +117,15 @@ async def user_clarification_example():
 
         # Resume execution with user's response
         try:
-            result = await agent.aresume_after_user_input(user_response, e)
+            result = await agent.aresume(user_response, e)
             if hasattr(result, "answer"):
                 print(f"Answer: {result.answer}\n")
             else:
                 print("(Resume completed but LLM didn't format response correctly)\n")
         except Exception as resume_error:
-            print(f"(Note: Resume encountered LLM formatting issue: {type(resume_error).__name__})\n")
+            print(
+                f"(Note: Resume encountered LLM formatting issue: {type(resume_error).__name__})\n"
+            )
 
 
 async def tool_confirmation_example():
@@ -152,13 +156,15 @@ async def tool_confirmation_example():
 
         # Resume execution
         try:
-            result = await agent.aresume_after_user_input(user_response, e)
+            result = await agent.aresume(user_response, e)
             if hasattr(result, "answer"):
                 print(f"Answer: {result.answer}\n")
             else:
                 print("(Confirmation accepted but LLM didn't format response correctly)\n")
         except Exception as resume_error:
-            print(f"(Note: Resume encountered LLM formatting issue: {type(resume_error).__name__})\n")
+            print(
+                f"(Note: Resume encountered LLM formatting issue: {type(resume_error).__name__})\n"
+            )
 
 
 async def string_signature_example():
@@ -198,9 +204,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Note: In production, you would set up your OpenAI API key:
-    # import os
-    # os.environ["OPENAI_API_KEY"] = "your-api-key-here"
-
-    # For this example, we're using mock tools so no API key is needed
     asyncio.run(main())

@@ -28,9 +28,7 @@ async def main():
 
     print("Question: What is the sum of the first 10 prime numbers?\n")
 
-    async for item in predictor.stream(
-        question="What is the sum of the first 10 prime numbers?"
-    ):
+    async for item in predictor.stream(question="What is the sum of the first 10 prime numbers?"):
         if isinstance(item, udspy.StreamChunk):
             if not item.is_complete and item.content:
                 # Print only the new content (delta)

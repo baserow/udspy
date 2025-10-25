@@ -60,7 +60,10 @@ def ask_with_tools(question: str) -> str:
     # Build messages for multi-turn conversation
     messages = [
         {"role": "system", "content": predictor.adapter.format_instructions(predictor.signature)},
-        {"role": "user", "content": predictor.adapter.format_inputs(predictor.signature, {"question": question})},
+        {
+            "role": "user",
+            "content": predictor.adapter.format_inputs(predictor.signature, {"question": question}),
+        },
     ]
 
     client = udspy.settings.aclient
