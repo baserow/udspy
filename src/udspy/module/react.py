@@ -291,7 +291,7 @@ class ReAct(Module):
             return should_stop
 
         formatted_trajectory = self._format_trajectory(trajectory)
-        pred = await self.react_module._aexecute(
+        pred = await self.react_module.aexecute(
             stream=stream,
             **input_args,
             trajectory=formatted_trajectory,
@@ -344,7 +344,7 @@ class ReAct(Module):
         should_stop = tool_name == "finish"
         return should_stop
 
-    async def _aexecute(self, *, stream: bool = False, **input_args: Any) -> Prediction:
+    async def aexecute(self, *, stream: bool = False, **input_args: Any) -> Prediction:
         """Execute ReAct loop.
 
         Args:
@@ -377,7 +377,7 @@ class ReAct(Module):
                 break
 
         formatted_trajectory = self._format_trajectory(trajectory)
-        extract = await self.extract_module._aexecute(
+        extract = await self.extract_module.aexecute(
             stream=stream,
             **input_args,
             trajectory=formatted_trajectory,
@@ -391,7 +391,7 @@ class ReAct(Module):
         return Prediction(**result_dict)
 
     async def aforward(self, **input_args: Any) -> Prediction:
-        return await self._aexecute(stream=False, **input_args)
+        return await self.aexecute(stream=False, **input_args)
 
     async def aresume(
         self,

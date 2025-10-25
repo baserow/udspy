@@ -86,7 +86,7 @@ class Predict(Module):
             self.tool_callables[tool.name] = tool
             self.tool_schemas.append(tool)
 
-    async def _aexecute(
+    async def aexecute(
         self,
         *,
         stream: bool = False,
@@ -365,7 +365,7 @@ class Predict(Module):
     ) -> Prediction:
         """Async non-streaming method. Returns the final Prediction.
 
-        Calls _aexecute() with streaming disabled. If called from within a
+        Calls aexecute() with streaming disabled. If called from within a
         streaming context (i.e., another module is streaming), events will
         still be emitted to the active queue.
 
@@ -384,7 +384,7 @@ class Predict(Module):
         Returns:
             Final Prediction object (after all tool executions if auto_execute_tools=True)
         """
-        return await self._aexecute(
+        return await self.aexecute(
             stream=False, auto_execute_tools=auto_execute_tools, history=history, **inputs
         )
 

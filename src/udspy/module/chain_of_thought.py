@@ -85,12 +85,12 @@ class ChainOfThought(Module):
             **kwargs,
         )
 
-    async def _aexecute(  # type: ignore[override]
+    async def aexecute(  # type: ignore[override]
         self, *, stream: bool = False, **inputs: Any
     ) -> AsyncGenerator[StreamEvent, None]:
         """Execute chain of thought prediction.
 
-        Delegates to the wrapped Predict module's _aexecute method.
+        Delegates to the wrapped Predict module's aexecute method.
 
         Args:
             stream: If True, request streaming from LLM provider
@@ -99,4 +99,4 @@ class ChainOfThought(Module):
         Returns:
             Prediction with reasoning and other output fields
         """
-        return await self.predict._aexecute(stream=stream, **inputs)
+        return await self.predict.aexecute(stream=stream, **inputs)

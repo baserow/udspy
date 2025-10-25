@@ -282,7 +282,7 @@ async def test_astream_exception_propagation() -> None:
         raise ValueError("Execution failed")
 
     predictor = Predict(QA)
-    predictor._aexecute = failing_execute  # type: ignore[method-assign]
+    predictor.aexecute = failing_execute  # type: ignore[method-assign]
 
     with pytest.raises(ValueError, match="Execution failed"):
         async for _ in predictor.astream(question="Test"):

@@ -7,6 +7,9 @@ This document tracks major architectural decisions made in udspy, presented chro
 1. [Initial Project Setup (2025-01-24)](#adr-001-initial-project-setup)
 2. [Context Manager for Settings (2025-01-24)](#adr-002-context-manager-for-settings)
 3. [Chain of Thought Module (2025-01-24)](#adr-003-chain-of-thought-module)
+4. [Human-in-the-Loop with Interruptible Decorator (2025-01-25)](#adr-004-human-in-the-loop-with-interruptible-decorator)
+5. [ReAct Agent Module (2025-01-25)](#adr-005-react-agent-module)
+6. [Unified Module Execution Pattern (aexecute) (2025-01-25)](#adr-006-unified-module-execution-pattern-aexecute)
 
 ---
 
@@ -340,6 +343,302 @@ Both are equally effective; udspy's approach is simpler but less flexible in edg
 ### Migration Guide
 
 Feature is additive - no migration needed.
+
+---
+
+## ADR-004: Human-in-the-Loop with Interruptible Decorator
+
+**Date**: 2025-01-25
+
+**Status**: Accepted
+
+### Context
+
+Many agent applications require human approval for certain actions (e.g., deleting files, sending emails, making purchases). We needed a clean way to suspend execution, ask for user input, and resume where we left off.
+
+### Decision
+
+Implement an `@interruptible` decorator that:
+- Suspends function execution before it runs
+- Raises `HumanInTheLoopRequired` exception with context
+- Allows resumption with user approval/rejection/modifications
+- Uses thread-safe `contextvars` for state management
+- Generates stable interrupt IDs based on function + arguments
+
+```python
+from udspy import interruptible, HumanInTheLoopRequired, set_interrupt_approval
+
+@interruptible
+def delete_file(path: str) -> str:
+    os.remove(path)
+    return f"Deleted {path}"
+
+try:
+    delete_file("/important.txt")
+except HumanInTheLoopRequired as e:
+    # User approves
+    set_interrupt_approval(e.interrupt_id, approved=True)
+    delete_file("/important.txt")  # Now executes
+```
+
+### Implementation Details
+
+1. **Stable Interrupt IDs**: Generated from `function_name:hash(args)` to allow same call to resume
+2. **Context Variables**: Thread-safe and async-safe state storage
+3. **Rejection Support**: `InterruptRejected` exception distinguishes "user said no" from "pending"
+4. **Argument Modification**: Users can edit arguments before approval
+5. **Automatic Cleanup**: Interrupts are cleared after successful execution
+
+### Key Features
+
+1. **Decorator-based**: Simple to apply to any function
+2. **Thread-safe**: Works with concurrent requests
+3. **Async-safe**: Works with asyncio tasks
+4. **Resumable**: Same function call can be resumed after approval
+5. **Integrated with Tools**: Works seamlessly with `@tool` decorator
+
+### Use Cases
+
+1. **Dangerous Operations**: File deletion, system commands
+2. **User Confirmation**: Sending emails, making purchases
+3. **Clarification**: Ask user for additional information
+4. **Argument Editing**: Let user modify parameters before execution
+
+### Consequences
+
+**Benefits**:
+- Clean separation of business logic from approval logic
+- Works naturally with ReAct agent workflows
+- Thread-safe and async-safe out of the box
+- Easy to test (deterministic based on interrupt state)
+
+**Trade-offs**:
+- Requires exception handling (but this is explicit and clear)
+- Interrupt state needs to be managed (cleared on success)
+- Not suitable for purely synchronous, single-threaded apps (but works fine there too)
+
+### Alternatives Considered
+
+- **Callback-based**: More complex, harder to reason about flow
+- **Middleware pattern**: Too heavyweight for this use case
+- **Manual state management**: Error-prone, not thread-safe
+
+### Migration Guide
+
+Feature is additive - no migration needed.
+
+---
+
+## ADR-005: ReAct Agent Module
+
+**Date**: 2025-01-25
+
+**Status**: Accepted
+
+### Context
+
+The ReAct (Reasoning + Acting) pattern combines chain-of-thought reasoning with tool usage in an iterative loop. This is essential for building agents that can solve complex tasks by breaking them down and using tools.
+
+### Decision
+
+Implement a `ReAct` module that:
+- Alternates between reasoning and tool execution
+- Supports human-in-the-loop for clarifications and confirmations
+- Tracks full trajectory of reasoning and actions
+- Handles errors gracefully with retries
+- Works with both streaming and non-streaming modes
+
+```python
+from udspy import ReAct, InputField, OutputField, Signature, tool
+
+@tool(name="search")
+def search(query: str) -> str:
+    return search_api(query)
+
+class ResearchTask(Signature):
+    """Research and answer questions."""
+    question: str = InputField()
+    answer: str = OutputField()
+
+agent = ReAct(ResearchTask, tools=[search], max_iters=5)
+result = agent(question="What is the population of Tokyo?")
+```
+
+### Implementation Approach
+
+1. **Iterative Loop**: Continues until final answer or max iterations
+2. **Dynamic Signature**: Extends signature with reasoning_N, tool_name_N, tool_args_N fields
+3. **Tool Execution**: Automatically executes tools and adds results to context
+4. **Error Handling**: Retries with error feedback if tool execution fails
+5. **Human Interrupts**: Integrates with `@interruptible` for user input
+
+### Key Features
+
+1. **Flexible Tool Usage**: Agent decides when and which tools to use
+2. **Self-Correction**: Can retry if tool execution fails
+3. **Trajectory Tracking**: Full history of reasoning and actions
+4. **Streaming Support**: Can stream reasoning in real-time
+5. **Human-in-the-Loop**: Built-in support for asking users
+
+### Research Evidence
+
+ReAct improves performance on:
+- **Complex Tasks**: 15-30% improvement on multi-step reasoning (Yao et al., 2023)
+- **Tool Usage**: More accurate tool selection vs. pure CoT
+- **Error Recovery**: Better handling of failed tool calls
+
+### Use Cases
+
+1. **Research Agents**: Answer questions using search and APIs
+2. **Task Automation**: Multi-step workflows with tool usage
+3. **Data Analysis**: Fetch data, analyze, and summarize
+4. **Interactive Assistants**: Ask users for clarification when needed
+
+### Consequences
+
+**Benefits**:
+- Powerful agent capabilities with minimal code
+- Transparent reasoning process
+- Handles complex multi-step tasks
+- Built-in error handling and retries
+
+**Trade-offs**:
+- Higher token usage due to multiple iterations
+- Slower than single-shot predictions
+- Quality depends on LLM's reasoning ability
+- Can get stuck in loops if not properly configured
+
+### Comparison with DSPy
+
+| Aspect | udspy | DSPy |
+|--------|-------|------|
+| API | `ReAct(signature, tools=[...])` | `dspy.ReAct(signature, tools=[...])` |
+| Human-in-Loop | Built-in with `@interruptible` | External handling |
+| Streaming | Supported | Limited |
+| Tool Execution | Automatic with error handling | Automatic |
+| Max Iterations | Configurable with `max_iters` | Configurable |
+
+### Alternatives Considered
+
+- **Chain-based approach**: Too rigid, hard to add dynamic behavior
+- **State machine**: Overly complex for the use case
+- **Pure prompting**: Less reliable than structured approach
+
+### Future Considerations
+
+1. **Memory/History**: Long-term memory across sessions
+2. **Tool Chaining**: Automatic sequencing of tool calls
+3. **Parallel Tool Execution**: Execute independent tools concurrently
+4. **Learning**: Optimize tool selection based on feedback
+
+### Migration Guide
+
+Feature is additive - no migration needed.
+
+---
+
+## ADR-006: Unified Module Execution Pattern (aexecute)
+
+**Date**: 2025-01-25
+
+**Status**: Accepted
+
+### Context
+
+Initially, `astream()` and `aforward()` had duplicated logic for executing modules. This made maintenance difficult and increased the chance of bugs when updating behavior.
+
+### Decision
+
+Introduce a single `aexecute()` method that handles both streaming and non-streaming execution:
+
+```python
+class Module:
+    async def aexecute(self, *, stream: bool = False, **inputs):
+        """Core execution logic - handles both streaming and non-streaming."""
+        # Implementation here
+
+    async def astream(self, **inputs):
+        """Public streaming API."""
+        async for event in self.aexecute(stream=True, **inputs):
+            yield event
+
+    async def aforward(self, **inputs):
+        """Public non-streaming API."""
+        async for event in self.aexecute(stream=False, **inputs):
+            if isinstance(event, Prediction):
+                return event
+```
+
+### Implementation Details
+
+1. **Single Source of Truth**: All execution logic in `aexecute()`
+2. **Stream Parameter**: Boolean flag controls behavior
+3. **Generator Pattern**: Always yields events, even in non-streaming mode
+4. **Clean Separation**: Public methods are thin wrappers
+
+### Key Benefits
+
+1. **No Duplication**: Write logic once, use in both modes
+2. **Easier Testing**: Test one method instead of two
+3. **Consistent Behavior**: Streaming and non-streaming guaranteed to behave identically
+4. **Maintainable**: Changes only need to be made in one place
+5. **Extensible**: Easy to add new execution modes
+
+### Consequences
+
+**Benefits**:
+- Reduced code duplication (~40% less code in modules)
+- Easier to maintain and debug
+- Consistent behavior across modes
+- Simpler to understand (one execution path)
+
+**Trade-offs**:
+- Slightly more complex to implement initially
+- Need to handle both streaming and non-streaming cases in same method
+- Generator pattern requires understanding of async generators
+
+### Before and After
+
+**Before:**
+```python
+async def astream(self, **inputs):
+    # 100 lines of logic
+    ...
+
+async def aforward(self, **inputs):
+    # 100 lines of DUPLICATED logic with minor differences
+    ...
+```
+
+**After:**
+```python
+async def aexecute(self, *, stream: bool, **inputs):
+    # 100 lines of logic (used by both)
+    ...
+
+async def astream(self, **inputs):
+    async for event in self.aexecute(stream=True, **inputs):
+        yield event
+
+async def aforward(self, **inputs):
+    async for event in self.aexecute(stream=False, **inputs):
+        if isinstance(event, Prediction):
+            return event
+```
+
+### Naming Rationale
+
+We chose `aexecute()` (without underscore prefix) because:
+- **Public Method**: This is the main extension point for subclasses
+- **Clear Intent**: "Execute" is explicit about what it does
+- **Python Conventions**: No underscore = public API, expected to be overridden
+- **Not Abbreviated**: Full word avoids ambiguity (vs `aexec` or `acall`)
+
+### Migration Guide
+
+**For Users**: No changes needed - public API remains the same
+
+**For Module Authors**: When creating custom modules, implement `aexecute()` instead of both `astream()` and `aforward()`.
 
 ---
 

@@ -11,11 +11,11 @@ from udspy.streaming import Prediction, StreamEvent
 class Module:
     """Base class for all udspy modules.
 
-    Modules are composable async-first units. The core method is `_aexecute()`
+    Modules are composable async-first units. The core method is `aexecute()`
     which handles both streaming and non-streaming execution. Public methods
-    `astream()` and `aforward()` are thin wrappers around `_aexecute()`.
+    `astream()` and `aforward()` are thin wrappers around `aexecute()`.
 
-    Subclasses should implement `_aexecute()` to define their behavior.
+    Subclasses should implement `aexecute()` to define their behavior.
 
     Example:
         ```python
@@ -35,7 +35,7 @@ class Module:
         ```
     """
 
-    async def _aexecute(self, *, stream: bool = False, **inputs: Any) -> Prediction:
+    async def aexecute(self, *, stream: bool = False, **inputs: Any) -> Prediction:
         """Core execution method. Must be implemented by subclasses.
 
         This is the single implementation point for both streaming and non-streaming
@@ -59,12 +59,12 @@ class Module:
         Raises:
             NotImplementedError: If not implemented by subclass
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement _aexecute() method")
+        raise NotImplementedError(f"{self.__class__.__name__} must implement aexecute() method")
 
     async def astream(self, **inputs: Any) -> AsyncGenerator[StreamEvent, None]:
         """Async streaming method. Sets up queue and yields events.
 
-        This method sets up the stream queue context, calls _aexecute() with
+        This method sets up the stream queue context, calls aexecute() with
         streaming enabled, and yields all events from the queue.
 
         Args:
@@ -79,7 +79,7 @@ class Module:
         token = _stream_queue.set(queue)
 
         try:
-            task = asyncio.create_task(self._aexecute(stream=True, **inputs))
+            task = asyncio.create_task(self.aexecute(stream=True, **inputs))
 
             while True:
                 if task.done():
@@ -112,7 +112,7 @@ class Module:
     async def aforward(self, **inputs: Any) -> Prediction:
         """Async non-streaming method. Returns final result directly.
 
-        This method calls _aexecute() with streaming disabled. If called from
+        This method calls aexecute() with streaming disabled. If called from
         within a streaming context (i.e., another module is streaming), events
         will still be emitted to the active queue.
 
@@ -122,7 +122,7 @@ class Module:
         Returns:
             Final Prediction object
         """
-        return await self._aexecute(stream=False, **inputs)
+        return await self.aexecute(stream=False, **inputs)
 
     def forward(self, **inputs: Any) -> Prediction:
         """Sync non-streaming method. Wraps aforward() with async_to_sync.
