@@ -88,26 +88,66 @@ jobs:
         with:
           script: |
             const tag = context.ref.replace('refs/tags/', '');
-            const commits = await github.rest.repos.compareCommits({
+
+            // Get all tags to find the previous one
+            const { data: tags } = await github.rest.repos.listTags({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              base: context.payload.before || 'HEAD~1',
-              head: context.sha
+              per_page: 100
             });
 
+            // Find current tag index and get previous tag
+            const currentTagIndex = tags.findIndex(t => t.name === tag);
+            const previousTag = currentTagIndex < tags.length - 1 ? tags[currentTagIndex + 1].name : null;
+
+            let commits;
+            if (previousTag) {
+              // Compare with previous tag
+              console.log(`Comparing ${previousTag}...${tag}`);
+              const comparison = await github.rest.repos.compareCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                base: previousTag,
+                head: tag
+              });
+              commits = comparison.data.commits;
+            } else {
+              // First release - get all commits
+              console.log('First release - getting all commits');
+              const { data: allCommits } = await github.rest.repos.listCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100
+              });
+              commits = allCommits;
+            }
+
+            // Extract issue numbers from commit messages
             const issueNumbers = new Set();
-            commits.data.commits.forEach(commit => {
-              const matches = commit.commit.message.matchAll(/#(\d+)/g);
+            commits.forEach(commit => {
+              const message = commit.commit.message;
+              const matches = message.matchAll(/#(\d+)/g);
               for (const match of matches) {
                 issueNumbers.add(match[1]);
               }
             });
 
-            for (const issueNumber of issueNumbers) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: parseInt(issueNumber),
-                body: `🎉 This issue has been included in release [${tag}](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${tag})`
-              });
+            // Comment on each issue
+            if (issueNumbers.size > 0) {
+              console.log(`Found ${issueNumbers.size} issues to comment on: ${[...issueNumbers].join(', ')}`);
+              for (const issueNumber of issueNumbers) {
+                try {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: parseInt(issueNumber),
+                    body: `🎉 This issue has been included in release [${tag}](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${tag})`
+                  });
+                  console.log(`Commented on issue #${issueNumber}`);
+                } catch (error) {
+                  console.error(`Failed to comment on issue #${issueNumber}:`, error.message);
+                }
+              }
+            } else {
+              console.log('No issues referenced in commits');
             }
