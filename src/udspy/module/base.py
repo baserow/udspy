@@ -11,10 +11,11 @@ from udspy.streaming import Prediction, StreamEvent
 class Module:
     """Base class for all udspy modules.
 
-    Modules are composable async-first units. The core method is `astream()`
-    which yields StreamEvent objects. Sync wrappers are provided for convenience.
+    Modules are composable async-first units. The core method is `_aexecute()`
+    which handles both streaming and non-streaming execution. Public methods
+    `astream()` and `aforward()` are thin wrappers around `_aexecute()`.
 
-    Subclasses should implement `astream()` to define their behavior.
+    Subclasses should implement `_aexecute()` to define their behavior.
 
     Example:
         ```python
@@ -34,32 +35,86 @@ class Module:
         ```
     """
 
-    async def astream(self, **inputs: Any) -> AsyncGenerator[StreamEvent, None]:
-        """Core async streaming method. Must be implemented by subclasses.
+    async def _aexecute(self, *, stream: bool = False, **inputs: Any) -> Prediction:
+        """Core execution method. Must be implemented by subclasses.
 
-        This is the fundamental method that all modules must implement.
-        It yields StreamEvent objects (including StreamChunk and Prediction).
+        This is the single implementation point for both streaming and non-streaming
+        execution. It always returns a Prediction, and optionally emits StreamEvent
+        objects to the active queue (if one exists in the context).
+
+        Args:
+            stream: If True, request streaming from LLM provider. If False, use
+                non-streaming API calls.
+            **inputs: Input values for the module
+
+        Returns:
+            Final Prediction object
+
+        Behavior:
+            - Checks for active stream queue via _stream_queue.get()
+            - If queue exists: emits StreamChunk and Prediction events
+            - Always returns final Prediction (even in streaming mode)
+            - This enables composability: nested modules emit events automatically
+
+        Raises:
+            NotImplementedError: If not implemented by subclass
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} must implement _aexecute() method")
+
+    async def astream(self, **inputs: Any) -> AsyncGenerator[StreamEvent, None]:
+        """Async streaming method. Sets up queue and yields events.
+
+        This method sets up the stream queue context, calls _aexecute() with
+        streaming enabled, and yields all events from the queue.
 
         Args:
             **inputs: Input values for the module
 
         Yields:
-            StreamEvent objects (StreamChunk for incremental output,
-            Prediction for final result, and any custom events)
-
-        Raises:
-            NotImplementedError: If not implemented by subclass
+            StreamEvent objects (StreamChunk, Prediction, and custom events)
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement astream() method")
-        # Make this a generator to match the return type
-        yield  # This line will never execute but satisfies the generator type
+        from udspy.streaming import _stream_queue
+
+        queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
+        token = _stream_queue.set(queue)
+
+        try:
+            task = asyncio.create_task(self._aexecute(stream=True, **inputs))
+
+            while True:
+                if task.done():
+                    try:
+                        await task
+                    except Exception:
+                        raise
+
+                    while not queue.empty():
+                        event = queue.get_nowait()
+                        if event is not None:
+                            yield event
+                    break
+
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=0.1)
+                except TimeoutError:
+                    continue
+
+                if event is None:
+                    break
+                yield event
+
+        finally:
+            try:
+                _stream_queue.reset(token)
+            except (ValueError, LookupError):
+                pass
 
     async def aforward(self, **inputs: Any) -> Prediction:
-        """Async non-streaming method. Consumes astream() and returns final result.
+        """Async non-streaming method. Returns final result directly.
 
-        This is a convenience method that collects all events from astream()
-        and returns only the final Prediction. Override this if you need
-        custom non-streaming behavior.
+        This method calls _aexecute() with streaming disabled. If called from
+        within a streaming context (i.e., another module is streaming), events
+        will still be emitted to the active queue.
 
         Args:
             **inputs: Input values for the module
@@ -67,11 +122,7 @@ class Module:
         Returns:
             Final Prediction object
         """
-        async for event in self.astream(**inputs):
-            if isinstance(event, Prediction):
-                return event
-
-        raise RuntimeError(f"{self.__class__.__name__}.astream() did not yield a Prediction")
+        return await self._aexecute(stream=False, **inputs)
 
     def forward(self, **inputs: Any) -> Prediction:
         """Sync non-streaming method. Wraps aforward() with async_to_sync.
