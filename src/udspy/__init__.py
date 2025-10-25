@@ -22,7 +22,7 @@ from udspy.streaming import StreamChunk, StreamEvent, emit_event
 from udspy.tool import Tool, tool
 from udspy.utils import asyncify
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     # Settings
