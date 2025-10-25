@@ -2,7 +2,36 @@
 
 Signatures define the input/output contract for LLM tasks using Pydantic models.
 
-## Basic Signature
+## Creating Signatures
+
+There are three ways to create signatures in udspy:
+
+### 1. String Signatures (Quick & Simple)
+
+For rapid prototyping, use the DSPy-style string format:
+
+```python
+from udspy import Signature
+
+# Simple signature
+QA = Signature.from_string("question -> answer")
+
+# Multiple inputs and outputs
+Analyze = Signature.from_string(
+    "context, question -> summary, answer",
+    "Analyze text and answer questions"
+)
+```
+
+**Format**: `"input1, input2 -> output1, output2"`
+
+- All fields default to `str` type
+- Optional second argument for instructions
+- Great for quick prototyping
+
+### 2. Class-based Signatures (Full Control)
+
+For production code, use class-based signatures:
 
 ```python
 from udspy import Signature, InputField, OutputField
@@ -11,6 +40,26 @@ class QA(Signature):
     """Answer questions concisely and accurately."""
     question: str = InputField(description="Question to answer")
     answer: str = OutputField(description="Concise answer")
+```
+
+**Benefits**:
+- Custom field types
+- Field descriptions for better prompts
+- IDE autocomplete and type checking
+- Better for complex signatures
+
+### 3. Dynamic Signatures (Programmatic)
+
+For runtime signature creation:
+
+```python
+from udspy import make_signature
+
+QA = make_signature(
+    input_fields={"question": str},
+    output_fields={"answer": str},
+    instructions="Answer questions concisely",
+)
 ```
 
 ## Components
@@ -86,20 +135,6 @@ class Example(Signature):
     related: list[Person] = OutputField()
 ```
 
-## Dynamic Signatures
-
-Create signatures programmatically:
-
-```python
-from udspy import make_signature
-
-QA = make_signature(
-    input_fields={"question": str},
-    output_fields={"answer": str},
-    instructions="Answer questions concisely",
-)
-```
-
 ## Validation
 
 Signatures use Pydantic for validation:
@@ -172,6 +207,65 @@ class Analyze(Signature):
     keywords: list[str] = OutputField()
 ```
 
+## Choosing the Right Approach
+
+### String Signatures
+
+**Use when**:
+- Prototyping quickly
+- All fields are strings
+- Signature is simple
+- You don't need field descriptions
+
+```python
+# Perfect for quick tests
+predictor = Predict("question -> answer")
+```
+
+### Class-based Signatures
+
+**Use when**:
+- Building production code
+- You need custom types
+- You want field descriptions
+- Signature is complex
+
+```python
+class QA(Signature):
+    """Answer questions."""
+    question: str = InputField(description="User's question")
+    answer: str = OutputField(description="Concise answer")
+```
+
+### Dynamic Signatures
+
+**Use when**:
+- Creating signatures at runtime
+- Building signature builders/factories
+- Signature structure depends on config
+
+```python
+# Build signature based on config
+fields = load_field_config()
+MySignature = make_signature(fields["inputs"], fields["outputs"])
+```
+
+## Modules Accept All Formats
+
+All modules automatically recognize string signatures:
+
+```python
+from udspy import Predict, ChainOfThought, ReAct
+
+# All of these work:
+predictor1 = Predict("question -> answer")
+predictor2 = Predict(QA)  # Class-based
+predictor3 = Predict(make_signature(...))  # Dynamic
+
+cot = ChainOfThought("question -> answer")
+agent = ReAct("question -> answer", tools=[...])
+```
+
 ## API Reference
 
-See [API: Signatures](../api/signature.md) for detailed API documentation.
+See [API: Signatures](../api/signature.md) for detailed API documentation including the full `Signature.from_string()` reference.

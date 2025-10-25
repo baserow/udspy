@@ -280,4 +280,4 @@ else:
        return cot(question=question)
    ```
 
-See [Examples](../examples/chain_of_thought.md) for more details.
+See [Examples](../../examples/chain_of_thought.md) for more details.

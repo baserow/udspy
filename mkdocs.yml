@@ -35,8 +35,12 @@ nav:
       - Design Decisions: architecture/decisions.md
       - Signatures: architecture/signatures.md
       - Adapters: architecture/adapters.md
-      - Modules: architecture/modules.md
-      - Chain of Thought: architecture/chain_of_thought.md
+      - Modules:
+          - Overview: architecture/modules.md
+          - Base Module: architecture/modules/base.md
+          - Predict: architecture/modules/predict.md
+          - Chain of Thought: architecture/modules/chain_of_thought.md
+          - ReAct: architecture/modules/react.md
       - Streaming: architecture/streaming.md
   - Examples:
       - Basic Usage: examples/basic_usage.md
