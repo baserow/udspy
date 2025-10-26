@@ -42,6 +42,7 @@ nav:
           - Chain of Thought: architecture/modules/chain_of_thought.md
           - ReAct: architecture/modules/react.md
       - Streaming: architecture/streaming.md
+      - Callbacks: architecture/callbacks.md
       - Confirmation: architecture/confirmation.md
   - Examples:
       - Basic Usage: examples/basic_usage.md
@@ -58,6 +59,7 @@ nav:
       - Modules: api/module.md
       - Adapters: api/adapter.md
       - Streaming: api/streaming.md
+      - Callbacks: api/callback.md
       - History: api/history.md
       - ReAct: api/react.md
       - Tools: api/tool.md
