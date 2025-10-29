@@ -850,6 +850,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#error-handling-and-retry" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Handling and Retry
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling and Retry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-retry-on-parse-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic Retry on Parse Errors
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Types
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#design-rationale" class="md-nav__link">
     <span class="md-ellipsis">
       Design Rationale
@@ -1841,6 +1874,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#error-handling-and-retry" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Handling and Retry
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling and Retry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-retry-on-parse-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic Retry on Parse Errors
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Types
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#design-rationale" class="md-nav__link">
     <span class="md-ellipsis">
       Design Rationale
@@ -2041,7 +2107,7 @@
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">question</span><span class="o">=</span><span class="s2">&quot;Explain quantum computing&quot;</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="p">):</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">StreamChunk</span><span class="p">):</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">OutputStreamChunk</span><span class="p">):</span>
 <a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">delta</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">Prediction</span><span class="p">):</span>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">Final: </span><span class="si">{</span><span class="n">event</span><span class="o">.</span><span class="n">answer</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -2050,11 +2116,11 @@
 <p>The streaming API yields:
 - <code>StreamChunk(field: str, delta: str)</code> - Incremental text for a field
 - <code>Prediction(**outputs)</code> - Final result with all fields</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamChunk</span><span class="p">,</span> <span class="n">Prediction</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutputStreamChunk</span><span class="p">,</span> <span class="n">Prediction</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">predictor</span><span class="o">.</span><span class="n">aexecute</span><span class="p">(</span><span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="k">match</span> <span class="n">event</span><span class="p">:</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>        <span class="k">case</span> <span class="n">StreamChunk</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">field</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">):</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>        <span class="k">case</span> <span class="n">OutputStreamChunk</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="n">field</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">):</span>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">delta</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
 <a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>        <span class="k">case</span> <span class="n">Prediction</span><span class="p">()</span> <span class="k">as</span> <span class="n">pred</span><span class="p">:</span>
 <a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">Complete: </span><span class="si">{</span><span class="n">pred</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -2112,6 +2178,39 @@
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">answer</span><span class="p">)</span>  <span class="c1"># Access via attribute</span>
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;answer&quot;</span><span class="p">])</span>  <span class="c1"># Access via dict key</span>
 </code></pre></div>
+<h2 id="error-handling-and-retry">Error Handling and Retry</h2>
+<h3 id="automatic-retry-on-parse-errors">Automatic Retry on Parse Errors</h3>
+<p><code>Predict</code> automatically retries when LLM responses fail to parse correctly. This handles common issues like:
+- Missing or malformed field markers
+- Invalid JSON in structured outputs
+- Format inconsistencies</p>
+<p><strong>Retry behavior</strong>:
+- <strong>Max attempts</strong>: 3 (1 initial + 2 retries)
+- <strong>Backoff strategy</strong>: Exponential backoff (0.1s, 0.2s, up to 3s)
+- <strong>Only retries</strong>: <code>AdapterParseError</code> (not network errors or other exceptions)
+- <strong>Applies to</strong>: Both streaming and non-streaming execution</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># This will automatically retry if parse fails</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">except</span> <span class="n">tenacity</span><span class="o">.</span><span class="n">RetryError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="c1"># All 3 attempts failed</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed after retries: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>Why automatic retry?</strong>
+- LLM format errors are usually transient and succeed on retry
+- Reduces boilerplate error handling code
+- Improves reliability without user intervention</p>
+<p>See <a href="../../decisions/#adr-007-automatic-retry-on-parse-errors">ADR-007: Automatic Retry on Parse Errors</a> for full details.</p>
+<h3 id="error-types">Error Types</h3>
+<p><strong>AdapterParseError</strong>: LLM response doesn't match expected format
+- Automatically retried up to 3 times
+- Check signature output fields match what LLM is generating</p>
+<p><strong>ValidationError</strong>: Output doesn't match Pydantic field types
+- Not retried (indicates signature mismatch)
+- Adjust signature types or field descriptions</p>
+<p><strong>OpenAI API errors</strong>: Network issues, rate limits, etc.
+- Not retried automatically (use your own retry logic for these)
+- Consider using exponential backoff for rate limits</p>
 <h2 id="design-rationale">Design Rationale</h2>
 <h3 id="why-not-auto-execute-tools-by-default">Why Not Auto-execute Tools by Default?</h3>
 <p>Tools are not auto-executed by default because:</p>
@@ -2128,33 +2227,33 @@
 <li><strong>Reliability</strong>: Well-tested and production-ready</li>
 <li><strong>Features</strong>: Access to latest tool calling improvements</li>
 </ol>
-<p>See <a href="../../decisions/">ADR-001: Native Tool Calling</a> (if available) for full rationale.</p>
+<p>See <a href="../../decisions/#adr-001-initial-project-setup">ADR-001: Native Tool Calling</a> for full rationale.</p>
 <h2 id="common-patterns">Common Patterns</h2>
 <h3 id="simple-qa">Simple Q&amp;A</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">qa</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="s2">&quot;question -&gt; answer&quot;</span><span class="p">)</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">qa</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is AI?&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">qa</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="s2">&quot;question -&gt; answer&quot;</span><span class="p">)</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">qa</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is AI?&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="multi-field-output">Multi-field Output</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">analyzer</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="s2">&quot;text -&gt; summary, sentiment, keywords&quot;</span><span class="p">)</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">analyzer</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;I love this product!&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">analyzer</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="s2">&quot;text -&gt; summary, sentiment, keywords&quot;</span><span class="p">)</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">analyzer</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;I love this product!&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="with-context">With Context</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">contextual</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="s2">&quot;context, question -&gt; answer&quot;</span><span class="p">)</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">contextual</span><span class="p">(</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="n">context</span><span class="o">=</span><span class="s2">&quot;Python is a programming language&quot;</span><span class="p">,</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is it used for?&quot;</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">contextual</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="s2">&quot;context, question -&gt; answer&quot;</span><span class="p">)</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">contextual</span><span class="p">(</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="n">context</span><span class="o">=</span><span class="s2">&quot;Python is a programming language&quot;</span><span class="p">,</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is it used for?&quot;</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="p">)</span>
 </code></pre></div>
 <h3 id="with-tools">With Tools</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nd">@tool</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;calculator&quot;</span><span class="p">)</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">calc</span><span class="p">(</span><span class="n">expression</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="nb">eval</span><span class="p">(</span><span class="n">expression</span><span class="p">))</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="n">math_solver</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="s2">&quot;problem -&gt; solution&quot;</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">calc</span><span class="p">])</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">math_solver</span><span class="o">.</span><span class="n">aexecute</span><span class="p">(</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="n">problem</span><span class="o">=</span><span class="s2">&quot;What is 157 * 234?&quot;</span><span class="p">,</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>    <span class="n">auto_execute_tools</span><span class="o">=</span><span class="kc">True</span>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nd">@tool</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;calculator&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">calc</span><span class="p">(</span><span class="n">expression</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="nb">eval</span><span class="p">(</span><span class="n">expression</span><span class="p">))</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="n">math_solver</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="s2">&quot;problem -&gt; solution&quot;</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">calc</span><span class="p">])</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">math_solver</span><span class="o">.</span><span class="n">aexecute</span><span class="p">(</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>    <span class="n">problem</span><span class="o">=</span><span class="s2">&quot;What is 157 * 234?&quot;</span><span class="p">,</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>    <span class="n">auto_execute_tools</span><span class="o">=</span><span class="kc">True</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="p">)</span>
 </code></pre></div>
 <h2 id="see-also">See Also</h2>
 <ul>
