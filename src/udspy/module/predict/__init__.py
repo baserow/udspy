@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 import regex as re
-from openai import AsyncStream, BaseModel
+from openai import AsyncStream
 from openai.types.chat import ChatCompletionChunk
 from tenacity import (
     retry,
@@ -22,6 +22,17 @@ from udspy.decorators import suspendable
 from udspy.exceptions import AdapterParseError
 from udspy.history import History
 from udspy.module.base import Module
+from udspy.module.predict.execution import execute_tool_calls
+from udspy.module.predict.messages import (
+    build_initial_messages,
+    update_history_with_prediction,
+)
+from udspy.module.predict.stream_processing import (
+    process_content_delta,
+    process_reasoning_delta,
+    process_tool_call_delta,
+)
+from udspy.module.predict.validators import check_valid_outputs_or_raise, validate_inputs
 from udspy.settings import settings
 from udspy.signature import Signature
 from udspy.streaming import (
@@ -203,10 +214,7 @@ class Predict(Module):
 
     def _validate_inputs(self, inputs: dict[str, Any]) -> None:
         """Validate that all required inputs are provided."""
-        input_fields = self.signature.get_input_fields()
-        for field_name in input_fields:
-            if field_name not in inputs:
-                raise ValueError(f"Missing required input field: {field_name}")
+        validate_inputs(self.signature, inputs)
 
     def _build_initial_messages(self, inputs: dict[str, Any], history: History) -> None:
         """Build initial messages from inputs and optional history.
@@ -215,11 +223,7 @@ class Predict(Module):
             inputs: Input values from user
             history: History object with existing conversation
         """
-
-        if not history.messages:
-            history.add_system_message(self.adapter.format_instructions(self.signature))
-
-        history.add_user_message(self.adapter.format_inputs(self.signature, inputs))
+        build_initial_messages(self.adapter, self.signature, inputs, history)
 
     async def _aexecute(
         self,
@@ -300,37 +304,7 @@ class Predict(Module):
             tool_calls: List of tool calls to execute
             history: History object to update
         """
-
-        history.add_assistant_message(
-            tool_calls=[
-                {
-                    "id": tc.call_id,
-                    "type": "function",
-                    "function": {"name": tc.name, "arguments": json.dumps(tc.args)},
-                }
-                for tc in native_tool_calls
-            ]
-        )
-
-        for tool_call in native_tool_calls:
-            call_id = tool_call.call_id
-            tool_name = tool_call.name
-            tool_args = tool_call.args
-
-            content: str = ""
-            if tool_name in self.tools:
-                try:
-                    content = await self.tools[tool_name](**tool_args)
-                    if isinstance(content, BaseModel):
-                        content = content.model_dump_json()
-                    elif not isinstance(content, str):
-                        content = json.dumps(content)
-                except Exception as e:
-                    content = f"Error executing tool: {e}"
-            else:
-                content = f"Error: Tool {tool_name} not found"
-
-            history.add_tool_result(str(call_id), content)
+        await execute_tool_calls(self.tools, native_tool_calls, history)
 
     def _update_history_with_prediction(self, history: History, prediction: Prediction) -> None:
         """Update history with assistant's prediction.
@@ -339,18 +313,7 @@ class Predict(Module):
             history: History object to update
             prediction: Prediction from assistant
         """
-
-        output_fields = self.signature.get_output_fields()
-        content_parts = []
-
-        for field_name in output_fields:
-            if hasattr(prediction, field_name):
-                value = getattr(prediction, field_name)
-                if value:
-                    content_parts.append(f"[[ ## {field_name} ## ]]\n{value}")
-
-        content = "\n".join(content_parts) if content_parts else ""
-        history.add_assistant_message(content)
+        update_history_with_prediction(self.signature, history, prediction)
 
     async def aforward(
         self,
@@ -402,20 +365,7 @@ class Predict(Module):
             tool_calls: Dictionary to accumulate tool calls in
             delta_tool_calls: List of tool call deltas from the chunk
         """
-        for tool_call in delta_tool_calls:
-            idx = tool_call.index
-            if idx not in tool_calls:
-                tool_calls[idx] = {
-                    "id": tool_call.id or "",
-                    "type": tool_call.type or "function",
-                    "function": {
-                        "name": tool_call.function.name if tool_call.function else "",
-                        "arguments": "",
-                    },
-                }
-
-            if tool_call.function and tool_call.function.arguments:
-                tool_calls[idx]["function"]["arguments"] += tool_call.function.arguments
+        process_tool_call_delta(tool_calls, delta_tool_calls)
 
     async def _process_content_delta(
         self,
@@ -441,36 +391,16 @@ class Predict(Module):
         Returns:
             Tuple of (updated acc_delta, updated current_field)
         """
-        acc_delta += delta
-
-        if not acc_delta:
-            return acc_delta, current_field
-
-        match = field_pattern.search(acc_delta)
-        if match:
-            # Emit previous field as complete
-            if current_field:
-                field_content = "".join(accumulated_content[current_field])
-                await queue.put(
-                    OutputStreamChunk(self, current_field, "", field_content, is_complete=True)
-                )
-
-            current_field = match.group(1)
-            acc_delta = match.group(2)
-
-        if (
-            current_field
-            and current_field in output_fields
-            and not field_pattern.match(acc_delta, partial=True)
-        ):
-            accumulated_content[current_field].append(acc_delta)
-            field_content = "".join(accumulated_content[current_field])
-            await queue.put(
-                OutputStreamChunk(self, current_field, acc_delta, field_content, is_complete=False)
-            )
-            acc_delta = ""
-
-        return acc_delta, current_field
+        return await process_content_delta(
+            self,
+            delta,
+            acc_delta,
+            current_field,
+            accumulated_content,
+            output_fields,
+            field_pattern,
+            queue,
+        )
 
     def _execute_lm_callbacks(
         self,
@@ -519,28 +449,14 @@ class Predict(Module):
         """
         Check if the tool calls and outputs are valid; raise AdapterParseError if not.
         """
-
-        # verify the tool calls refer to known tools (only if we have tools configured)
-        if self.tools:
-            for tool_call in native_tool_calls:
-                tool_name = tool_call.name
-                if tool_name and tool_name not in self.tools:
-                    raise AdapterParseError(
-                        adapter_name=self.adapter.__class__.__name__,
-                        signature=self.signature,
-                        lm_response="",
-                        parsed_result={
-                            "error": f"Tool '{tool_name}' not found among available tools."
-                        },
-                    )
-
-        if not native_tool_calls and outputs.keys() != self.signature.get_output_fields().keys():
-            raise AdapterParseError(
-                adapter_name=self.adapter.__class__.__name__,
-                signature=self.signature,
-                lm_response=completion_text,
-                parsed_result=outputs,
-            )
+        check_valid_outputs_or_raise(
+            self.adapter.__class__.__name__,
+            self.signature,
+            self.tools,
+            native_tool_calls,
+            outputs,
+            completion_text,
+        )
 
     @retry(
         retry=retry_if_exception_type(AdapterParseError),
@@ -810,28 +726,17 @@ class Predict(Module):
         choice: Any,
         queue: asyncio.Queue[StreamEvent | None],
     ) -> ThoughtStreamChunk:
-        # For some reason, AWS Bedrock returns reasoning as content inside <reasoning> tags
-        # instead of proper choice.delta.reasoning, so if that happens, we extract it here
-        # Unfortunately, we cannot really say it's finished until we get the real content after.
-        thought_chunk = choice.delta.content or ""
-        if match := re.search(
-            r"<reasoning>(.*?)</reasoning>", choice.delta.content or "", re.DOTALL
-        ):
-            thought_chunk = match.group(1)
-        else:
-            thought_chunk = getattr(choice.delta, "reasoning", "")
+        """Process reasoning delta from choice.
 
-        is_complete = choice.finish_reason is not None
-        if thought_chunk or is_complete != reasoning.is_complete:
-            reasoning = ThoughtStreamChunk(
-                self,
-                reasoning.field_name,
-                thought_chunk,
-                reasoning.content + thought_chunk,
-                is_complete=is_complete,
-            )
-            await queue.put(reasoning)
-        return reasoning
+        Args:
+            reasoning: Current reasoning chunk state
+            choice: Choice object from streaming chunk
+            queue: Event queue to emit chunks to
+
+        Returns:
+            Updated ThoughtStreamChunk
+        """
+        return await process_reasoning_delta(self, reasoning, choice, queue)
 
     async def asuspend(self, exception: Any) -> Any:
         """Suspend execution and save state for Predict module.
