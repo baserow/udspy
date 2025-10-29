@@ -1,16 +1,16 @@
-"""Streaming example with reasoning."""
+"""Streaming example with reasoning.
+
+Before running, set environment variables:
+    export UDSPY_LM_API_KEY="sk-..."  # or OPENAI_API_KEY
+    export UDSPY_LM_MODEL="gpt-4o-mini"
+"""
 
 import asyncio
-import os
 
 import udspy
 
-# Configure with your OpenAI API key
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("Please set OPENAI_API_KEY environment variable")
-
-udspy.settings.configure(api_key=api_key, model="gpt-4o-mini")
+# Configure from environment variables
+udspy.settings.configure()
 
 
 # Define a signature with reasoning

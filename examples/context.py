@@ -1,16 +1,17 @@
-"""Example demonstrating context-specific settings."""
+"""Example demonstrating context-specific settings.
+
+Before running, set environment variables:
+    export UDSPY_LM_API_KEY="sk-..."  # or OPENAI_API_KEY
+    export UDSPY_LM_MODEL="gpt-4o-mini"
+"""
 
 import os
 
 import udspy
 from udspy import InputField, OutputField, Predict, Signature
 
-# Configure global settings
-global_api_key = os.getenv("OPENAI_API_KEY")
-if not global_api_key:
-    raise ValueError("Please set OPENAI_API_KEY environment variable")
-
-udspy.settings.configure(api_key=global_api_key, model="gpt-4o-mini")
+# Configure global settings from environment variables
+udspy.settings.configure()
 
 
 class QA(Signature):
@@ -45,6 +46,8 @@ if __name__ == "__main__":
     print("=== Multi-tenant example ===")
 
     # Simulate different users with different API keys
+    # Falls back to the global API key if user-specific keys are not set
+    global_api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY")
     user1_api_key = os.getenv("USER1_API_KEY", global_api_key)
     user2_api_key = os.getenv("USER2_API_KEY", global_api_key)
 

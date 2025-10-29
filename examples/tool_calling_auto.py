@@ -1,18 +1,17 @@
-"""Example with native tool calling - automatic execution with @tool decorator."""
+"""Example with native tool calling - automatic execution with @tool decorator.
 
-import os
+Before running, set environment variables:
+    export UDSPY_LM_API_KEY="sk-..."  # or OPENAI_API_KEY
+    export UDSPY_LM_MODEL="gpt-4o-mini"
+"""
 
 from pydantic import Field
 
 import udspy
 from udspy import InputField, OutputField, Predict, Signature, tool
 
-# Configure with your OpenAI API key
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("Please set OPENAI_API_KEY environment variable")
-
-udspy.settings.configure(api_key=api_key, model="gpt-4o-mini")
+# Configure from environment variables
+udspy.settings.configure()
 
 
 # Define tools using the @tool decorator

@@ -2,6 +2,29 @@
 
 Learn how to use OpenAI's native tool calling with udspy.
 
+## Overview
+
+Tool calling in udspy follows the OpenAI tool calling pattern - a **multi-turn conversation** where the LLM requests tool execution and you provide the results:
+
+```
+┌─────────────┐
+│   Step 1:   │  You: "What is 157 × 234?"
+│  First Call │  LLM: "I need to call Calculator(multiply, 157, 234)"
+└─────────────┘
+       │
+       ▼
+┌─────────────┐
+│   Step 2:   │  You execute: calculator("multiply", 157, 234) → 36738
+│  Execute    │
+└─────────────┘
+       │
+       ▼
+┌─────────────┐
+│   Step 3:   │  You: "Calculator returned 36738"
+│ Second Call │  LLM: "The answer is 36,738"
+└─────────────┘
+```
+
 ## Two Ways to Use Tools
 
 udspy supports two approaches to tool calling:
@@ -55,14 +78,14 @@ print(result.answer)  # "The answer is 8"
 
 # Get tool calls without execution
 result = predictor(question="What is 5 + 3?", auto_execute_tools=False)
-if "tool_calls" in result:
-    print(f"LLM wants to call: {result.tool_calls[0]['name']}")
-    print(f"With arguments: {result.tool_calls[0]['arguments']}")
+if result.native_tool_calls:
+    print(f"LLM wants to call: {result.native_tool_calls[0].name}")
+    print(f"With arguments: {result.native_tool_calls[0].args}")
     # Now you can execute manually or log/analyze the tool calls
 ```
 
 This is useful for:
-- Requiring user approval before executing tools
+- Requiring user approval before executing tools (see confirmation examples)
 - Logging or analyzing tool usage patterns
 - Implementing custom execution logic
 - Rate limiting or caching tool results
@@ -71,25 +94,51 @@ This is useful for:
 
 Define tools as Pydantic models when you want full control:
 
+### 1. Define the Tool Schema
+
+This describes the tool to the LLM - what parameters it takes:
+
 ```python
 from pydantic import BaseModel, Field
 
 class Calculator(BaseModel):
     """Perform arithmetic operations."""
-    operation: str = Field(description="add, subtract, multiply, or divide")
+    operation: str = Field(description="add, subtract, multiply, divide")
     a: float = Field(description="First number")
     b: float = Field(description="Second number")
+```
 
-# Pydantic models are schema-only (not automatically executed)
-predictor = Predict(MathQuery, tools=[Calculator])
-result = predictor(question="What is 157 times 234?")
+### 2. Implement the Tool Function
 
-# You must check for and execute tool calls yourself
-if "tool_calls" in result:
-    for tool_call in result.tool_calls:
-        print(f"Called: {tool_call['name']}")
-        print(f"Arguments: {tool_call['arguments']}")
-        # Execute manually and construct follow-up messages
+This is the actual Python code that executes:
+
+```python
+def calculator(operation: str, a: float, b: float) -> float:
+    """Execute calculator operation."""
+    ops = {
+        "add": a + b,
+        "subtract": a - b,
+        "multiply": a * b,
+        "divide": a / b if b != 0 else float("inf"),
+    }
+    return ops[operation]
+```
+
+### 3. Handle the Multi-Turn Conversation
+
+```python
+# First call - LLM decides what to do
+predictor = Predict(QA, tools=[Calculator])
+result = predictor(question="What is 5 + 3?", auto_execute_tools=False)
+
+if result.native_tool_calls:
+    # LLM requested a tool call
+    for tool_call in result.native_tool_calls:
+        # Execute YOUR implementation
+        tool_result = calculator(**tool_call.args)
+
+        # Send result back to LLM (requires manual message construction)
+        # See examples/tool_calling_manual.py for complete implementation
 ```
 
 ## Multiple Tools
@@ -97,58 +146,89 @@ if "tool_calls" in result:
 Provide multiple tools for different operations:
 
 ```python
-class Calculator(BaseModel):
-    """Perform arithmetic operations."""
-    operation: str
-    a: float
-    b: float
+@tool(name="Calculator", description="Perform arithmetic operations")
+def calculator(operation: str, a: float, b: float) -> float:
+    ops = {"add": a + b, "subtract": a - b, "multiply": a * b, "divide": a / b}
+    return ops[operation]
 
-class WebSearch(BaseModel):
-    """Search the web."""
-    query: str = Field(description="Search query")
+@tool(name="WebSearch", description="Search the web")
+def web_search(query: str = Field(description="Search query")) -> str:
+    # Your web search implementation
+    return f"Search results for: {query}"
 
-class DateInfo(BaseModel):
-    """Get date information."""
-    timezone: str = Field(description="Timezone name")
+@tool(name="DateInfo", description="Get current date/time")
+def date_info(timezone: str = Field(description="Timezone name")) -> str:
+    # Your date/time implementation
+    return f"Current time in {timezone}"
 
 predictor = Predict(
     signature,
-    tools=[Calculator, WebSearch, DateInfo],
+    tools=[calculator, web_search, date_info],
 )
 ```
 
-## Tool Execution
+## Key Points
 
-Execute tool calls and continue the conversation:
+1. **The Schema != The Implementation**
+   - Schema (Pydantic model or `@tool` params): Describes the tool to the LLM
+   - Implementation (Python function): Your actual code
+
+2. **It's Multi-Turn**
+   - Call 1: LLM decides to use a tool
+   - You execute the tool
+   - Call 2: Send results back to get final answer
+
+3. **You Control Execution**
+   - LLM only *requests* tool calls
+   - YOU decide if/how to execute them
+   - YOU send results back
+
+## Why This Design?
+
+This gives you full control:
+- Validate tool calls before executing
+- Handle errors gracefully
+- Implement tools however you want (API calls, database queries, etc.)
+- Add logging, rate limiting, security checks, etc.
+
+The LLM just requests the tool - you're in charge of everything else!
+
+## Complete Examples
+
+See the example files:
+
+- **`tool_calling_auto.py`** - Automatic tool execution with @tool decorator (recommended)
+- **`tool_calling_manual.py`** - Manual tool execution with full control
+- **`confirmation_loop.py`** - Requiring user approval before tool execution
+
+## Advanced Features
+
+### Async Tools
+
+Tools can be async functions:
 
 ```python
-def execute_calculator(operation: str, a: float, b: float) -> float:
-    """Execute calculator tool."""
-    ops = {
-        "add": lambda x, y: x + y,
-        "subtract": lambda x, y: x - y,
-        "multiply": lambda x, y: x * y,
-        "divide": lambda x, y: x / y,
-    }
-    return ops[operation](a, b)
-
-# Get initial response with tool calls
-result = predictor(question="What is 15 * 23?")
-
-if "tool_calls" in result:
-    # Execute tool calls
-    tool_results = []
-    for tool_call in result.tool_calls:
-        if tool_call["name"] == "Calculator":
-            args = json.loads(tool_call["arguments"])
-            result_value = execute_calculator(**args)
-            tool_results.append({
-                "id": tool_call["id"],
-                "result": result_value,
-            })
-
-    # Continue conversation with tool results
-    # (requires manual message construction - see advanced examples)
+@tool(name="AsyncSearch", description="Search with async API")
+async def async_search(query: str) -> str:
+    # Async implementation
+    result = await some_async_api_call(query)
+    return result
 ```
 
-See the [full example](https://github.com/silvestrid/udspy/blob/main/examples/tool_calling.py) in the repository.
+### Tool Confirmation
+
+Require user confirmation before executing certain tools:
+
+```python
+@tool(
+    name="DeleteFile",
+    description="Delete a file",
+    require_confirmation=True  # Requires user approval
+)
+def delete_file(path: str) -> str:
+    # Will only execute after user confirmation
+    os.remove(path)
+    return f"Deleted {path}"
+```
+
+See `examples/confirmation_loop.py` for a complete example.

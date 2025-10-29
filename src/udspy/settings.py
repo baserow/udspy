@@ -1,5 +1,6 @@
 """Global settings and configuration."""
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -40,7 +41,7 @@ class Settings:
 
     def configure(
         self,
-        api_key: str = "",
+        api_key: str | None = None,
         base_url: str | None = None,
         model: str | None = None,
         aclient: AsyncOpenAI | None = None,
@@ -50,10 +51,18 @@ class Settings:
     ) -> None:
         """Configure global OpenAI client and defaults.
 
+        If parameters are not provided, attempts to read from environment variables:
+        - api_key: UDSPY_LM_API_KEY or OPENAI_API_KEY
+        - model: UDSPY_LM_MODEL
+        - base_url: UDSPY_LM_BASE_URL
+
         Args:
-            api_key: OpenAI API key (creates default async client)
-            base_url: Base URL for OpenAI API
-            model: Default model to use for all predictions
+            api_key: OpenAI API key (creates default async client). If not provided,
+                reads from UDSPY_LM_API_KEY or OPENAI_API_KEY environment variables
+            base_url: Base URL for OpenAI API. If not provided, reads from
+                UDSPY_LM_BASE_URL environment variable
+            model: Default model to use for all predictions. If not provided, reads
+                from UDSPY_LM_MODEL environment variable
             aclient: Custom async OpenAI client
             lm: Custom LM instance (overrides aclient if provided)
             callbacks: List of callback handlers for telemetry/monitoring
@@ -64,11 +73,18 @@ class Settings:
             import udspy
             from udspy import BaseCallback
 
+            # With environment variables (no parameters needed)
+            # Set UDSPY_LM_API_KEY=sk-... and UDSPY_LM_MODEL=gpt-4o
+            udspy.settings.configure()
+
+            # With explicit parameters
+            udspy.settings.configure(api_key="sk-...", model="gpt-4o")
+
+            # With callbacks
             class LoggingCallback(BaseCallback):
                 def on_lm_start(self, call_id, instance, inputs):
                     print(f"LLM called with: {inputs}")
 
-            # With API key and callbacks
             udspy.settings.configure(
                 api_key="sk-...",
                 model="gpt-4o",
@@ -86,6 +102,16 @@ class Settings:
             udspy.settings.configure(lm=lm)
             ```
         """
+        # Read from environment variables if not provided
+        if api_key is None:
+            api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+
+        if model is None:
+            model = os.getenv("UDSPY_LM_MODEL")
+
+        if base_url is None:
+            base_url = os.getenv("UDSPY_LM_BASE_URL")
+
         if lm:
             self._lm = lm
         elif aclient:

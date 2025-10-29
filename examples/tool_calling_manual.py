@@ -1,18 +1,18 @@
-"""Simple tool calling example showing the complete pattern."""
+"""Simple tool calling example showing the complete pattern.
+
+Before running, set environment variables:
+    export UDSPY_LM_API_KEY="sk-..."  # or OPENAI_API_KEY
+    export UDSPY_LM_MODEL="gpt-4o-mini"
+"""
 
 import json
-import os
 from typing import Literal
 
 import udspy
 from udspy import InputField, OutputField, Predict, Signature
 
-# Configure
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("Please set OPENAI_API_KEY environment variable")
-
-udspy.settings.configure(api_key=api_key, model="gpt-4o-mini")
+# Configure from environment variables
+udspy.settings.configure()
 
 
 # Step 1: Implement the actual tool function

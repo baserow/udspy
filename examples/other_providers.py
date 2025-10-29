@@ -1,4 +1,14 @@
-"""Basic usage example of udspy."""
+"""Example showing how to use udspy with different LLM providers.
+
+This example demonstrates using OpenAI, Groq, AWS Bedrock, Anthropic, and Ollama
+with the same code by switching providers using context managers.
+
+Before running, optionally set provider-specific API keys:
+    export OPENAI_API_KEY="sk-..."
+    export GROQ_API_KEY="..."
+    export AWS_BEDROCK_API_KEY="..."
+    export ANTHROPIC_API_KEY="..."
+"""
 
 import os
 from random import randint

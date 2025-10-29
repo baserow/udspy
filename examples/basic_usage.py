@@ -1,16 +1,16 @@
-"""Basic usage example of udspy."""
+"""Basic usage example of udspy.
 
-import os
+Before running, set environment variables:
+    export UDSPY_LM_API_KEY="sk-..."  # or OPENAI_API_KEY
+    export UDSPY_LM_MODEL="gpt-4o-mini"
+"""
 
 import udspy
 from udspy import InputField, OutputField, Predict, Signature
 
-# Configure with your OpenAI API key
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("Please set OPENAI_API_KEY environment variable")
-
-udspy.settings.configure(api_key=api_key, model="gpt-4o-mini")
+# Configure from environment variables (UDSPY_LM_API_KEY, UDSPY_LM_MODEL)
+# Falls back to OPENAI_API_KEY if UDSPY_LM_API_KEY is not set
+udspy.settings.configure()
 
 
 # Define a simple question-answering signature
