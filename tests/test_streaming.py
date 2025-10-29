@@ -8,7 +8,7 @@ from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 
 from udspy import InputField, OutputField, Predict, Prediction, Signature
-from udspy.streaming import StreamChunk, StreamEvent, emit_event
+from udspy.streaming import OutputStreamChunk, StreamEvent, emit_event
 
 
 class QA(Signature):
@@ -87,7 +87,7 @@ async def test_predict_astream() -> None:
 
     assert isinstance(events_received[-1], Prediction)
 
-    chunks_received = [e for e in events_received if isinstance(e, StreamChunk)]
+    chunks_received = [e for e in events_received if isinstance(e, OutputStreamChunk)]
     assert len(chunks_received) > 0
 
 
@@ -126,9 +126,9 @@ def test_predict_forward_sync() -> None:
 
 @pytest.mark.asyncio
 async def test_stream_chunk() -> None:
-    """Test StreamChunk creation."""
+    """Test OutputStreamChunk creation."""
     predict = Predict(QA)
-    chunk = StreamChunk(
+    chunk = OutputStreamChunk(
         predict, field_name="answer", delta=" is", content="Paris is", is_complete=False
     )
 
@@ -138,7 +138,7 @@ async def test_stream_chunk() -> None:
     assert chunk.content == "Paris is"
     assert not chunk.is_complete
 
-    complete_chunk = StreamChunk(
+    complete_chunk = OutputStreamChunk(
         predict, field_name="answer", delta="", content="Paris", is_complete=True
     )
     assert complete_chunk.is_complete

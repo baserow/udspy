@@ -15,7 +15,7 @@ from pydantic import Field
 
 from udspy import InputField, OutputField, Predict, Prediction, Signature, settings, tool
 from udspy.history import History
-from udspy.streaming import StreamChunk
+from udspy.streaming import OutputStreamChunk
 
 
 class QA(Signature):
@@ -44,7 +44,7 @@ async def test_max_turns_reached_error() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content=None,
+                    content="[[ ## answer ## ]]\nPlaceholder",  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_1",
@@ -184,7 +184,7 @@ async def test_history_update_with_tools() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content=None,
+                    content="[[ ## answer ## ]]\nCalculating",  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_1",
@@ -237,10 +237,10 @@ async def test_history_update_with_tools() -> None:
 
 @pytest.mark.asyncio
 async def test_stream_chunk_repr() -> None:
-    """Test StreamChunk __repr__ method for complete and streaming states."""
+    """Test OutputStreamChunk __repr__ method for complete and streaming states."""
     predictor = Predict(QA)
 
-    streaming_chunk = StreamChunk(
+    streaming_chunk = OutputStreamChunk(
         predictor,
         field_name="answer",
         delta="Paris",
@@ -251,7 +251,7 @@ async def test_stream_chunk_repr() -> None:
     assert "answer" in repr(streaming_chunk)
     assert "Paris" in repr(streaming_chunk)
 
-    complete_chunk = StreamChunk(
+    complete_chunk = OutputStreamChunk(
         predictor, field_name="answer", delta="", content="Paris", is_complete=True
     )
     assert "complete" in repr(complete_chunk)
@@ -313,7 +313,7 @@ async def test_no_tools_available_but_tool_calls_present() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content=None,
+                    content="[[ ## answer ## ]]\nNo tool available",  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_1",
@@ -337,7 +337,7 @@ async def test_no_tools_available_but_tool_calls_present() -> None:
     result = await predictor.aforward(auto_execute_tools=True, question="Test")
 
     assert isinstance(result, Prediction)
-    assert "tool_calls" in result
+    assert "native_tool_calls" in result
 
 
 @pytest.mark.asyncio
@@ -356,60 +356,25 @@ async def test_invalid_json_in_tool_arguments() -> None:
         task: str = InputField()
         result: str = OutputField()
 
-    # Mock response with malformed JSON in tool arguments
-    response = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="I'll use the test tool",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_1",
-                            type="function",
-                            function=Function(
-                                name="TestTool",
-                                arguments='{"x": invalid_json}',  # Malformed JSON
-                            ),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    # Mock response with malformed JSON in tool arguments - note the invalid JSON in args
+    response = make_mock_response(
+        "[[ ## next_thought ## ]]\nI'll use the test tool\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "TestTool", "args": {"x": invalid_json}}]'  # Malformed JSON in content
     )
 
-    response2 = make_mock_response("[[ ## reasoning ## ]]\nLet me try again")
-    response3 = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nFinished",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_finish",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    response2 = make_mock_response(
+        "[[ ## next_thought ## ]]\nLet me try again\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
-    response4 = make_mock_response("[[ ## result ## ]]\nCompleted")
+    response3 = make_mock_response(
+        "[[ ## next_thought ## ]]\nFinished\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
+    )
+
+    response4 = make_mock_response(
+        "[[ ## reasoning ## ]]\nCompleted\n[[ ## result ## ]]\nCompleted"
+    )
 
     mock_aclient = settings.aclient
     call_count = 0
@@ -431,8 +396,11 @@ async def test_invalid_json_in_tool_arguments() -> None:
     result = await react.aforward(task="Test task")
 
     # Should handle malformed JSON gracefully and continue
-    # The JSON decode error is logged and tool args default to {}
+    # The JSON decode error is logged and next_tool_calls becomes empty list
     assert isinstance(result, Prediction)
     assert "trajectory" in result
-    # Verify the malformed JSON was handled (tool_args_0 should be empty dict)
-    assert result.trajectory.get("tool_args_0") == {}
+    # Verify the malformed JSON was handled (tool_calls_0 should be empty list)
+    assert result.trajectory.get("tool_calls_0") == []
+    # Agent should have continued to next iteration
+    assert "thought_1" in result.trajectory
+    assert result.trajectory["thought_1"] == "Let me try again"

@@ -40,9 +40,9 @@ def test_tool_decorator() -> None:
     """Test @tool decorator creates Tool object."""
     assert calculator.name == "Calculator"
     assert calculator.description == "Perform arithmetic operations"
-    assert "operation" in calculator.parameters
-    assert "a" in calculator.parameters
-    assert "b" in calculator.parameters
+    assert "operation" in calculator.args_schema["properties"]
+    assert "a" in calculator.args_schema["properties"]
+    assert "b" in calculator.args_schema["properties"]
 
 
 def test_tool_to_openai_schema() -> None:
@@ -132,13 +132,19 @@ async def test_predict_with_tool_automatic_execution() -> None:
     assert call_count == 2
 
 
-def test_predict_stores_tool_callables() -> None:
-    """Test Predict stores tool callables correctly."""
+def test_predict_stores_tool_schemas() -> None:
+    """Test Predict stores tool schemas correctly."""
     predictor = Predict(QA, tools=[calculator])
 
-    assert "Calculator" in predictor.tool_callables
-    assert predictor.tool_callables["Calculator"] == calculator
-    assert calculator in predictor.tool_schemas
+    # Verify tool is stored in tools dict
+    assert "Calculator" in predictor.tools
+    assert predictor.tools["Calculator"] == calculator
+
+    # Verify the tool schema is in tool_schemas
+    assert len(predictor.tool_schemas) == 1
+    tool_schema = predictor.tool_schemas[0]
+    assert tool_schema["type"] == "function"
+    assert tool_schema["function"]["name"] == "Calculator"
 
 
 def test_tool_with_optional_types() -> None:

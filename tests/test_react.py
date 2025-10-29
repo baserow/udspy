@@ -1,15 +1,7 @@
 """Tests for ReAct module."""
 
-import json
-
 import pytest
 from conftest import make_mock_response
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice as CompletionChoice
-from openai.types.chat.chat_completion_message_tool_call import (
-    ChatCompletionMessageToolCall,
-    Function,
-)
 from pydantic import Field
 
 from udspy import ConfirmationRequired, InputField, OutputField, ReAct, Signature, settings, tool
@@ -46,58 +38,17 @@ class QA(Signature):
 @pytest.mark.asyncio
 async def test_react_basic_execution() -> None:
     """Test basic ReAct execution with a simple tool."""
-    # Mock LLM responses for ReAct loop with native tool calling
+    # Mock LLM responses for ReAct loop (using next_thought/next_tool_calls format)
     # First call: agent decides to call search tool
-    react_response = ChatCompletion(
-        id="test1",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nI should search for information about Python",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_search123",
-                            type="function",
-                            function=Function(
-                                name="search",
-                                arguments=json.dumps({"query": "Python programming language"}),
-                            ),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    react_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nI should search for information about Python\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "search", "args": {"query": "Python programming language"}}]'
     )
 
     # Second call: agent decides to finish
-    react_finish_response = ChatCompletion(
-        id="test2",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nI have the information I need",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_finish456",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    react_finish_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nI have the information I need\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
     # Extract call: final answer extraction
@@ -136,31 +87,14 @@ async def test_react_basic_execution() -> None:
 @pytest.mark.asyncio
 async def test_react_string_signature() -> None:
     """Test ReAct with string signature format."""
-    react_response = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nFinish",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_finish789",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    react_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nFinish\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
-    extract_response = make_mock_response("[[ ## result ## ]]\nDone")
+    extract_response = make_mock_response(
+        "[[ ## reasoning ## ]]\nCompleted\n[[ ## result ## ]]\nDone"
+    )
 
     call_count = 0
 
@@ -186,31 +120,9 @@ async def test_react_string_signature() -> None:
 @pytest.mark.asyncio
 async def test_react_tool_confirmation() -> None:
     """Test ReAct with tool requiring confirmation."""
-    react_response = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nDelete the file",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_delete123",
-                            type="function",
-                            function=Function(
-                                name="delete_file",
-                                arguments=json.dumps({"path": "/tmp/test.txt"}),
-                            ),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    react_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nDelete the file\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "delete_file", "args": {"path": "/tmp/test.txt"}}]'
     )
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
@@ -237,31 +149,14 @@ async def test_react_tool_confirmation() -> None:
 
 def test_react_forward_sync() -> None:
     """Test sync forward() method."""
-    react_response = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nFinish",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_sync123",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    react_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nFinish\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
-    extract_response = make_mock_response("[[ ## answer ## ]]\nTest answer")
+    extract_response = make_mock_response(
+        "[[ ## reasoning ## ]]\nCompleted\n[[ ## answer ## ]]\nTest answer"
+    )
 
     call_count = 0
 
@@ -295,7 +190,7 @@ def test_tool_desc_and_args_aliases() -> None:
     """Test that Tool has desc and args aliases for DSPy compatibility."""
     assert search_tool.desc == search_tool.description
     assert "query" in search_tool.args
-    assert "str" in search_tool.args["query"]
+    assert search_tool.args["query"]["type"] == "string"  # JSON schema uses "string" not "str"
 
 
 @pytest.mark.asyncio
@@ -318,60 +213,21 @@ async def test_tool_execution_after_confirmation() -> None:
     )
 
     # Mock response for initial call (LLM decides to delete)
-    initial_response = ChatCompletion(
-        id="test1",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nI will delete the file",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_delete1",
-                            type="function",
-                            function=Function(
-                                name="delete_file",
-                                arguments=json.dumps({"path": "/tmp/test.txt"}),
-                            ),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    initial_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nI will delete the file\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "delete_file", "args": {"path": "/tmp/test.txt"}}]'
     )
 
     # Mock response for after confirmation (LLM calls finish)
-    finish_response = ChatCompletion(
-        id="test2",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nFile deleted successfully",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_finish1",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    finish_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nFile deleted successfully\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
     # Mock extract response
-    extract_response = make_mock_response("[[ ## answer ## ]]\nFile was deleted successfully")
+    extract_response = make_mock_response(
+        "[[ ## reasoning ## ]]\nFile deleted\n[[ ## answer ## ]]\nFile was deleted successfully"
+    )
 
     call_sequence = {"count": 0}
 
@@ -414,96 +270,37 @@ async def test_tool_execution_after_confirmation() -> None:
     assert "observation_0" in result.trajectory
     assert "Deleted /tmp/test.txt" in result.trajectory["observation_0"]
 
-    # Verify we have finish call in trajectory
-    assert "tool_name_1" in result.trajectory
-    assert result.trajectory["tool_name_1"] == "finish"
+    # Verify we have finish call in trajectory (iteration 1 uses normal execution, so check tool_calls_1)
+    assert "tool_calls_1" in result.trajectory
+    tool_calls_1 = result.trajectory["tool_calls_1"]
+    assert len(tool_calls_1) > 0
+    assert tool_calls_1[0]["name"] == "finish"
 
 
 @pytest.mark.asyncio
 async def test_user_feedback_triggers_re_reasoning() -> None:
     """Test that user feedback (not yes/no) causes LLM to re-reason."""
     # Mock response for initial ask_to_user
-    ask_response = ChatCompletion(
-        id="test1",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nI need more info",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_ask1",
-                            type="function",
-                            function=Function(
-                                name="ask_to_user",
-                                arguments=json.dumps({"question": "What topic?"}),
-                            ),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    ask_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nI need more info\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "ask_to_user", "args": {"question": "What topic?"}}]'
     )
 
     # After user feedback, LLM uses search tool
-    search_response = ChatCompletion(
-        id="test2",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nNow I'll search for Python",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_search1",
-                            type="function",
-                            function=Function(
-                                name="search",
-                                arguments=json.dumps({"query": "Python programming"}),
-                            ),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    search_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nNow I'll search for Python\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "search", "args": {"query": "Python programming"}}]'
     )
 
     # Finally finish
-    finish_response = ChatCompletion(
-        id="test3",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nDone",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_finish1",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    finish_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nDone\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
-    extract_response = make_mock_response("[[ ## answer ## ]]\nPython info")
+    extract_response = make_mock_response(
+        "[[ ## reasoning ## ]]\nSearched for Python\n[[ ## answer ## ]]\nPython info"
+    )
 
     call_sequence = {"count": 0}
 
@@ -540,41 +337,26 @@ async def test_user_feedback_triggers_re_reasoning() -> None:
     assert "observation_0" in result.trajectory
     assert "User feedback: I want to know about Python" in result.trajectory["observation_0"]
 
-    # Verify LLM then used search tool (iteration 1)
-    assert "tool_name_1" in result.trajectory
-    assert result.trajectory["tool_name_1"] == "search"
-    assert result.trajectory["tool_args_1"] == {"query": "Python programming"}
+    # Verify LLM then used search tool (iteration 1 uses normal execution, so check tool_calls_1)
+    assert "tool_calls_1" in result.trajectory
+    tool_calls_1 = result.trajectory["tool_calls_1"]
+    assert len(tool_calls_1) > 0
+    assert tool_calls_1[0]["name"] == "search"
+    assert tool_calls_1[0]["args"] == {"query": "Python programming"}
 
 
 @pytest.mark.asyncio
 async def test_react_with_string_signature() -> None:
     """Test ReAct with string signature format."""
 
-    finish_response = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="Reasoning",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_1",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    finish_response = make_mock_response(
+        "[[ ## next_thought ## ]]\nReasoning\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
-    extract_response = make_mock_response("[[ ## result ## ]]\nTask completed")
+    extract_response = make_mock_response(
+        "[[ ## reasoning ## ]]\nCompleted\n[[ ## result ## ]]\nTask completed"
+    )
 
     call_count = {"count": 0}
 
@@ -602,58 +384,20 @@ async def test_react_resume_with_pending_tool_call() -> None:
     from udspy import respond_to_confirmation
 
     # First response: agent calls tool with require_confirmation
-    response1 = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nI need to delete the file",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_delete",
-                            type="function",
-                            function=Function(
-                                name="delete_file", arguments='{"path": "/tmp/test.txt"}'
-                            ),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    response1 = make_mock_response(
+        "[[ ## next_thought ## ]]\nI need to delete the file\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "delete_file", "args": {"path": "/tmp/test.txt"}}]'
     )
 
     # After resumption: agent finishes
-    response2 = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nFile deleted",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_finish",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    response2 = make_mock_response(
+        "[[ ## next_thought ## ]]\nFile deleted\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
-    extract_response = make_mock_response("[[ ## answer ## ]]\nFile was deleted")
+    extract_response = make_mock_response(
+        "[[ ## reasoning ## ]]\nFile deleted\n[[ ## answer ## ]]\nFile was deleted"
+    )
 
     call_count = {"count": 0}
 
@@ -699,56 +443,20 @@ async def test_react_resume_pending_tool_call_with_exception() -> None:
         raise ValueError("Tool failed!")
 
     # Agent calls tool with require_confirmation
-    response1 = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nCalling tool",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_fail",
-                            type="function",
-                            function=Function(name="failing_tool", arguments='{"x": 1}'),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    response1 = make_mock_response(
+        "[[ ## next_thought ## ]]\nCalling tool\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "failing_tool", "args": {"x": 1}}]'
     )
 
     # After tool failure, agent finishes
-    response2 = ChatCompletion(
-        id="test",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=1234567890,
-        choices=[
-            CompletionChoice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content="[[ ## reasoning ## ]]\nTool failed",
-                    tool_calls=[
-                        ChatCompletionMessageToolCall(
-                            id="call_finish",
-                            type="function",
-                            function=Function(name="finish", arguments="{}"),
-                        )
-                    ],
-                ),
-                finish_reason="tool_calls",
-            )
-        ],
+    response2 = make_mock_response(
+        "[[ ## next_thought ## ]]\nTool failed\n"
+        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
     )
 
-    extract_response = make_mock_response("[[ ## answer ## ]]\nOperation failed")
+    extract_response = make_mock_response(
+        "[[ ## reasoning ## ]]\nTool failed\n[[ ## answer ## ]]\nOperation failed"
+    )
 
     call_count = {"count": 0}
 

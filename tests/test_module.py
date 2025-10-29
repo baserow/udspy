@@ -39,7 +39,6 @@ def test_predict_initialization() -> None:
     assert predictor.signature == QA
     assert predictor.model == "gpt-4o-mini"
     assert isinstance(predictor.tool_schemas, list)
-    assert isinstance(predictor.tool_callables, dict)
 
 
 def test_predict_forward() -> None:

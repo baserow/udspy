@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from conftest import make_mock_response
 
+import udspy
 from udspy import BaseCallback, Predict, settings
 from udspy.signature import InputField, OutputField, Signature
 from udspy.tool import Tool
@@ -46,13 +47,14 @@ class QA(Signature):
 async def test_module_callbacks():
     """Test that module callbacks are invoked."""
     callback = CallbackRecorder()
-    predictor = Predict(QA, callbacks=[callback])
+    predictor = Predict(QA)
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\n4")
     settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
 
-    result = await predictor.aforward(question="What is 2+2?")
+    with udspy.settings.context(callbacks=[callback]):
+        result = await predictor.aforward(question="What is 2+2?")
 
     assert result.answer == "4"
     # Check module callbacks were called
@@ -72,13 +74,14 @@ async def test_module_callbacks():
 async def test_lm_callbacks():
     """Test that LM callbacks are invoked."""
     callback = CallbackRecorder()
-    predictor = Predict(QA, callbacks=[callback])
+    predictor = Predict(QA)
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
     settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
 
-    result = await predictor.aforward(question="What is the capital of France?")
+    with udspy.settings.context(callbacks=[callback]):
+        result = await predictor.aforward(question="What is the capital of France?")
 
     assert result.answer == "Paris"
     # Check LM callbacks were called
@@ -99,9 +102,10 @@ async def test_tool_callbacks():
         return f"Results for: {query}"
 
     callback = CallbackRecorder()
-    tool = Tool(mock_tool, name="search", description="Search tool", callbacks=[callback])
+    tool = Tool(mock_tool, name="search", description="Search tool")
 
-    result = await tool.acall(query="test query")
+    with udspy.settings.context(callbacks=[callback]):
+        result = await tool.acall(query="test query")
 
     assert result == "Results for: test query"
     # Check tool callbacks were called
@@ -153,27 +157,30 @@ async def test_callback_exception_handling():
             raise ValueError("Callback error")
 
     good_callback = CallbackRecorder()
-    predictor = Predict(QA, callbacks=[FaultyCallback(), good_callback])
+    predictor = Predict(QA)
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\n4")
     settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
 
     # Should still work despite callback error
-    result = await predictor.aforward(question="What is 2+2?")
+    with udspy.settings.context(callbacks=[FaultyCallback(), good_callback]):
+        result = await predictor.aforward(question="What is 2+2?")
+
     assert result.answer == "4"
 
 
 def test_sync_callbacks():
     """Test that callbacks work with sync methods."""
     callback = CallbackRecorder()
-    predictor = Predict(QA, callbacks=[callback])
+    predictor = Predict(QA)
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\nPython is a programming language")
     settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
 
-    result = predictor(question="What is Python?")
+    with udspy.settings.context(callbacks=[callback]):
+        result = predictor(question="What is Python?")
 
     assert result.answer == "Python is a programming language"
     # Check callbacks were invoked

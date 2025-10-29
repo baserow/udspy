@@ -8,13 +8,13 @@ import pytest
 from udspy.confirmation import (
     ConfirmationRejected,
     ConfirmationRequired,
-    ToolCall,
     clear_all_confirmations,
     clear_confirmation,
     confirm_first,
     get_confirmation_context,
     respond_to_confirmation,
 )
+from udspy.tool import ToolCall
 
 
 def test_confirmation_exception_attributes() -> None:
@@ -349,10 +349,12 @@ async def test_module_resume_state_parameter_passing() -> None:
     from unittest.mock import MagicMock
 
     from udspy import ResumeState
+    from udspy.decorators import suspendable
     from udspy.module.base import Module
 
     # Create a test module
     class TestModule(Module):
+        @suspendable
         async def aexecute(self, *, stream: bool = False, **inputs):
             # Not used in this test
             pass
@@ -381,10 +383,12 @@ def test_module_resume_state_sync_forward() -> None:
     from unittest.mock import MagicMock
 
     from udspy import ResumeState
+    from udspy.decorators import suspendable
     from udspy.module.base import Module
 
     # Create a test module
     class TestModule(Module):
+        @suspendable
         async def aexecute(self, *, stream: bool = False, **inputs):
             # Not used in this test
             pass
@@ -413,10 +417,12 @@ def test_module_resume_state_call() -> None:
     from unittest.mock import MagicMock
 
     from udspy import ResumeState
+    from udspy.decorators import suspendable
     from udspy.module.base import Module
 
     # Create a test module
     class TestModule(Module):
+        @suspendable
         async def aexecute(self, *, stream: bool = False, **inputs):
             # Not used in this test
             pass
@@ -444,10 +450,12 @@ def test_module_resume_state_backward_compat_raw_exception() -> None:
     """Test backward compatibility with raw ConfirmationRequired exception."""
     from unittest.mock import MagicMock
 
+    from udspy.decorators import suspendable
     from udspy.module.base import Module
 
     # Create a test module
     class TestModule(Module):
+        @suspendable
         async def aexecute(self, *, stream: bool = False, **inputs):
             # Not used in this test
             pass

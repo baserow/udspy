@@ -166,11 +166,11 @@ async def test_tool_calling_with_content() -> None:
 
     assert result.answer == "36738"
 
-    # Verify tool calls are present
-    assert "tool_calls" in result
-    assert len(result.tool_calls) == 1
+    # Verify tool calls are present (stored in _tool_calls)
+    assert result.native_tool_calls is not None
+    assert len(result.native_tool_calls) == 1
 
-    tool_call = result.tool_calls[0]
+    tool_call = result.native_tool_calls[0]
     assert tool_call["id"] == "call_123"
     assert tool_call["name"] == "Calculator"
     assert tool_call["arguments"] == '{"operation": "multiply", "a": 157, "b": 234}'
@@ -217,10 +217,10 @@ async def test_tool_calling_without_content() -> None:
 
     # Verify tool calls are present even without content
     assert isinstance(result, Prediction)
-    assert "tool_calls" in result
-    assert len(result.tool_calls) == 1
+    assert result.native_tool_calls is not None
+    assert len(result.native_tool_calls) == 1
 
-    tool_call = result.tool_calls[0]
+    tool_call = result.native_tool_calls[0]
     assert tool_call["id"] == "call_456"
     assert tool_call["name"] == "Calculator"
     assert tool_call["arguments"] == '{"operation": "add", "a": 5, "b": 3}'
@@ -273,11 +273,11 @@ async def test_multiple_tool_calls() -> None:
 
     # Verify both tool calls are present
     assert isinstance(result, Prediction)
-    assert "tool_calls" in result
-    assert len(result.tool_calls) == 2
+    assert result.native_tool_calls is not None
+    assert len(result.native_tool_calls) == 2
 
-    assert result.tool_calls[0]["id"] == "call_1"
-    assert result.tool_calls[0]["name"] == "Calculator"
+    assert result.native_tool_calls[0]["id"] == "call_1"
+    assert result.native_tool_calls[0]["name"] == "Calculator"
 
-    assert result.tool_calls[1]["id"] == "call_2"
-    assert result.tool_calls[1]["name"] == "Calculator"
+    assert result.native_tool_calls[1]["id"] == "call_2"
+    assert result.native_tool_calls[1]["name"] == "Calculator"

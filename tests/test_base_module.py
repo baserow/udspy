@@ -9,8 +9,6 @@ from udspy.streaming import Prediction
 class TestModule(Module):
     """Test module for error path testing."""
 
-    pass
-
 
 @pytest.mark.asyncio
 async def test_base_module_astream_not_implemented() -> None:

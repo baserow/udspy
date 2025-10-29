@@ -1,5 +1,8 @@
 """Tests for chat adapter."""
 
+from enum import Enum
+from typing import Literal
+
 from pydantic import BaseModel
 
 from udspy import ChatAdapter, InputField, OutputField, Signature
@@ -245,3 +248,203 @@ def test_parse_outputs_with_varied_whitespace_in_markers() -> None:
 
     assert "answer" in outputs
     assert outputs["answer"] == "Paris"
+
+
+def test_translate_field_type_string() -> None:
+    """Test translate_field_type with string fields."""
+    from pydantic.fields import FieldInfo
+
+    from udspy.adapter import translate_field_type
+
+    field_info = FieldInfo(annotation=str)
+    result = translate_field_type("answer", field_info)
+
+    # Strings should not have type constraints
+    assert result == "{answer}"
+    assert "note:" not in result
+
+
+def test_translate_field_type_int() -> None:
+    """Test translate_field_type with int fields."""
+    from pydantic.fields import FieldInfo
+
+    from udspy.adapter import translate_field_type
+
+    field_info = FieldInfo(annotation=int)
+    result = translate_field_type("count", field_info)
+
+    assert "{count}" in result
+    assert "must be a single int value" in result
+
+
+def test_translate_field_type_float() -> None:
+    """Test translate_field_type with float fields."""
+    from pydantic.fields import FieldInfo
+
+    from udspy.adapter import translate_field_type
+
+    field_info = FieldInfo(annotation=float)
+    result = translate_field_type("score", field_info)
+
+    assert "{score}" in result
+    assert "must be a single float value" in result
+
+
+def test_translate_field_type_bool() -> None:
+    """Test translate_field_type with bool fields."""
+    from pydantic.fields import FieldInfo
+
+    from udspy.adapter import translate_field_type
+
+    field_info = FieldInfo(annotation=bool)
+    result = translate_field_type("is_valid", field_info)
+
+    assert "{is_valid}" in result
+    assert "must be True or False" in result
+
+
+def test_translate_field_type_enum() -> None:
+    """Test translate_field_type with Enum fields."""
+    from pydantic.fields import FieldInfo
+
+    from udspy.adapter import translate_field_type
+
+    class Priority(Enum):
+        LOW = "low"
+        MEDIUM = "medium"
+        HIGH = "high"
+
+    field_info = FieldInfo(annotation=Priority)
+    result = translate_field_type("priority", field_info)
+
+    assert "{priority}" in result
+    assert "must be one of:" in result
+    assert "low" in result
+    assert "medium" in result
+    assert "high" in result
+
+
+def test_translate_field_type_literal() -> None:
+    """Test translate_field_type with Literal fields."""
+    from pydantic.fields import FieldInfo
+
+    from udspy.adapter import translate_field_type
+
+    field_info = FieldInfo(annotation=Literal["pending", "approved", "rejected"])
+    result = translate_field_type("status", field_info)
+
+    assert "{status}" in result
+    assert "must exactly match (no extra characters) one of:" in result
+    assert "pending" in result
+    assert "approved" in result
+    assert "rejected" in result
+
+
+def test_translate_field_type_pydantic_model() -> None:
+    """Test translate_field_type with Pydantic model fields."""
+    from pydantic.fields import FieldInfo
+
+    from udspy.adapter import translate_field_type
+
+    class Person(BaseModel):
+        name: str
+        age: int
+
+    field_info = FieldInfo(annotation=Person)
+    result = translate_field_type("person", field_info)
+
+    assert "{person}" in result
+    assert "must adhere to the JSON schema:" in result
+    assert "properties" in result
+    assert "name" in result
+    assert "age" in result
+
+
+def test_format_field_structure_basic() -> None:
+    """Test format_field_structure with basic signature."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    adapter = ChatAdapter()
+    structure = adapter.format_field_structure(QA)
+
+    assert "All interactions will be structured" in structure
+    assert "[[ ## question ## ]]" in structure
+    assert "[[ ## answer ## ]]" in structure
+    assert "[[ ## completed ## ]]" in structure
+    assert "{question}" in structure
+    assert "{answer}" in structure
+
+
+def test_format_field_structure_with_types() -> None:
+    """Test format_field_structure with various field types."""
+
+    class MathQA(Signature):
+        """Math question answering."""
+
+        question: str = InputField()
+        reasoning: str = OutputField()
+        answer: int = OutputField()
+
+    adapter = ChatAdapter()
+    structure = adapter.format_field_structure(MathQA)
+
+    # Check for type hints
+    assert "{question}" in structure
+    assert "{reasoning}" in structure
+    assert "{answer}" in structure
+    assert "must be a single int value" in structure
+
+
+def test_format_field_structure_multiple_complex_types() -> None:
+    """Test format_field_structure with multiple complex types."""
+
+    class Priority(Enum):
+        LOW = "low"
+        HIGH = "high"
+
+    class TaskAnalysis(Signature):
+        """Analyze tasks."""
+
+        task: str = InputField()
+        is_urgent: bool = OutputField()
+        priority: Priority = OutputField()
+        estimated_hours: float = OutputField()
+
+    adapter = ChatAdapter()
+    structure = adapter.format_field_structure(TaskAnalysis)
+
+    # Check all type hints are present
+    assert "must be True or False" in structure
+    assert "must be one of: low; high" in structure
+    assert "must be a single float value" in structure
+
+
+def test_format_instructions_includes_field_structure() -> None:
+    """Test that format_instructions includes field structure with type hints."""
+
+    class MathQA(Signature):
+        """Answer math questions."""
+
+        question: str = InputField(description="Math question")
+        answer: int = OutputField(description="Numeric answer")
+
+    adapter = ChatAdapter()
+    instructions = adapter.format_instructions(MathQA)
+
+    # Should include the signature description
+    assert "Answer math questions" in instructions
+
+    # Should include field descriptions
+    assert "Math question" in instructions
+    assert "Numeric answer" in instructions
+
+    # Should include field structure with type hints
+    assert "[[ ## question ## ]]" in instructions
+    assert "[[ ## answer ## ]]" in instructions
+    assert "must be a single int value" in instructions
+    assert "[[ ## completed ## ]]" in instructions

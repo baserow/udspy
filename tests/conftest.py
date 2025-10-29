@@ -1,12 +1,37 @@
 """Pytest configuration and fixtures."""
 
 import os
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from openai import AsyncOpenAI
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_none
 
 import udspy
+from udspy.exceptions import AdapterParseError
+from udspy.module.predict import Predict
+
+
+@pytest.fixture(autouse=True)
+def fast_retry():
+    """Patch retry decorators to use no wait time for fast tests."""
+    # Create a fast retry decorator with no wait
+    fast_retry_decorator = retry(
+        retry=retry_if_exception_type(AdapterParseError),
+        stop=stop_after_attempt(3),
+        wait=wait_none(),  # No wait between retries
+    )
+
+    # Patch both _aforward and _astream methods
+    with patch(
+        "udspy.module.predict.Predict._aforward",
+        new=fast_retry_decorator(Predict._aforward.__wrapped__),
+    ):
+        with patch(
+            "udspy.module.predict.Predict._astream",
+            new=fast_retry_decorator(Predict._astream.__wrapped__),
+        ):
+            yield
 
 
 @pytest.fixture(autouse=True)
