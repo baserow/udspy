@@ -47,9 +47,6 @@ class BaseCallback:
 
         # Set globally
         settings.configure(callbacks=[LoggingCallback()])
-
-        # Or per-module
-        predictor = Predict(QA, callbacks=[LoggingCallback()])
         ```
     """
 
@@ -196,9 +193,7 @@ def with_callbacks(fn: Callable) -> Callable:
         """Get combined global and instance-level callbacks."""
         from udspy.settings import settings
 
-        global_callbacks = settings.get("callbacks", [])
-        instance_callbacks = getattr(instance, "callbacks", [])
-        return global_callbacks + instance_callbacks
+        return settings.callbacks
 
     # Handle async functions
     if inspect.iscoroutinefunction(fn):

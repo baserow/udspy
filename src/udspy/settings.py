@@ -123,6 +123,16 @@ class Settings:
         return self._default_model
 
     @property
+    def callbacks(self) -> list[Any]:
+        """Get the default callbacks (context-aware)."""
+        # Check context first
+        context_callbacks = self._context_callbacks.get()
+        if context_callbacks is not None:
+            return context_callbacks
+
+        return self._callbacks
+
+    @property
     def default_kwargs(self) -> dict[str, Any]:
         """Get the default kwargs for chat completions (context-aware)."""
         # Start with global defaults

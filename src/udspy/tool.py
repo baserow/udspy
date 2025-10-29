@@ -2,14 +2,15 @@
 
 import inspect
 from collections.abc import Callable
-from typing import Any, get_args, get_origin
+from typing import Any, get_type_hints
 
-from pydantic.fields import FieldInfo
+from pydantic import BaseModel, create_model
 
 from udspy.callback import with_callbacks
+from udspy.utils import execute_function_async, minimize_schema, resolve_json_schema_reference
 
 
-class Tool:
+class Tool(BaseModel):
     """Wrapper for a tool function with metadata.
 
     Tools are callable functions that can be passed to Predict. The function
@@ -30,16 +31,18 @@ class Tool:
         ```
     """
 
+    func: Callable[..., Any]
+    name: str | None = None
+    description: str | None = None
+    args_schema: dict[str, Any] | None = None
+    require_confirmation: bool = False
+
     def __init__(
         self,
         func: Callable[..., Any],
         name: str | None = None,
         description: str | None = None,
-        *,
         require_confirmation: bool = False,
-        desc: str | None = None,  # Alias for description (DSPy compatibility)
-        args: dict[str, str] | None = None,  # Optional manual arg spec (DSPy compatibility)
-        callbacks: list[Any] | None = None,
     ):
         """Initialize a Tool.
 
@@ -48,92 +51,63 @@ class Tool:
             name: Tool name (defaults to function name)
             description: Tool description (defaults to function docstring)
             require_confirmation: If True, wraps function with @confirm_first decorator
-            desc: Alias for description (for DSPy compatibility)
-            args: Optional manual argument specification (for DSPy compatibility)
             callbacks: Optional list of callback handlers for this tool instance
         """
-        self.name = name or func.__name__
-        self.func = func
-        self.callbacks = callbacks or []
+        super().__init__(
+            func=func,
+            name=name or func.__name__,
+            description=description or inspect.getdoc(func) or "",
+            require_confirmation=require_confirmation,
+        )
+        self.args_schema = self.get_args_schema(resolve_defs=False)
 
-        # Wrap with @confirm_first decorator if requested
-        if require_confirmation:
-            from udspy.confirmation import confirm_first as confirm_first_decorator
+    @property
+    def _func(self) -> Callable[..., Any]:
+        """Get the function wrapped with confirmation if required.
 
-            # We need the @confirm_first decorator to see the correct __name__
-            # So we create a wrapper with the tool name, then apply the decorator
-            tool_name = self.name
-            original_func = func
-            sig = inspect.signature(func)
+        Returns a coroutine function that can be awaited.
+        """
+        import functools
 
-            # Create a dynamic wrapper with the same signature but different name
-            # Use a single function definition to satisfy mypy's type checker
-            if inspect.iscoroutinefunction(func):
+        from udspy.confirmation import check_tool_confirmation
 
-                async def tool_wrapper(*args: Any, **kwargs: Any) -> Any:
-                    return await original_func(*args, **kwargs)
+        @functools.wraps(self.func)
+        async def async_wrapper(**kwargs: Any) -> Any:
+            # Check confirmation if required
+            if self.require_confirmation:
+                kwargs = await check_tool_confirmation(self.name or "unknown", kwargs)
 
-            else:
+            # Execute the function
+            return await execute_function_async(self.func, kwargs)
 
-                def tool_wrapper(*args: Any, **kwargs: Any) -> Any:  # type: ignore[misc]
-                    return original_func(*args, **kwargs)
-
-            # Copy signature and set correct name
-            tool_wrapper.__name__ = tool_name
-            tool_wrapper.__signature__ = sig  # type: ignore[attr-defined]
-
-            # Now apply @confirm_first - it will see the correct __name__
-            self.func = confirm_first_decorator(tool_wrapper)
-        self.description = description or desc or inspect.getdoc(func) or ""
-        self.require_confirmation = require_confirmation
-
-        # Aliases for DSPy compatibility
-        self.desc = self.description
-        self.args: dict[str, str] = args or {}  # Will be populated below if not provided
-
-        # Extract parameter schema from function signature
-        sig = inspect.signature(func)
-        self.parameters: dict[str, dict[str, Any]] = {}
-
-        for param_name, param in sig.parameters.items():
-            # Skip *args, **kwargs
-            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
-                continue
-
-            param_info: dict[str, Any] = {
-                "type": param.annotation if param.annotation != inspect.Parameter.empty else str,
-                "description": None,
-                "required": param.default == inspect.Parameter.empty,
-            }
-
-            # Extract Field metadata if present
-            if isinstance(param.default, FieldInfo):
-                param_info["description"] = param.default.description
-                param_info["required"] = param.default.is_required()
-
-            self.parameters[param_name] = param_info
-
-            # Populate args dict for DSPy compatibility (if not manually provided)
-            if not args:
-                type_str = (
-                    param_info["type"].__name__
-                    if hasattr(param_info["type"], "__name__")
-                    else str(param_info["type"])
-                )
-                desc_str = param_info["description"] or "No description"
-                self.args[param_name] = f"{type_str} - {desc_str}"
+        return async_wrapper
 
     @with_callbacks
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Call the wrapped function."""
-        return self.func(*args, **kwargs)
+        """Call the wrapped function.
+
+        If called from an async context, returns a coroutine that can be awaited.
+        If called from a sync context, runs the coroutine using asyncio.run().
+        """
+        import asyncio
+
+        coro = self._func(*args, **kwargs)
+
+        # Check if we're in an async context by trying to get the running loop
+        try:
+            asyncio.get_running_loop()
+            # We're in an async context - return the coroutine to be awaited
+            return coro
+        except RuntimeError:
+            # Not in an async context - run it synchronously
+            return asyncio.run(coro)
 
     @with_callbacks
     async def acall(self, **kwargs: Any) -> Any:
         """Async call the wrapped function.
 
         If the function is async, awaits it. Otherwise, runs it in executor.
-        If require_confirmation is True, the @confirm_first decorator handles confirmation.
+        If require_confirmation is True, handles confirmation before execution.
 
         Args:
             **kwargs: Arguments to pass to the function
@@ -143,16 +117,69 @@ class Tool:
 
         Raises:
             ConfirmationRequired: If require_confirmation is True and not approved
+            ConfirmationRejected: If user rejected the operation
         """
-        # Execute the function (confirm_first decorator handles confirmation if enabled)
-        if inspect.iscoroutinefunction(self.func):
-            return await self.func(**kwargs)
-        else:
-            # Run sync function in executor to avoid blocking
-            import asyncio
+        return await self._func(**kwargs)
 
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, lambda: self.func(**kwargs))
+    @property
+    def desc(self) -> str | None:
+        """Alias for description (DSPy compatibility)."""
+        return self.description
+
+    @property
+    def args(self) -> dict[str, Any] | None:
+        """Alias for args_schema properties (DSPy compatibility).
+
+        Returns just the properties dict for easier field access.
+        """
+        if self.args_schema and "properties" in self.args_schema:
+            return self.args_schema["properties"]
+        return self.args_schema
+
+    def get_args_schema(self, resolve_defs: bool = True) -> dict[str, Any]:
+        """Convert function arguments to a Pydantic model.
+
+        Returns:
+            Pydantic model class representing the function's arguments
+        """
+        sig = inspect.signature(self.func)
+        type_hints = get_type_hints(self.func)
+
+        fields = {}
+        for param_name, param in sig.parameters.items():
+            param_type = type_hints.get(param_name, str)
+            default = ... if param.default == inspect.Parameter.empty else param.default
+            fields[param_name] = (param_type, default)
+
+        schema = create_model(f"{self.func.__name__}_args", **fields).model_json_schema()  # type: ignore[call-overload]
+        if resolve_defs:
+            return resolve_json_schema_reference(schema)["properties"]
+        else:
+            return schema
+
+    def get_output_type_or_schema(self, resolve_defs: bool = True) -> str | dict[str, Any]:
+        """If it's a native type, return the type name. If it's a Pydantic model, return its schema."""
+        type_map = {
+            str: "string",
+            int: "integer",
+            float: "number",
+            bool: "boolean",
+            type(None): "null",
+        }
+        return_type = get_type_hints(self.func).get("return", None)
+        if return_type is not None and hasattr(return_type, "model_json_schema"):
+            schema = return_type.model_json_schema()
+            if resolve_defs:
+                return resolve_json_schema_reference(schema)["properties"]
+            else:
+                return schema
+        elif (valid_type := type_map.get(return_type)) is not None:  # type: ignore[arg-type]
+            return valid_type
+        else:
+            raise ValueError(
+                f"Unsupported return type for tool: {return_type}. "
+                "It must either be a native type (str, int, float, bool) or a Pydantic model."
+            )
 
     def to_openai_schema(self) -> dict[str, Any]:
         """Convert to OpenAI tool schema.
@@ -160,66 +187,28 @@ class Tool:
         Returns:
             OpenAI-compatible tool schema dictionary
         """
-        properties = {}
-        required = []
-
-        for name, info in self.parameters.items():
-            prop: dict[str, Any] = {"type": self._python_type_to_json_type(info["type"])}
-
-            if info["description"]:
-                prop["description"] = info["description"]
-
-            properties[name] = prop
-
-            if info["required"]:
-                required.append(name)
 
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
-                    "additionalProperties": False,
-                },
+                "parameters": resolve_json_schema_reference(
+                    self.get_args_schema(resolve_defs=False)
+                ),
             },
         }
 
-    @staticmethod
-    def _python_type_to_json_type(python_type: Any) -> str:
-        """Convert Python type annotation to JSON Schema type.
+    def format(self, name: str, description: str, args_schema: dict[str, Any]) -> str:
+        desc = description.replace("\n", " ").strip()
+        desc = f", whose description is <desc>{desc}</desc>." if desc else "."
+        arg_desc = f"It takes arguments {args_schema}."
+        return f"{name}{desc} {arg_desc}"
 
-        Args:
-            python_type: Python type annotation
-
-        Returns:
-            JSON Schema type string
-        """
-        # Handle Optional[T] -> T | None
-        origin = get_origin(python_type)
-        if origin is not None:
-            args = get_args(python_type)
-            # For Union types (including Optional), try to get the non-None type
-            if len(args) > 0:
-                for arg in args:
-                    if arg is not type(None):  # noqa: E721
-                        python_type = arg
-                        break
-
-        # Map Python types to JSON Schema types
-        type_map = {
-            str: "string",
-            int: "integer",
-            float: "number",
-            bool: "boolean",
-            list: "array",
-            dict: "object",
-        }
-
-        return type_map.get(python_type, "string")
+    def __str__(self) -> str:
+        if self.args_schema:
+            args_schema = resolve_json_schema_reference(self.args_schema)
+        return self.format(self.name or "unnamed_tool", self.description or "", args_schema)
 
 
 def tool(
@@ -264,7 +253,79 @@ def tool(
 
     def decorator(func: Callable[..., Any]) -> Tool:
         return Tool(
-            func, name=name, description=description, require_confirmation=require_confirmation
+            func,
+            name=name,
+            description=description,
+            require_confirmation=require_confirmation,
         )
 
     return decorator
+
+
+class Tools(BaseModel):
+    """Container for multiple Tool instances."""
+
+    tools: list[Tool]
+
+    def format(self, include_output_type: bool = False) -> str:
+        """Format all tools as a string."""
+
+        parts = []
+        defs: dict[str, Any] = {}
+        for idx, tool in enumerate(self.tools, start=1):
+            if tool.args_schema:
+                tool_args_schema = tool.get_args_schema(resolve_defs=False)
+                defs.update(tool_args_schema.pop("$defs", {}))
+                tool_args_schema = minimize_schema(tool_args_schema["properties"])
+            else:
+                tool_args_schema = {}
+            fmt_tool = f"({idx}): {tool.format(tool.name or 'unknown', tool.description or '', tool_args_schema)}"
+
+            if include_output_type:
+                output_type = tool.get_output_type_or_schema(resolve_defs=False)
+                if isinstance(output_type, dict):
+                    defs.update(output_type.pop("$defs", {}))
+                    output_type = minimize_schema(output_type["properties"])
+                fmt_tool += f" It returns {output_type}."
+
+            parts.append(fmt_tool)
+
+        # Prepend common definitions if any
+        if defs:
+            parts.insert(0, f"Common tools definitions: {defs}\n")
+        return "\n".join(parts)
+
+
+class ToolCall(BaseModel):
+    """Container for a single tool call."""
+
+    call_id: str | None = None
+    name: str
+    args: dict[str, Any]
+
+    def __getitem__(self, key: str) -> Any:
+        """Allow dict-like access for backward compatibility."""
+        import json
+
+        if key == "id":
+            return self.call_id
+        elif key == "arguments":
+            # Return JSON string representation of args for compatibility
+            return json.dumps(self.args)
+        return getattr(self, key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Allow dict-like setting for backward compatibility."""
+        if key == "id":
+            self.call_id = value
+        elif key == "arguments":
+            # Map 'arguments' to 'args' for compatibility
+            self.args = value
+        else:
+            setattr(self, key, value)
+
+
+class ToolCalls(BaseModel):
+    """Container for multiple tool calls."""
+
+    tool_calls: list["ToolCall"]

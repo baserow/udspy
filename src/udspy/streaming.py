@@ -4,6 +4,8 @@ import asyncio
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
+from udspy.tool import ToolCall
+
 if TYPE_CHECKING:
     from udspy import Module
 
@@ -15,7 +17,7 @@ class StreamEvent:
     """Base class for all stream events.
 
     Users can define custom event types by inheriting from this class.
-    The only built-in events are StreamChunk and Prediction.
+    The only built-in events are OutputStreamChunk and Prediction.
 
     Example:
         ```python
@@ -38,18 +40,22 @@ class StreamEvent:
 
 
 class StreamChunk(StreamEvent):
-    """A chunk of streamed LLM output for a specific field.
+    """A chunk of streamed output from a Module."""
 
-    Attributes:
-        field_name: Name of the output field
-        delta: Incremental content for this field (new text since last chunk)
-        content: Full accumulated content for this field so far
-        is_complete: Whether this field is finished streaming
-    """
+    module: "Module"
+    field_name: str
+    delta: str
+    content: str
+    is_complete: bool
 
     def __init__(
-        self, module: "Module", field_name: str, delta: str, content: str, is_complete: bool = False
-    ):
+        self,
+        module: "Module",
+        field_name: str,
+        delta: str,
+        content: str,
+        is_complete: bool,
+    ) -> None:
         self.module = module
         self.field_name = field_name
         self.delta = delta
@@ -59,9 +65,36 @@ class StreamChunk(StreamEvent):
     def __repr__(self) -> str:
         status = "complete" if self.is_complete else "streaming"
         return (
-            f"StreamChunk(field={self.field_name}, status={status}, "
-            f"delta={self.delta!r}, content={self.content!r})"
+            f"{self.__class__.__name__}(field={self.field_name}, "
+            f"status={status}, delta={self.delta!r}, content={self.content!r})"
         )
+
+
+class OutputStreamChunk(StreamChunk):
+    """A chunk of streamed LLM output for a specific field.
+
+    Attributes:
+        field_name: Name of the output field
+        delta: Incremental content for this field (new text since last chunk)
+        content: Full accumulated content for this field so far
+        is_complete: Whether this field is finished streaming
+    """
+
+    pass
+
+
+class ThoughtStreamChunk(StreamChunk):
+    """A chunk of streamed reasoning output for a specific step.
+
+    Attributes:
+        module: The module emitting this chunk
+
+        delta: Incremental content for this step (new text since last chunk)
+        content: Full accumulated content for this step so far
+        is_complete: Whether this step is finished streaming
+    """
+
+    pass
 
 
 class Prediction(StreamEvent, dict[str, Any]):
@@ -77,6 +110,16 @@ class Prediction(StreamEvent, dict[str, Any]):
         print(pred["answer"])  # "Paris"
         ```
     """
+
+    def __init__(self, /, native_tool_calls: list[ToolCall] | None = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.native_tool_calls = native_tool_calls
+        # If any outputs are present, without native_tool_calls it's final
+        self._is_final = len(kwargs) > 0 and not native_tool_calls
+
+    def is_final(self) -> bool:
+        """Whether this Prediction is the final output (has some fields and native_tool_calls is empty)."""
+        return self._is_final
 
     def __getattr__(self, name: str) -> Any:
         try:
@@ -117,7 +160,7 @@ async def emit_event(event: StreamEvent) -> None:
         async for event in predictor.astream(question="..."):
             if isinstance(event, ToolStatus):
                 print(f"📊 {event.message}")
-            elif isinstance(event, StreamChunk):
+            elif isinstance(event, OutputStreamChunk):
                 print(event.delta, end="", flush=True)
         ```
     """
@@ -128,7 +171,8 @@ async def emit_event(event: StreamEvent) -> None:
 
 __all__ = [
     "StreamEvent",
-    "StreamChunk",
+    "OutputStreamChunk",
+    "ThoughtStreamChunk",
     "Prediction",
     "emit_event",
     "_stream_queue",

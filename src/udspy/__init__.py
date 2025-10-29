@@ -6,7 +6,6 @@ from udspy.confirmation import (
     ConfirmationRejected,
     ConfirmationRequired,
     ResumeState,
-    ToolCall,
     confirm_first,
     get_confirmation_status,
     respond_to_confirmation,
@@ -21,8 +20,8 @@ from udspy.module import (
 )
 from udspy.settings import settings
 from udspy.signature import InputField, OutputField, Signature, make_signature
-from udspy.streaming import StreamChunk, StreamEvent, emit_event
-from udspy.tool import Tool, tool
+from udspy.streaming import OutputStreamChunk, StreamEvent, emit_event
+from udspy.tool import Tool, ToolCall, ToolCalls, Tools, tool
 
 __version__ = "0.1.2"
 
@@ -49,7 +48,6 @@ __all__ = [
     "ConfirmationRejected",
     "ResumeState",
     "confirm_first",
-    "ToolCall",
     "get_confirmation_status",
     "respond_to_confirmation",
     # Adapter
@@ -58,9 +56,12 @@ __all__ = [
     "History",
     # Streaming
     "StreamEvent",
-    "StreamChunk",
+    "OutputStreamChunk",
     "emit_event",
     # Tools
     "Tool",
     "tool",
+    "Tools",
+    "ToolCall",
+    "ToolCalls",
 ]

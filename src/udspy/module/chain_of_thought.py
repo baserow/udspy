@@ -42,7 +42,6 @@ class ChainOfThought(Module):
         model: str | None = None,
         tools: list[Tool] | None = None,
         adapter: ChatAdapter | None = None,
-        callbacks: list[Any] | None = None,
         **kwargs: Any,
     ):
         """Initialize a Chain of Thought module.
@@ -57,7 +56,6 @@ class ChainOfThought(Module):
             callbacks: Optional list of callback handlers for this module instance
             **kwargs: Additional arguments for chat completion
         """
-        super().__init__(callbacks=callbacks)
 
         # Convert string signature to Signature class
         if isinstance(signature, str):
@@ -92,7 +90,6 @@ class ChainOfThought(Module):
             model=model,
             tools=tools,
             adapter=adapter,
-            callbacks=callbacks,
             **kwargs,
         )
 

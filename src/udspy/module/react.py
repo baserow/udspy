@@ -5,16 +5,22 @@ from __future__ import annotations
 import inspect
 import json
 import logging
+import secrets
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
+
+from pydantic import create_model
 
 from udspy.callback import with_callbacks
 from udspy.confirmation import ConfirmationRequired, respond_to_confirmation
+from udspy.decorators import suspendable
 from udspy.module.base import Module
 from udspy.module.chain_of_thought import ChainOfThought
 from udspy.module.predict import Predict
 from udspy.signature import Signature, make_signature
 from udspy.streaming import Prediction
+from udspy.tool import Tool, Tools
+from udspy.utils import format_tool_exception
 
 if TYPE_CHECKING:
     from udspy.tool import Tool
@@ -56,7 +62,7 @@ class ReAct(Module):
         ```python
         # Stream the agent's reasoning process in real-time
         async for event in react.astream(question="What is Python?"):
-            if isinstance(event, StreamChunk):
+            if isinstance(event, OutputStreamChunk):
                 print(event.delta, end="", flush=True)
             elif isinstance(event, Prediction):
                 print(f"Answer: {event.answer}")
@@ -92,7 +98,6 @@ class ReAct(Module):
         *,
         max_iters: int = 10,
         enable_ask_to_user: bool = True,
-        callbacks: list[Any] | None = None,
     ):
         """Initialize ReAct module.
 
@@ -105,8 +110,6 @@ class ReAct(Module):
         """
         from udspy.tool import Tool
 
-        super().__init__(callbacks=callbacks)
-
         # Convert string signature to Signature class
         if isinstance(signature, str):
             signature = Signature.from_string(signature)
@@ -117,7 +120,7 @@ class ReAct(Module):
         self.enable_ask_to_user = enable_ask_to_user
 
         tool_list = [t if isinstance(t, Tool) else Tool(t) for t in tools]
-        self.tools: dict[str, Tool] = {tool.name: tool for tool in tool_list}
+        self.tools: dict[str, Tool] = {tool.name: tool for tool in tool_list if tool.name}
 
         inputs = ", ".join([f"`{k}`" for k in self.signature.get_input_fields().keys()])
         outputs = ", ".join([f"`{k}`" for k in self.signature.get_output_fields().keys()])
@@ -127,23 +130,23 @@ class ReAct(Module):
 
         instr.extend(
             [
-                f"You are an Agent. You will be given {inputs} as input.",
-                f"Your goal is to use the supplied tools to accomplish the task and produce {outputs}.\n",
-                "Think step-by-step about what to do next, then call the appropriate tool.",
-                "Always explain your reasoning before calling a tool.",
-                "When you have enough information, call the 'finish' tool to complete the task.",
+                f"You are an Agent. In each episode, you will be given the fields {inputs} as input. And you can see your past trajectory so far.",
+                f"Your goal is to use one or more of the supplied tools to collect any necessary information for producing {outputs}.\n",
+                "To do this, you will interleave next_thought, next_tool_calls in each turn, and also when finishing the task.",
+                "After each tool call, you receive a resulting observation, which gets appended to your trajectory.\n",
+                "When writing next_thought, you may reason about the current situation and plan for future steps.",
+                "When selecting the next_tool_calls, you may choose one or more of the following tools that will be executed in the same episode:",
             ]
         )
 
-        def finish_tool(**_kwargs: Any) -> str:  # pyright: ignore[reportUnusedParameter]
+        def finish_tool() -> str:  # pyright: ignore[reportUnusedParameter]
             """Finish tool that accepts and ignores any arguments."""
             return "Task completed"
 
         self.tools["finish"] = Tool(
             func=finish_tool,
             name="finish",
-            desc=f"Call this when you have all information needed to produce {outputs}",
-            args={},
+            description=f"Call this when you have all information needed to produce {outputs}",
         )
 
         if self.enable_ask_to_user:
@@ -159,14 +162,34 @@ class ReAct(Module):
                 require_confirmation=True,
             )
 
+        instr.append(Tools(tools=list(self.tools.values())).format() + "\n")
+        instr.extend(
+            [
+                "When providing `next_tool_calls`, the value inside the field must be in JSON format "
+                "and respect the schema of the tool being called.",
+                "NEVER use native tool calling, return tool calls only via `next_tool_calls` as array in your output.",
+            ]
+        )
+
         react_input_fields: dict[str, type] = {}
         for name, field_info in self.signature.get_input_fields().items():
             react_input_fields[name] = field_info.annotation or str
 
-        react_input_fields["trajectory"] = str
+        react_input_fields.update(
+            {
+                "trajectory": str,
+            }
+        )
+
+        ToolCallModel = create_model(
+            "ToolCall",
+            name=(Literal[*self.tools.keys()], ...),
+            args=(dict[str, Any], ...),
+        )
 
         react_output_fields: dict[str, type] = {
-            "reasoning": str,
+            "next_thought": str,
+            "next_tool_calls": list[ToolCallModel],  # type: ignore[valid-type]
         }
 
         self.react_signature = make_signature(
@@ -192,16 +215,14 @@ class ReAct(Module):
             base_instructions or "Extract the final answer from the trajectory",
         )
 
-        self.react_module = Predict(
-            self.react_signature, tools=list(self.tools.values()), callbacks=callbacks
-        )
-        self.extract_module = ChainOfThought(self.extract_signature, callbacks=callbacks)
+        self.react_module = Predict(self.react_signature)
+        self.extract_module = ChainOfThought(self.extract_signature)
 
     def _format_trajectory(self, trajectory: dict[str, Any]) -> str:
         """Format trajectory as a string for the LLM.
 
         Args:
-            trajectory: Dictionary with reasoning_N, tool_name_N, tool_args_N, observation_N keys
+            trajectory: Dictionary with next_thought_N, tool_name_N, tool_args_N, observation_N keys
 
         Returns:
             Formatted string representation
@@ -213,12 +234,10 @@ class ReAct(Module):
         iteration = 0
         while f"observation_{iteration}" in trajectory:
             lines.append(f"\n--- Step {iteration + 1} ---")
-            if f"reasoning_{iteration}" in trajectory:
-                lines.append(f"Reasoning: {trajectory[f'reasoning_{iteration}']}")
-            if f"tool_name_{iteration}" in trajectory:
-                lines.append(f"Tool: {trajectory[f'tool_name_{iteration}']}")
-            if f"tool_args_{iteration}" in trajectory:
-                lines.append(f"Args: {json.dumps(trajectory[f'tool_args_{iteration}'])}")
+            lines.append(f"Thought: {trajectory[f'thought_{iteration}']}")
+            lines.append("Tool Calls:")
+            for tool_call in trajectory.get(f"tool_calls_{iteration}", []):
+                lines.append(f"  {json.dumps(tool_call)}")
             lines.append(f"Observation: {trajectory[f'observation_{iteration}']}")
             iteration += 1
 
@@ -248,7 +267,7 @@ class ReAct(Module):
         Raises:
             ConfirmationRequired: When human input is needed
         """
-        if pending_tool_call:
+        if pending_tool_call:  # FIXME
             tool_name = pending_tool_call["name"]
             tool_args = pending_tool_call["args"]
             tool_call_id = pending_tool_call.get("id", "")
@@ -259,14 +278,14 @@ class ReAct(Module):
             try:
                 tool = self.tools[tool_name]
                 if inspect.iscoroutinefunction(tool.func):
-                    observation = await tool.func(**tool_args)
+                    observations = await tool.func(**tool_args)
                 elif tool.require_confirmation:
-                    observation = tool.func(**tool_args)
+                    observations = tool.func(**tool_args)
                 else:
                     import asyncio
 
                     loop = asyncio.get_event_loop()
-                    observation = await loop.run_in_executor(None, lambda: tool.func(**tool_args))
+                    observations = await loop.run_in_executor(None, lambda: tool.func(**tool_args))
             except ConfirmationRequired as e:
                 e.context = {
                     "trajectory": trajectory.copy(),
@@ -277,10 +296,10 @@ class ReAct(Module):
                     e.tool_call.call_id = tool_call_id
                 raise
             except Exception as e:
-                observation = f"Error executing {tool_name}: {str(e)}"
+                observations = f"Error executing {tool_name}: {str(e)}"
                 logger.warning(f"Tool execution failed: {e}")
 
-            trajectory[f"observation_{idx}"] = str(observation)
+            trajectory[f"observation_{idx}"] = str(observations)
             should_stop = tool_name == "finish"
             return should_stop
 
@@ -289,55 +308,64 @@ class ReAct(Module):
             stream=stream,
             **input_args,
             trajectory=formatted_trajectory,
-            auto_execute_tools=False,
         )
 
-        reasoning = pred.get("reasoning", "")
-        trajectory[f"reasoning_{idx}"] = reasoning
+        thought = pred["next_thought"]
+        trajectory[f"thought_{idx}"] = thought
+        trajectory[f"tool_calls_{idx}"] = []
 
-        if "tool_calls" not in pred or not pred.tool_calls:
-            logger.debug(
-                f"No tool calls in prediction. Keys: {list(pred.keys())}, pred: {dict(pred)}"
+        # Handle malformed next_tool_calls (should be list, but may be string if JSON parsing failed)
+        next_tool_calls = pred.get("next_tool_calls", [])
+        # Some smaller models create an object with "items" key instead of a list. Let's handle that too.
+        if isinstance(next_tool_calls, dict) and "items" in next_tool_calls:
+            next_tool_calls = next_tool_calls["items"]
+
+        if not isinstance(next_tool_calls, list):
+            logger.warning(
+                f"Malformed next_tool_calls (expected list, got {type(next_tool_calls).__name__}): {next_tool_calls}"
             )
-            raise ValueError("LLM did not call any tools")
+            next_tool_calls = []
 
-        tool_call = pred.tool_calls[0]
-        tool_name = tool_call.get("name", "")
-        tool_call_id = tool_call.get("id", "")
+        observations = []
+        should_stop = False
+        for tool_call in next_tool_calls:
+            tool_name = tool_call["name"]
+            tool_args = tool_call["args"]
+            tool_call_id = f"call_{secrets.token_hex(8)}"
 
-        tool_args_str = tool_call.get("arguments", "{}")
-        try:
-            tool_args = json.loads(tool_args_str) if tool_args_str else {}
-        except json.JSONDecodeError:
-            logger.warning(f"Failed to parse tool arguments: {tool_args_str}")
-            tool_args = {}
+            trajectory[f"tool_calls_{idx}"].append({"id": tool_call_id, **tool_call})
 
-        logger.debug(f"Tool call - name: {tool_name}, args: {tool_args}, id: {tool_call_id}")
+            logger.debug(f"Tool call - name: {tool_name}, args: {tool_args}, id: {tool_call_id}")
+            try:
+                tool = self.tools[tool_name]
+                result = await tool.acall(**tool_args)
+                observations.append(f"{tool_call_id}. {result}")
+            except ConfirmationRequired as e:
+                # FIXME
+                e.context = {
+                    "trajectory": trajectory.copy(),
+                    "iteration": idx,
+                    "input_args": input_args.copy(),
+                }
+                if e.tool_call and tool_call_id:
+                    e.tool_call.call_id = tool_call_id
+                raise
+            except Exception as e:
+                parts = [
+                    f"{tool_call_id}.",
+                    f"Traceback '{tool_name}': {format_tool_exception(e)}.",
+                    f"Expected tool args schema: {tool.get_args_schema()}.",
+                ]
+                observations.append(" ".join(parts))
+                logger.warning(f"Tool execution failed: {e}")
 
-        trajectory[f"tool_name_{idx}"] = tool_name
-        trajectory[f"tool_args_{idx}"] = tool_args
+            should_stop = tool_name == "finish"
 
-        try:
-            tool = self.tools[tool_name]
-            observation = await tool.acall(**tool_args)
-        except ConfirmationRequired as e:
-            e.context = {
-                "trajectory": trajectory.copy(),
-                "iteration": idx,
-                "input_args": input_args.copy(),
-            }
-            if e.tool_call and tool_call_id:
-                e.tool_call.call_id = tool_call_id
-            raise
-        except Exception as e:
-            observation = f"Error executing {tool_name}: {str(e)}"
-            logger.warning(f"Tool execution failed: {e}")
+        trajectory[f"observation_{idx}"] = "\n".join(observations)
 
-        trajectory[f"observation_{idx}"] = str(observation)
-
-        should_stop = tool_name == "finish"
         return should_stop
 
+    @suspendable
     @with_callbacks
     async def aexecute(self, *, stream: bool = False, **input_args: Any) -> Prediction:
         """Execute ReAct loop.
@@ -378,15 +406,43 @@ class ReAct(Module):
             trajectory=formatted_trajectory,
         )
 
-        result_dict = {"trajectory": trajectory}
+        result_dict: dict[str, Any] = {}
         for field_name in self.signature.get_output_fields():
             if hasattr(extract, field_name):
                 result_dict[field_name] = getattr(extract, field_name)
 
-        return Prediction(**result_dict)
+        prediction = Prediction(**result_dict)
+        prediction["trajectory"] = trajectory  # Add trajectory as dict key
+        return prediction
 
-    async def aforward(self, **input_args: Any) -> Prediction:
-        return await self.aexecute(stream=False, **input_args)
+    async def aforward(self, *, resume_state: Any = None, **input_args: Any) -> Prediction:
+        """Async non-streaming method.
+
+        Supports resuming from a ConfirmationRequired exception by providing
+        resume_state. This enables loop-based confirmation handling.
+
+        Args:
+            resume_state: Optional ResumeState containing exception and user response.
+            **input_args: Input values for the module
+
+        Returns:
+            Final Prediction object
+        """
+        return await self.aexecute(stream=False, resume_state=resume_state, **input_args)
+
+    async def asuspend(self, exception: ConfirmationRequired) -> Any:
+        """Suspend execution and save state for ReAct module.
+
+        The exception already contains the full context needed for resumption
+        (trajectory, iteration, tool call, etc.) so we just return it.
+
+        Args:
+            exception: The ConfirmationRequired exception that was raised
+
+        Returns:
+            The exception itself (contains all context in exception.context)
+        """
+        return exception
 
     async def aresume(
         self,
@@ -493,9 +549,11 @@ class ReAct(Module):
             trajectory=formatted_trajectory,
         )
 
-        result_dict = {"trajectory": trajectory}
+        result_dict: dict[str, Any] = {}
         for field_name in self.signature.get_output_fields():
             if hasattr(extract, field_name):
                 result_dict[field_name] = getattr(extract, field_name)
 
-        return Prediction(**result_dict)
+        prediction = Prediction(**result_dict)
+        prediction["trajectory"] = trajectory  # Add trajectory as dict key
+        return prediction

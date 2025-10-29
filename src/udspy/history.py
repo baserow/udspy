@@ -70,7 +70,7 @@ class History:
         self.add_message("user", content)
 
     def add_assistant_message(
-        self, content: str, tool_calls: list[dict[str, Any]] | None = None
+        self, content: str = "", tool_calls: list[dict[str, Any]] | None = None
     ) -> None:
         """Add an assistant message.
 

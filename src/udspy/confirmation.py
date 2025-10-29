@@ -1,42 +1,23 @@
 """Confirmation system for human-in-the-loop interactions."""
 
 import functools
+import hashlib
 import inspect
+import json
 import uuid
 from collections.abc import Callable
 from contextvars import ContextVar
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
+
+from udspy.utils import execute_function_async
+
+if TYPE_CHECKING:
+    from udspy.tool import ToolCall
 
 # Thread-safe and asyncio task-safe confirmation context
 _confirmation_context: ContextVar[dict[str, Any] | None] = ContextVar(
     "confirmation_context", default=None
 )
-
-F = TypeVar("F", bound=Callable[..., Any])
-
-
-class ToolCall:
-    """Information about a tool call that triggered a confirmation.
-
-    This is optional - confirmations can occur without tool calls.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        args: dict[str, Any],
-        call_id: str | None = None,
-    ):
-        """Initialize tool call information.
-
-        Args:
-            name: Tool name
-            args: Tool arguments
-            call_id: Optional tool call ID for tracking
-        """
-        self.name = name
-        self.args = args
-        self.call_id = call_id
 
 
 class ResumeState:
@@ -77,7 +58,7 @@ class ResumeState:
         return self.exception.question
 
     @property
-    def tool_call(self) -> "ToolCall | None":
+    def tool_call(self) -> Optional["ToolCall"]:
         """Get tool call from the exception."""
         return self.exception.tool_call
 
@@ -108,7 +89,7 @@ class ConfirmationRequired(Exception):
         question: str,
         *,
         confirmation_id: str | None = None,
-        tool_call: ToolCall | None = None,
+        tool_call: Optional["ToolCall"] = None,
         context: dict[str, Any] | None = None,
     ):
         """Initialize ConfirmationRequired exception.
@@ -166,7 +147,7 @@ class ConfirmationRejected(Exception):
         message: str,
         *,
         confirmation_id: str | None = None,
-        tool_call: ToolCall | None = None,
+        tool_call: Optional["ToolCall"] = None,
     ):
         """Initialize ConfirmationRejected exception.
 
@@ -313,7 +294,8 @@ def _handle_confirmation_approval(
         ConfirmationRejected: If user rejected the confirmation
         ConfirmationRequired: If confirmation is pending approval
     """
-    import json
+
+    from udspy.tool import ToolCall
 
     ctx = _confirmation_context.get()
     approval = ctx.get(confirmation_id) if ctx is not None else None
@@ -341,23 +323,58 @@ def _handle_confirmation_approval(
     )
 
 
-async def _execute_function_async(func: Callable[..., Any], kwargs: dict[str, Any]) -> Any:
-    """Execute a function asynchronously, handling both sync and async functions.
+async def check_tool_confirmation(tool_name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Check and handle confirmation for a tool execution.
+
+    This is a helper function specifically for tools that require confirmation.
+    It generates a confirmation ID based on the tool name and arguments, checks
+    the confirmation context, and handles approval/rejection/pending states.
 
     Args:
-        func: Function to execute (can be sync or async)
-        kwargs: Keyword arguments to pass
+        tool_name: Name of the tool being called
+        kwargs: Tool arguments
 
     Returns:
-        Function result
-    """
-    if inspect.iscoroutinefunction(func):
-        return await func(**kwargs)
-    else:
-        import asyncio
+        Modified kwargs if user edited them, otherwise original kwargs
 
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: func(**kwargs))
+    Raises:
+        ConfirmationRequired: If confirmation is needed and not yet provided
+        ConfirmationRejected: If user rejected the operation
+    """
+
+    from udspy.tool import ToolCall
+
+    # Generate confirmation ID
+    args_str = json.dumps(kwargs, sort_keys=True)
+    confirmation_id = hashlib.md5(f"{tool_name}:{args_str}".encode()).hexdigest()
+
+    # Check confirmation status
+    ctx = _confirmation_context.get()
+    approval = ctx.get(confirmation_id) if ctx is not None else None
+
+    if approval:
+        if approval.get("approved"):
+            # Use modified args if provided, otherwise original
+            modified_kwargs = approval.get("data") or kwargs
+            # Clear confirmation after successful approval
+            clear_confirmation(confirmation_id)
+            return modified_kwargs
+        elif approval.get("status") == "rejected":
+            raise ConfirmationRejected(
+                message=f"User rejected execution of {tool_name}",
+                confirmation_id=confirmation_id,
+                tool_call=ToolCall(name=tool_name, args=kwargs),
+            )
+
+    # No approval found - raise confirmation required
+    raise ConfirmationRequired(
+        question=f"Confirm execution of {tool_name} with args: {json.dumps(kwargs)}? (yes/no/feedback/edit)",
+        confirmation_id=confirmation_id,
+        tool_call=ToolCall(name=tool_name, args=kwargs),
+    )
+
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 def confirm_first(func: F) -> F:
@@ -438,7 +455,7 @@ def confirm_first(func: F) -> F:
         execution_kwargs = _handle_confirmation_approval(confirmation_id, func.__name__, all_kwargs)
 
         # Execute and cleanup
-        result = await _execute_function_async(func, execution_kwargs)
+        result = await execute_function_async(func, execution_kwargs)
         clear_confirmation(confirmation_id)
         return result
 

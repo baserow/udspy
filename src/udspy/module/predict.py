@@ -1,24 +1,36 @@
 """Predict module for LLM predictions based on signatures."""
 
 import asyncio
+import json
 import logging
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any
 
 import regex as re
-from openai import AsyncStream
+from openai import AsyncStream, BaseModel
 from openai.types.chat import ChatCompletionChunk
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from udspy.adapter import ChatAdapter
 from udspy.callback import with_callbacks
+from udspy.decorators import suspendable
+from udspy.exceptions import AdapterParseError
+from udspy.history import History
 from udspy.module.base import Module
 from udspy.settings import settings
 from udspy.signature import Signature
-from udspy.streaming import Prediction, StreamChunk, StreamEvent
-
-if TYPE_CHECKING:
-    from udspy.history import History
-    from udspy.tool import Tool
+from udspy.streaming import (
+    OutputStreamChunk,
+    Prediction,
+    StreamEvent,
+    ThoughtStreamChunk,
+)
+from udspy.tool import Tool, ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +62,7 @@ class Predict(Module):
 
         # Async streaming
         async for event in predictor.astream(question="What is 2+2?"):
-            if isinstance(event, StreamChunk):
+            if isinstance(event, OutputStreamChunk):
                 print(event.delta, end="", flush=True)
         ```
     """
@@ -59,11 +71,10 @@ class Predict(Module):
         self,
         signature: type[Signature] | str,
         *,
-        model: str | None = None,
-        tools: list["Tool"] | None = None,
+        tools: list[Tool] | None = None,
         max_turns: int = 10,
         adapter: ChatAdapter | None = None,
-        callbacks: list[Any] | None = None,
+        model: str | None = None,
         **kwargs: Any,
     ):
         """Initialize a Predict module.
@@ -78,33 +89,43 @@ class Predict(Module):
             callbacks: Optional list of callback handlers for this module instance
             **kwargs: Additional arguments for chat completion (temperature, etc.)
         """
-        super().__init__(callbacks=callbacks)
-        from udspy.tool import Tool
 
         # Convert string signature to Signature class
         if isinstance(signature, str):
             signature = Signature.from_string(signature)
 
         self.signature = signature
-        self.model = model or settings.default_model
+        self._model = model
+        self._kwargs = kwargs
         self.max_turns = max_turns
+        if max_turns < 1:
+            raise ValueError("max_turns must be at least 1")
         self.adapter = adapter or ChatAdapter()
-        self.kwargs = {**settings.default_kwargs, **kwargs}
 
-        self.tool_callables: dict[str, Tool] = {}
+        self.tools: dict[str, Tool] = {}
         self.tool_schemas: list[Any] = []
 
         for tool in tools or []:
-            self.tool_callables[tool.name] = tool
-            self.tool_schemas.append(tool)
+            if tool.name:
+                self.tools[tool.name] = tool
+            self.tool_schemas.append(self.adapter.format_tool_schema(tool))
 
+    @property
+    def model(self) -> str:
+        return self._model or settings.default_model
+
+    @property
+    def kwargs(self) -> dict[str, Any]:
+        return {**settings.default_kwargs, **self._kwargs}
+
+    @suspendable
     @with_callbacks
     async def aexecute(
         self,
         *,
         stream: bool = False,
         auto_execute_tools: bool = True,
-        history: Optional["History"] = None,
+        history: History | None = None,
         **inputs: Any,
     ) -> Prediction:
         """Core execution method - handles both streaming and non-streaming.
@@ -124,14 +145,17 @@ class Predict(Module):
         """
         from udspy.streaming import _stream_queue
 
+        # Ensure we have a history to track the conversation
+        if history is None:
+            history = History()
+
         queue = _stream_queue.get()
         should_emit = queue is not None
 
         self._validate_inputs(inputs)
-        messages = self._build_initial_messages(inputs, history)
+        self._build_initial_messages(inputs, history)
 
-        final_prediction = await self._execute_with_tools(
-            messages,
+        final_prediction = await self._aexecute(
             stream=stream,
             should_emit=should_emit,
             auto_execute_tools=auto_execute_tools,
@@ -144,24 +168,36 @@ class Predict(Module):
         return final_prediction
 
     async def astream(
-        self, *, auto_execute_tools: bool = True, history: Optional["History"] = None, **inputs: Any
+        self,
+        *,
+        resume_state: Any = None,
+        auto_execute_tools: bool = True,
+        history: History | None = None,
+        **inputs: Any,
     ) -> AsyncGenerator[StreamEvent, None]:
         """Async streaming method with optional automatic tool execution.
 
         Sets up streaming queue and yields events. Automatically handles multi-turn
         conversation when tools are present.
 
+        Supports resuming from a ConfirmationRequired exception by providing
+        resume_state. This enables streaming with confirmation handling.
+
         Args:
+            resume_state: Optional ResumeState containing exception and user response.
             auto_execute_tools: If True, automatically execute tools and continue.
                 If False, return Prediction with tool_calls for manual handling.
             history: Optional History object for multi-turn conversations.
             **inputs: Input values matching the signature's input fields
 
         Yields:
-            StreamEvent objects (StreamChunk, Prediction, custom events)
+            StreamEvent objects (OutputStreamChunk, Prediction, custom events)
         """
         async for event in super().astream(
-            auto_execute_tools=auto_execute_tools, history=history, **inputs
+            resume_state=resume_state,
+            auto_execute_tools=auto_execute_tools,
+            history=history,
+            **inputs,
         ):
             yield event
 
@@ -172,49 +208,25 @@ class Predict(Module):
             if field_name not in inputs:
                 raise ValueError(f"Missing required input field: {field_name}")
 
-    def _build_initial_messages(
-        self, inputs: dict[str, Any], history: Any = None
-    ) -> list[dict[str, Any]]:
+    def _build_initial_messages(self, inputs: dict[str, Any], history: History) -> None:
         """Build initial messages from inputs and optional history.
 
         Args:
             inputs: Input values from user
-            history: Optional History object with existing conversation
-
-        Returns:
-            List of messages including history (if provided) and new user input
+            history: History object with existing conversation
         """
-        from udspy.history import History
 
-        messages: list[dict[str, Any]] = []
+        if not history.messages:
+            history.add_system_message(self.adapter.format_instructions(self.signature))
 
-        if history is not None:
-            if isinstance(history, History):
-                messages.extend(history.messages)
-            else:
-                raise TypeError(f"history must be a History object, got {type(history)}")
+        history.add_user_message(self.adapter.format_inputs(self.signature, inputs))
 
-        if not messages or messages[0]["role"] != "system":
-            messages.insert(
-                0, {"role": "system", "content": self.adapter.format_instructions(self.signature)}
-            )
-
-        user_content = self.adapter.format_inputs(self.signature, inputs)
-        user_msg = {"role": "user", "content": user_content}
-        messages.append(user_msg)
-
-        if history is not None and isinstance(history, History):
-            history.messages.append(user_msg)
-
-        return messages
-
-    async def _execute_with_tools(
+    async def _aexecute(
         self,
-        messages: list[dict[str, Any]],
         stream: bool,
         should_emit: bool,
         auto_execute_tools: bool,
-        history: Any = None,
+        history: History,
     ) -> Prediction:
         """Execute multi-turn conversation with optional automatic tool execution.
 
@@ -222,7 +234,6 @@ class Predict(Module):
         It always returns a final Prediction, and emits events if should_emit is True.
 
         Args:
-            messages: Conversation messages
             stream: If True, request streaming from OpenAI
             should_emit: If True, emit events to active queue
             auto_execute_tools: If True, automatically execute tools. If False,
@@ -232,36 +243,28 @@ class Predict(Module):
         Returns:
             Final Prediction object
         """
-        final_prediction: Prediction | None = None
+        prediction: Prediction | None = None
 
         for turn in range(self.max_turns):
-            final_prediction = await self._execute_one_turn(
-                messages, turn, stream=stream, should_emit=should_emit
+            prediction = await self._aexecute_one_turn(
+                history.messages, turn, stream=stream, should_emit=should_emit
             )
 
-            if history is not None and final_prediction:
-                self._update_history_with_prediction(history, final_prediction)
-
-            if not (final_prediction and "tool_calls" in final_prediction):
+            if not auto_execute_tools or not self.tools or not prediction.native_tool_calls:
                 break
 
-            if not auto_execute_tools:
-                break
+            await self._aexecute_tool_calls(prediction.native_tool_calls, history)
+        else:
+            if prediction is not None and not prediction.is_final():
+                raise RuntimeError(f"Max turns ({self.max_turns}) reached without final answer")
 
-            if not self.tool_callables:
-                break
-
-            self._execute_tool_calls(messages, final_prediction.tool_calls, history)
-
-        if turn >= self.max_turns - 1 and final_prediction and "tool_calls" in final_prediction:
-            raise RuntimeError(f"Max turns ({self.max_turns}) reached without final answer")
-
-        if final_prediction is None:
+        if prediction is None:
             raise RuntimeError("No prediction generated")
 
-        return final_prediction
+        self._update_history_with_prediction(history, prediction)
+        return prediction
 
-    async def _execute_one_turn(
+    async def _aexecute_one_turn(
         self, messages: list[dict[str, Any]], turn: int, stream: bool, should_emit: bool
     ) -> Prediction:
         """Execute one LLM turn (streaming or non-streaming).
@@ -279,83 +282,63 @@ class Predict(Module):
             "model": self.model,
             "messages": messages,
             "stream": stream,
+            "tools": self.tool_schemas,
             **self.kwargs,
         }
 
-        if turn == 0 and self.tool_schemas:
-            tool_schemas = self.adapter.format_tool_schemas(self.tool_schemas)
-            completion_kwargs["tools"] = tool_schemas
+        func = self._astream if stream else self._aforward
+        return await func(completion_kwargs, should_emit)
 
-        if stream:
-            return await self._process_streaming(completion_kwargs, should_emit)
-        else:
-            return await self._process_nonstreaming(completion_kwargs, should_emit)
-
-    def _execute_tool_calls(
-        self, messages: list[dict[str, Any]], tool_calls: list[dict[str, Any]], history: Any = None
+    async def _aexecute_tool_calls(
+        self,
+        native_tool_calls: list[ToolCall],
+        history: History,
     ) -> None:
         """Execute tool calls and add results to messages.
 
         Args:
-            messages: Conversation messages
             tool_calls: List of tool calls to execute
-            history: Optional History object to update
+            history: History object to update
         """
-        import json
 
-        assistant_msg = {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [
+        history.add_assistant_message(
+            tool_calls=[
                 {
-                    "id": tc["id"],
+                    "id": tc.call_id,
                     "type": "function",
-                    "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                    "function": {"name": tc.name, "arguments": json.dumps(tc.args)},
                 }
-                for tc in tool_calls
-            ],
-        }
-        messages.append(assistant_msg)
+                for tc in native_tool_calls
+            ]
+        )
 
-        if history is not None:
-            from udspy.history import History
+        for tool_call in native_tool_calls:
+            call_id = tool_call.call_id
+            tool_name = tool_call.name
+            tool_args = tool_call.args
 
-            if isinstance(history, History):
-                history.messages.append(assistant_msg)
-
-        for tool_call in tool_calls:
-            tool_name = tool_call["name"]
-            arguments = json.loads(tool_call["arguments"])
-
-            if tool_name in self.tool_callables:
+            content: str = ""
+            if tool_name in self.tools:
                 try:
-                    result = self.tool_callables[tool_name](**arguments)
-                    content = str(result)
+                    content = await self.tools[tool_name](**tool_args)
+                    if isinstance(content, BaseModel):
+                        content = content.model_dump_json()
+                    elif not isinstance(content, str):
+                        content = json.dumps(content)
                 except Exception as e:
                     content = f"Error executing tool: {e}"
             else:
                 content = f"Error: Tool {tool_name} not found"
 
-            tool_msg = {"role": "tool", "tool_call_id": tool_call["id"], "content": content}
-            messages.append(tool_msg)
+            history.add_tool_result(str(call_id), content)
 
-            if history is not None:
-                from udspy.history import History
-
-                if isinstance(history, History):
-                    history.messages.append(tool_msg)
-
-    def _update_history_with_prediction(self, history: Any, prediction: Prediction) -> None:
+    def _update_history_with_prediction(self, history: History, prediction: Prediction) -> None:
         """Update history with assistant's prediction.
 
         Args:
             history: History object to update
             prediction: Prediction from assistant
         """
-        from udspy.history import History
-
-        if not isinstance(history, History):
-            return
 
         output_fields = self.signature.get_output_fields()
         content_parts = []
@@ -367,14 +350,15 @@ class Predict(Module):
                     content_parts.append(f"[[ ## {field_name} ## ]]\n{value}")
 
         content = "\n".join(content_parts) if content_parts else ""
-
-        if hasattr(prediction, "tool_calls") and prediction.tool_calls:
-            pass
-        else:
-            history.add_assistant_message(content)
+        history.add_assistant_message(content)
 
     async def aforward(
-        self, *, auto_execute_tools: bool = True, history: Any = None, **inputs: Any
+        self,
+        *,
+        resume_state: Any = None,
+        auto_execute_tools: bool = True,
+        history: History | None = None,
+        **inputs: Any,
     ) -> Prediction:
         """Async non-streaming method. Returns the final Prediction.
 
@@ -382,12 +366,16 @@ class Predict(Module):
         streaming context (i.e., another module is streaming), events will
         still be emitted to the active queue.
 
+        Supports resuming from a ConfirmationRequired exception by providing
+        resume_state. This enables loop-based confirmation handling.
+
         When tools are used with auto_execute_tools=True (default), this returns
         the LAST prediction (after tool execution), not the first one (which might
         only contain tool_calls). When auto_execute_tools=False, returns the first
         Prediction with tool_calls for manual handling.
 
         Args:
+            resume_state: Optional ResumeState containing exception and user response.
             auto_execute_tools: If True, automatically execute tools and return
                 final answer. If False, return Prediction with tool_calls for
                 manual execution. Default: True.
@@ -398,7 +386,11 @@ class Predict(Module):
             Final Prediction object (after all tool executions if auto_execute_tools=True)
         """
         return await self.aexecute(
-            stream=False, auto_execute_tools=auto_execute_tools, history=history, **inputs
+            stream=False,
+            resume_state=resume_state,
+            auto_execute_tools=auto_execute_tools,
+            history=history,
+            **inputs,
         )
 
     def _process_tool_call_delta(
@@ -456,16 +448,15 @@ class Predict(Module):
 
         match = field_pattern.search(acc_delta)
         if match:
+            # Emit previous field as complete
             if current_field:
                 field_content = "".join(accumulated_content[current_field])
                 await queue.put(
-                    StreamChunk(self, current_field, "", field_content, is_complete=True)
+                    OutputStreamChunk(self, current_field, "", field_content, is_complete=True)
                 )
 
             current_field = match.group(1)
-            acc_delta = field_pattern.sub("", acc_delta)
-            if acc_delta.startswith("\n"):
-                acc_delta = acc_delta[1:]
+            acc_delta = match.group(2)
 
         if (
             current_field
@@ -475,7 +466,7 @@ class Predict(Module):
             accumulated_content[current_field].append(acc_delta)
             field_content = "".join(accumulated_content[current_field])
             await queue.put(
-                StreamChunk(self, current_field, acc_delta, field_content, is_complete=False)
+                OutputStreamChunk(self, current_field, acc_delta, field_content, is_complete=False)
             )
             acc_delta = ""
 
@@ -519,10 +510,49 @@ class Predict(Module):
                     f"Error in callback {callback.__class__.__name__}.on_lm_{stage}: {e}"
                 )
 
-    async def _process_nonstreaming(
-        self, completion_kwargs: dict[str, Any], should_emit: bool
-    ) -> Prediction:
-        """Process non-streaming LLM call.
+    def _check_valid_outputs_or_raise(
+        self,
+        native_tool_calls: list[ToolCall],
+        outputs: dict[str, Any],
+        completion_text: str,
+    ) -> None:
+        """
+        Check if the tool calls and outputs are valid; raise AdapterParseError if not.
+        """
+
+        # verify the tool calls refer to known tools (only if we have tools configured)
+        if self.tools:
+            for tool_call in native_tool_calls:
+                tool_name = tool_call.name
+                if tool_name and tool_name not in self.tools:
+                    raise AdapterParseError(
+                        adapter_name=self.adapter.__class__.__name__,
+                        signature=self.signature,
+                        lm_response="",
+                        parsed_result={
+                            "error": f"Tool '{tool_name}' not found among available tools."
+                        },
+                    )
+
+        if not native_tool_calls and outputs.keys() != self.signature.get_output_fields().keys():
+            raise AdapterParseError(
+                adapter_name=self.adapter.__class__.__name__,
+                signature=self.signature,
+                lm_response=completion_text,
+                parsed_result=outputs,
+            )
+
+    @retry(
+        retry=retry_if_exception_type(AdapterParseError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=0.1, max=3),
+    )
+    async def _aforward(self, completion_kwargs: dict[str, Any], should_emit: bool) -> Prediction:
+        """Process non-streaming LLM call with automatic retry on parse errors.
+
+        Retries up to 2 times (3 total attempts) with exponential backoff (0.1-3s)
+        when AdapterParseError occurs, giving the LLM multiple chances to format
+        the response correctly.
 
         Args:
             completion_kwargs: Arguments for the completion API call
@@ -553,51 +583,56 @@ class Predict(Module):
 
             message = response.choices[0].message
             completion_text = message.content or ""
-            tool_calls_data = message.tool_calls
+            native_tool_calls: list[ToolCall] = []
+            for tc in message.tool_calls or []:
+                try:
+                    arguments = (
+                        json.loads(tc.function.arguments)
+                        if isinstance(tc.function.arguments, str)
+                        else tc.function.arguments
+                    )
+                except json.JSONDecodeError as exc:
+                    raise AdapterParseError(
+                        adapter_name=self.adapter.__class__.__name__,
+                        signature=self.signature,
+                        lm_response=tc.function.arguments,
+                        parsed_result={
+                            "error": f"Failed to parse tool call {tc.id} arguments as JSON."
+                        },
+                    ) from exc
+
+                else:
+                    native_tool_calls.append(
+                        ToolCall(call_id=tc.id, name=tc.function.name, args=arguments)
+                    )
 
             outputs = self.adapter.parse_outputs(self.signature, completion_text)
+            self._check_valid_outputs_or_raise(native_tool_calls, outputs, completion_text)
+
         except Exception as e:
             exception = e
             raise
         finally:
             self._execute_lm_callbacks("end", call_id, outputs=outputs_dict, exception=exception)
 
-        if tool_calls_data:
-            outputs["tool_calls"] = [
-                {
-                    "id": tc.id,
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                }
-                for tc in tool_calls_data
-            ]
+        prediction = Prediction(native_tool_calls=native_tool_calls, **outputs)
 
-        prediction = Prediction(**outputs)
-
-        if should_emit:
-            queue = _stream_queue.get()
-            if queue is not None:
-                output_fields = self.signature.get_output_fields()
-                for field_name in output_fields:
-                    if hasattr(prediction, field_name):
-                        field_value = getattr(prediction, field_name)
-                        if field_value:
-                            from udspy.streaming import StreamChunk
-
-                            await queue.put(
-                                StreamChunk(
-                                    self, field_name, field_value, field_value, is_complete=True
-                                )
-                            )
-
-                await queue.put(prediction)
+        if should_emit and (queue := _stream_queue.get()) is not None:
+            await queue.put(prediction)
 
         return prediction
 
-    async def _process_streaming(
-        self, completion_kwargs: dict[str, Any], should_emit: bool
-    ) -> Prediction:
-        """Process streaming LLM call.
+    @retry(
+        retry=retry_if_exception_type(AdapterParseError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=0.1, max=3),
+    )
+    async def _astream(self, completion_kwargs: dict[str, Any], should_emit: bool) -> Prediction:
+        """Process streaming LLM call with automatic retry on parse errors.
+
+        Retries up to 2 times (3 total attempts) with exponential backoff (0.1-3s)
+        when AdapterParseError occurs, giving the LLM multiple chances to format
+        the response correctly.
 
         Args:
             completion_kwargs: Arguments for the completion API call
@@ -612,7 +647,10 @@ class Predict(Module):
 
         if should_emit and active_queue is not None:
             return await self._process_llm_stream(
-                active_queue, completion_kwargs, emit_sentinel=False, emit_prediction=False
+                active_queue,
+                completion_kwargs,
+                emit_sentinel=False,
+                emit_prediction=False,
             )
         else:
             queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
@@ -620,21 +658,21 @@ class Predict(Module):
                 self._process_llm_stream(queue, completion_kwargs, emit_sentinel=True)
             )
 
-            final_prediction: Prediction | None = None
+            prediction: Prediction | None = None
             while True:
                 event = await queue.get()
                 if event is None:
                     break
 
                 if isinstance(event, Prediction):
-                    final_prediction = event
+                    prediction = event
 
             await llm_task
 
-            if final_prediction is None:
+            if prediction is None:
                 raise RuntimeError("No prediction generated from stream")
 
-            return final_prediction
+            return prediction
 
     async def _process_llm_stream(
         self,
@@ -670,18 +708,19 @@ class Predict(Module):
             )
 
             output_fields = self.signature.get_output_fields()
-            field_pattern = re.compile(r"\[\[ ## (\w+) ## \]\]")
+            field_pattern = re.compile(
+                r"\[\[ ## (?P<field>\w+) ## \]\]\s*(?P<content>.*)", re.DOTALL
+            )
             current_field: str | None = None
             accumulated_content: dict[str, list[str]] = {name: [] for name in output_fields}
             full_completion: list[str] = []
             acc_delta: str = ""
             tool_calls: dict[int, dict[str, Any]] = {}
 
+            reasoning = ThoughtStreamChunk(self, "thought", "", "", is_complete=False)
+
             async for chunk in stream:
                 choice = chunk.choices[0]
-
-                if choice.delta.tool_calls:
-                    self._process_tool_call_delta(tool_calls, choice.delta.tool_calls)
 
                 delta = choice.delta.content or ""
                 if delta:
@@ -696,33 +735,57 @@ class Predict(Module):
                         queue,
                     )
 
-            if current_field:
-                field_content = "".join(accumulated_content[current_field])
-                await queue.put(
-                    StreamChunk(self, current_field, "", field_content, is_complete=True)
-                )
+                if current_field and current_field in output_fields:
+                    field_content = "".join(accumulated_content[current_field])
+                    await queue.put(
+                        OutputStreamChunk(self, current_field, "", field_content, is_complete=True)
+                    )
+                elif choice.delta.tool_calls:
+                    self._process_tool_call_delta(tool_calls, choice.delta.tool_calls)
+                elif not reasoning.is_complete:
+                    reasoning = await self._process_reasoning_delta(reasoning, choice, queue)
 
             completion_text = "".join(full_completion)
             outputs = self.adapter.parse_outputs(self.signature, completion_text)
+            native_tool_calls = []
+            for tc in tool_calls.values():
+                try:
+                    arguments = (
+                        json.loads(tc["function"]["arguments"])
+                        if isinstance(tc["function"]["arguments"], str)
+                        else tc["function"]["arguments"]
+                    )
 
-            if tool_calls:
-                outputs["tool_calls"] = [
-                    {
-                        "id": tc["id"],
-                        "name": tc["function"]["name"],
-                        "arguments": tc["function"]["arguments"],
-                    }
-                    for tc in tool_calls.values()
-                ]
+                except json.JSONDecodeError as exc:
+                    raise AdapterParseError(
+                        adapter_name=self.adapter.__class__.__name__,
+                        signature=self.signature,
+                        lm_response=arguments,
+                        parsed_result={
+                            "error": f"Failed to parse tool call {tc['id']} arguments as JSON."
+                        },
+                    ) from exc
+                else:
+                    native_tool_calls.append(
+                        ToolCall(
+                            call_id=tc["id"],
+                            name=tc["function"]["name"],
+                            args=arguments,
+                        )
+                    )
 
-            prediction = Prediction(**outputs)
+            self._check_valid_outputs_or_raise(native_tool_calls, outputs, completion_text)
+
+            prediction = Prediction(native_tool_calls=native_tool_calls, **outputs)
             if emit_prediction:
                 await queue.put(prediction)
 
             outputs_dict = {
-                "prediction": prediction.model_dump()
-                if hasattr(prediction, "model_dump")
-                else str(prediction)
+                "prediction": (
+                    prediction.model_dump()
+                    if hasattr(prediction, "model_dump")
+                    else str(prediction)
+                )
             }
             return prediction
 
@@ -742,3 +805,70 @@ class Predict(Module):
             self._execute_lm_callbacks("end", call_id, outputs=outputs_dict, exception=exception)
             if emit_sentinel:
                 await queue.put(None)
+
+    async def _process_reasoning_delta(
+        self,
+        reasoning: ThoughtStreamChunk,
+        choice: Any,
+        queue: asyncio.Queue[StreamEvent | None],
+    ) -> ThoughtStreamChunk:
+        # For some reason, AWS Bedrock returns reasoning as content inside <reasoning> tags
+        # instead of proper choice.delta.reasoning, so if that happens, we extract it here
+        # Unfortunately, we cannot really say it's finished until we get the real content after.
+        thought_chunk = choice.delta.content or ""
+        if match := re.search(
+            r"<reasoning>(.*?)</reasoning>", choice.delta.content or "", re.DOTALL
+        ):
+            thought_chunk = match.group(1)
+        else:
+            thought_chunk = getattr(choice.delta, "reasoning", "")
+
+        is_complete = choice.finish_reason is not None
+        if thought_chunk or is_complete != reasoning.is_complete:
+            reasoning = ThoughtStreamChunk(
+                self,
+                reasoning.field_name,
+                thought_chunk,
+                reasoning.content + thought_chunk,
+                is_complete=is_complete,
+            )
+            await queue.put(reasoning)
+        return reasoning
+
+    async def asuspend(self, exception: Any) -> Any:
+        """Suspend execution and save state for Predict module.
+
+        Saves the current conversation state (messages, turn number, tool state)
+        needed to resume execution after user confirmation.
+
+        Args:
+            exception: The ConfirmationRequired exception that was raised
+
+        Returns:
+            Saved state dict containing messages, turn, and tool info
+        """
+        # The exception itself contains the context we need
+        # No additional state needed for Predict - the decorator handles it
+        return exception
+
+    async def aresume(self, user_response: str, saved_state: Any) -> Prediction:  # noqa: ARG002
+        """Resume execution after user confirmation.
+
+        Args:
+            user_response: The user's response to the confirmation request
+            saved_state: State saved by asuspend() (the ConfirmationRequired exception)
+
+        Returns:
+            Final Prediction after resuming execution
+
+        Raises:
+            NotImplementedError: Predict doesn't currently support resumption.
+                This will be implemented when tool confirmation is added.
+        """
+        # TODO: Implement proper resumption for Predict
+        # This requires saving/restoring the conversation state,
+        # current turn, and tool execution context
+        raise NotImplementedError(
+            "Predict module doesn't yet support suspend/resume. "
+            "Use ReAct module for confirmation support."
+        )

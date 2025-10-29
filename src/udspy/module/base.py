@@ -23,7 +23,7 @@ class Module:
         ```python
         # Async streaming (real-time)
         async for event in module.astream(question="What is AI?"):
-            if isinstance(event, StreamChunk):
+            if isinstance(event, OutputStreamChunk):
                 print(event.delta, end="", flush=True)
             elif isinstance(event, Prediction):
                 result = event
@@ -36,14 +36,6 @@ class Module:
         result = module.forward(question="What is AI?")
         ```
     """
-
-    def __init__(self, *, callbacks: list[Any] | None = None):
-        """Initialize module.
-
-        Args:
-            callbacks: Optional list of callback handlers for this module instance
-        """
-        self.callbacks = callbacks or []
 
     @with_callbacks
     async def aexecute(self, *, stream: bool = False, **inputs: Any) -> Prediction:
@@ -63,7 +55,7 @@ class Module:
 
         Behavior:
             - Checks for active stream queue via _stream_queue.get()
-            - If queue exists: emits StreamChunk and Prediction events
+            - If queue exists: emits OutputStreamChunk and Prediction events
             - Always returns final Prediction (even in streaming mode)
             - This enables composability: nested modules emit events automatically
 
@@ -72,17 +64,24 @@ class Module:
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement aexecute() method")
 
-    async def astream(self, **inputs: Any) -> AsyncGenerator[StreamEvent, None]:
+    async def astream(
+        self, *, resume_state: Any = None, **inputs: Any
+    ) -> AsyncGenerator[StreamEvent, None]:
         """Async streaming method. Sets up queue and yields events.
 
         This method sets up the stream queue context, calls aexecute() with
         streaming enabled, and yields all events from the queue.
 
+        Supports resuming from a ConfirmationRequired exception by providing
+        resume_state. This enables streaming with confirmation handling.
+
         Args:
+            resume_state: Optional ResumeState containing exception and user response.
+                Can also be a raw ConfirmationRequired exception (will use "yes" as response).
             **inputs: Input values for the module
 
         Yields:
-            StreamEvent objects (StreamChunk, Prediction, and custom events)
+            StreamEvent objects (OutputStreamChunk, Prediction, and custom events)
         """
         from udspy.streaming import _stream_queue
 
@@ -90,7 +89,9 @@ class Module:
         token = _stream_queue.set(queue)
 
         try:
-            task = asyncio.create_task(self.aexecute(stream=True, **inputs))
+            task = asyncio.create_task(
+                self.aexecute(stream=True, resume_state=resume_state, **inputs)
+            )
 
             while True:
                 if task.done():
@@ -157,19 +158,7 @@ class Module:
                     resume_state = ResumeState(e, user_response)
             ```
         """
-        if resume_state is not None:
-            # Support both ResumeState and raw ConfirmationRequired for backward compat
-            from udspy.confirmation import ConfirmationRequired, ResumeState
-
-            if isinstance(resume_state, ResumeState):
-                return await self.aresume(resume_state.user_response, resume_state.exception)
-            elif isinstance(resume_state, ConfirmationRequired):
-                # Backward compatibility: treat raw exception as "yes" response
-                return await self.aresume("yes", resume_state)
-            else:
-                # Assume it's the old-style state, try to resume
-                return await self.aresume("yes", resume_state)
-        return await self.aexecute(stream=False, **inputs)
+        return await self.aexecute(stream=False, resume_state=resume_state, **inputs)
 
     def forward(self, *, resume_state: Any = None, **inputs: Any) -> Prediction:
         """Sync non-streaming method. Wraps aforward() with async_to_sync.
