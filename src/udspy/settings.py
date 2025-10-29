@@ -7,6 +7,8 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
+from udspy.lm import LM, OpenAILM
+
 
 class Settings:
     """Global settings for udspy.
@@ -18,6 +20,7 @@ class Settings:
 
     def __init__(self) -> None:
         self._aclient: AsyncOpenAI | None = None
+        self._lm: LM | None = None
         self._default_model: str | None = None
         self._default_kwargs: dict[str, Any] = {}
         self._callbacks: list[Any] = []
@@ -26,6 +29,7 @@ class Settings:
         self._context_aclient: ContextVar[AsyncOpenAI | None] = ContextVar(
             "context_aclient", default=None
         )
+        self._context_lm: ContextVar[LM | None] = ContextVar("context_lm", default=None)
         self._context_model: ContextVar[str | None] = ContextVar("context_model", default=None)
         self._context_kwargs: ContextVar[dict[str, Any] | None] = ContextVar(
             "context_kwargs", default=None
@@ -40,6 +44,7 @@ class Settings:
         base_url: str | None = None,
         model: str | None = None,
         aclient: AsyncOpenAI | None = None,
+        lm: LM | None = None,
         callbacks: list[Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -50,6 +55,7 @@ class Settings:
             base_url: Base URL for OpenAI API
             model: Default model to use for all predictions
             aclient: Custom async OpenAI client
+            lm: Custom LM instance (overrides aclient if provided)
             callbacks: List of callback handlers for telemetry/monitoring
             **kwargs: Default kwargs for all chat completions (temperature, etc.)
 
@@ -73,12 +79,21 @@ class Settings:
             from openai import AsyncOpenAI
             client = AsyncOpenAI(api_key="sk-...", timeout=30.0)
             udspy.settings.configure(aclient=client, model="gpt-4o")
+
+            # With custom LM
+            from udspy.lm import OpenAILM
+            lm = OpenAILM(client, default_model="gpt-4o")
+            udspy.settings.configure(lm=lm)
             ```
         """
-        if aclient:
+        if lm:
+            self._lm = lm
+        elif aclient:
             self._aclient = aclient
+            self._lm = OpenAILM(aclient, default_model=model)
         else:
             self._aclient = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            self._lm = OpenAILM(self._aclient, default_model=model)
 
         if model:
             self._default_model = model
@@ -89,11 +104,28 @@ class Settings:
         self._default_kwargs.update(kwargs)
 
     @property
+    def lm(self) -> LM:
+        """Get the language model instance (context-aware).
+
+        This is the preferred way to access the LM for predictions.
+        Returns an LM abstraction that works with any provider.
+        """
+        # Check context first
+        context_lm = self._context_lm.get()
+        if context_lm is not None:
+            return context_lm
+
+        # Fall back to global LM
+        if self._lm is None:
+            raise RuntimeError("LM not configured. Call udspy.settings.configure() first.")
+        return self._lm
+
+    @property
     def aclient(self) -> AsyncOpenAI:
         """Get the async OpenAI client (context-aware).
 
-        This is used by all module operations, both async and sync.
-        Sync wrappers use asyncio.run() internally.
+        Deprecated: Use settings.lm instead for provider abstraction.
+        This is kept for backward compatibility.
         """
         # Check context first
         context_aclient = self._context_aclient.get()
@@ -170,6 +202,7 @@ class Settings:
         base_url: str | None = None,
         model: str | None = None,
         aclient: AsyncOpenAI | None = None,
+        lm: LM | None = None,
         callbacks: list[Any] | None = None,
         **kwargs: Any,
     ) -> Iterator[None]:
@@ -183,6 +216,7 @@ class Settings:
             api_key: Temporary OpenAI API key (creates temporary client)
             model: Temporary model to use
             aclient: Temporary async OpenAI client
+            lm: Temporary LM instance (overrides aclient if provided)
             callbacks: Temporary callback handlers
             **kwargs: Temporary kwargs for chat completions
 
@@ -210,16 +244,22 @@ class Settings:
         """
         # Save current context values
         prev_aclient = self._context_aclient.get()
+        prev_lm = self._context_lm.get()
         prev_model = self._context_model.get()
         prev_kwargs = self._context_kwargs.get()
         prev_callbacks = self._context_callbacks.get()
 
         try:
             # Set context-specific values
-            if aclient:
+            if lm:
+                self._context_lm.set(lm)
+            elif aclient:
                 self._context_aclient.set(aclient)
+                self._context_lm.set(OpenAILM(aclient, default_model=model))
             elif api_key or base_url:
-                self._context_aclient.set(AsyncOpenAI(api_key=api_key, base_url=base_url))
+                temp_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+                self._context_aclient.set(temp_client)
+                self._context_lm.set(OpenAILM(temp_client, default_model=model))
 
             if model:
                 self._context_model.set(model)
@@ -238,6 +278,7 @@ class Settings:
         finally:
             # Restore previous context values
             self._context_aclient.set(prev_aclient)
+            self._context_lm.set(prev_lm)
             self._context_model.set(prev_model)
             self._context_kwargs.set(prev_kwargs)
             self._context_callbacks.set(prev_callbacks)

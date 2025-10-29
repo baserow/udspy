@@ -569,19 +569,18 @@ class Predict(Module):
         call_id = uuid.uuid4().hex
         self._execute_lm_callbacks("start", call_id, inputs=completion_kwargs)
 
-        client = settings.aclient
         outputs_dict = None
         exception = None
 
         try:
-            response = await client.chat.completions.create(**completion_kwargs)
+            response = await settings.lm.acomplete(**completion_kwargs)
             outputs_dict = {
                 "response": (
                     response.model_dump() if hasattr(response, "model_dump") else str(response)
                 )
             }
 
-            message = response.choices[0].message
+            message = response.choices[0].message  # type: ignore[union-attr]
             completion_text = message.content or ""
             native_tool_calls: list[ToolCall] = []
             for tc in message.tool_calls or []:
@@ -702,8 +701,7 @@ class Predict(Module):
         exception = None
 
         try:
-            client = settings.aclient
-            stream: AsyncStream[ChatCompletionChunk] = await client.chat.completions.create(
+            stream: AsyncStream[ChatCompletionChunk] = await settings.lm.acomplete(  # type: ignore[assignment]
                 **completion_kwargs
             )
 
