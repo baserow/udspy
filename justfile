@@ -8,8 +8,8 @@ install:
     uv pip install -e .
 
 # Run tests
-test:
-    uv run pytest
+test *ARGS:
+    uv run pytest {{ARGS}}
 
 # Run tests with coverage
 test-cov:
