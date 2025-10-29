@@ -21,13 +21,23 @@ class Tools(BaseModel):
         parts = []
         defs: dict[str, Any] = {}
         for idx, tool in enumerate(self.tools, start=1):
-            if tool.args_schema:
-                tool_args_schema = tool.get_args_schema(resolve_defs=False)
+            # Get raw schema with $defs (if available)
+            if tool._raw_schema:
+                tool_args_schema = tool._raw_schema.copy()
                 defs.update(tool_args_schema.pop("$defs", {}))
-                tool_args_schema = minimize_schema(tool_args_schema["properties"])
+                tool_args_schema = minimize_schema(tool_args_schema.get("properties", {}))
             else:
                 tool_args_schema = {}
-            fmt_tool = f"({idx}): {tool.format(tool.name or 'unknown', tool.description or '', tool_args_schema)}"
+
+            # Format tool description
+            desc = (tool.description or "").replace("\n", " ").strip()
+            desc_part = f", whose description is <desc>{desc}</desc>." if desc else "."
+            arg_desc = (
+                f"It takes arguments {tool_args_schema}."
+                if tool_args_schema
+                else "It takes no arguments."
+            )
+            fmt_tool = f"({idx}): {tool.name}{desc_part} {arg_desc}"
 
             if include_output_type:
                 output_type = tool.get_output_type_or_schema(resolve_defs=False)

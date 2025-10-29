@@ -10,19 +10,45 @@ from udspy.callback import with_callbacks
 from udspy.utils.async_support import execute_function_async
 from udspy.utils.schema import resolve_json_schema_reference
 
+# Type alias for JSON schema dictionaries
+JsonSchema = dict[str, Any]
+
 
 class Tool(BaseModel):
     """Wrapper for a tool function with metadata.
 
     Tools are callable functions that can be passed to Predict. The function
-    signature and annotations are automatically converted to an OpenAI tool schema.
+    signature and annotations are automatically converted to a JSON schema.
+
+    The Tool class provides different schema representations for different use cases:
+    - input_schema: Full JSON schema with resolved $defs (for internal use)
+    - parameters: Same as input_schema, used for OpenAI function calling
+    - format(): Human-readable description (for LLM prompts in modules like ReAct)
+
+    Example:
+        @tool(name="calculator", description="Perform arithmetic")
+        def calculator(
+            operation: str = Field(description="Operation type"),
+            a: float = Field(description="First number"),
+            b: float = Field(description="Second number"),
+        ) -> float:
+            ops = {"add": a + b, "subtract": a - b, "multiply": a * b, "divide": a / b}
+            return ops[operation]
+
+        # For OpenAI function calling
+        schema = calculator.parameters  # Full resolved schema
+
+        # For LLM prompts in modules
+        description = calculator.format()  # Human-readable string
     """
 
     func: Callable[..., Any]
     name: str | None = None
     description: str | None = None
-    args_schema: dict[str, Any] | None = None
     require_confirmation: bool = False
+
+    # Internal: raw schema with $defs (cached at initialization)
+    _raw_schema: JsonSchema | None = None
 
     def __init__(
         self,
@@ -31,14 +57,22 @@ class Tool(BaseModel):
         description: str | None = None,
         require_confirmation: bool = False,
     ):
-        """Initialize a Tool."""
+        """Initialize a Tool.
+
+        Args:
+            func: The function to wrap
+            name: Tool name (defaults to function name)
+            description: Tool description (defaults to function docstring)
+            require_confirmation: Whether to require user confirmation before execution
+        """
         super().__init__(
             func=func,
             name=name or func.__name__,
             description=description or inspect.getdoc(func) or "",
             require_confirmation=require_confirmation,
         )
-        self.args_schema = self.get_args_schema(resolve_defs=False)
+        # Generate and store the raw schema once at initialization
+        self._raw_schema = self._generate_args_schema()
 
     @property
     def _func(self) -> Callable[..., Any]:
@@ -73,19 +107,65 @@ class Tool(BaseModel):
         return await self._func(**kwargs)
 
     @property
+    def input_schema(self) -> JsonSchema:
+        """Get the full JSON schema with all $defs resolved.
+
+        This returns a complete JSON schema with all references resolved.
+        Used internally for validation and processing.
+
+        Returns:
+            Fully resolved JSON schema dictionary with type, properties, and required fields
+        """
+        if self._raw_schema is None:
+            return {}
+        return resolve_json_schema_reference(self._raw_schema)
+
+    @property
+    def parameters(self) -> JsonSchema:
+        """Get the parameters schema for OpenAI function calling.
+
+        This is what OpenAI expects in the "parameters" field of a function schema.
+        It includes type, properties, and required fields. Same as input_schema but
+        with a clearer name for the OpenAI context.
+
+        Returns:
+            Complete JSON schema suitable for OpenAI function calling API
+        """
+        return self.input_schema
+
+    @property
     def desc(self) -> str | None:
         """Alias for description (DSPy compatibility)."""
         return self.description
 
     @property
-    def args(self) -> dict[str, Any] | None:
-        """Alias for args_schema properties (DSPy compatibility)."""
-        if self.args_schema and "properties" in self.args_schema:
-            return self.args_schema["properties"]
-        return self.args_schema
+    def args_schema(self) -> JsonSchema:
+        """Deprecated: Use .parameters instead.
 
-    def get_args_schema(self, resolve_defs: bool = True) -> dict[str, Any]:
-        """Convert function arguments to a Pydantic model schema."""
+        Returns the full resolved schema for backward compatibility.
+        """
+        return self.input_schema
+
+    @property
+    def args(self) -> JsonSchema | None:
+        """Deprecated: Use .parameters['properties'] instead.
+
+        Returns just the properties section for backward compatibility.
+        """
+        schema = self.input_schema
+        if schema and "properties" in schema:
+            return schema["properties"]
+        return None
+
+    def _generate_args_schema(self) -> JsonSchema:
+        """Generate JSON schema from function signature.
+
+        This is called once during initialization and the result is cached.
+        It converts the function's type hints into a Pydantic model schema.
+
+        Returns:
+            Raw JSON schema (may contain $defs references)
+        """
         sig = inspect.signature(self.func)
         type_hints = get_type_hints(self.func)
 
@@ -95,14 +175,17 @@ class Tool(BaseModel):
             default = ... if param.default == inspect.Parameter.empty else param.default
             fields[param_name] = (param_type, default)
 
-        schema = create_model(f"{self.func.__name__}_args", **fields).model_json_schema()  # type: ignore[call-overload]
-        if resolve_defs:
-            return resolve_json_schema_reference(schema)["properties"]
-        else:
-            return schema
+        return create_model(f"{self.func.__name__}_args", **fields).model_json_schema()  # type: ignore[call-overload]
 
-    def get_output_type_or_schema(self, resolve_defs: bool = True) -> str | dict[str, Any]:
-        """Get output type name or schema."""
+    def get_output_type_or_schema(self, resolve_defs: bool = True) -> str | JsonSchema:
+        """Get output type name or schema.
+
+        Args:
+            resolve_defs: Whether to resolve $defs references (default: True)
+
+        Returns:
+            String type name for simple types, or dict schema for complex types
+        """
         type_map = {
             str: "string",
             int: "integer",
@@ -125,29 +208,27 @@ class Tool(BaseModel):
                 "It must either be a native type (str, int, float, bool) or a Pydantic model."
             )
 
-    def to_openai_schema(self) -> dict[str, Any]:
-        """Convert to OpenAI tool schema."""
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": resolve_json_schema_reference(
-                    self.get_args_schema(resolve_defs=False)
-                ),
-            },
-        }
+    def format(self) -> str:
+        """Format tool as human-readable string for LLM prompts.
 
-    def format(self, name: str, description: str, args_schema: dict[str, Any]) -> str:
-        desc = description.replace("\n", " ").strip()
-        desc = f", whose description is <desc>{desc}</desc>." if desc else "."
-        arg_desc = f"It takes arguments {args_schema}."
-        return f"{name}{desc} {arg_desc}"
+        This creates a readable description of the tool including its name,
+        description, and parameter schema. Used when tools are described in prompts.
+
+        Returns:
+            Human-readable tool description
+        """
+        desc = (self.description or "").replace("\n", " ").strip()
+        desc_part = f", whose description is <desc>{desc}</desc>." if desc else "."
+
+        # Get simplified parameter descriptions
+        params = self.parameters.get("properties", {})
+        arg_desc = f"It takes arguments {params}." if params else "It takes no arguments."
+
+        return f"{self.name}{desc_part} {arg_desc}"
 
     def __str__(self) -> str:
-        if self.args_schema:
-            args_schema = resolve_json_schema_reference(self.args_schema)
-        return self.format(self.name or "unnamed_tool", self.description or "", args_schema)
+        """String representation of the tool."""
+        return self.format()
 
 
 __all__ = ["Tool"]

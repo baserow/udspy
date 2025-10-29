@@ -45,9 +45,54 @@ def test_tool_decorator() -> None:
     assert "b" in calculator.args_schema["properties"]
 
 
+def test_tool_schema_properties() -> None:
+    """Test Tool schema properties (input_schema, parameters)."""
+    # Test input_schema returns resolved schema
+    input_schema = calculator.input_schema
+    assert input_schema["type"] == "object"
+    assert "properties" in input_schema
+    assert "operation" in input_schema["properties"]
+    assert "a" in input_schema["properties"]
+    assert "b" in input_schema["properties"]
+    assert "required" in input_schema
+    assert set(input_schema["required"]) == {"operation", "a", "b"}
+
+    # Test parameters returns same as input_schema
+    parameters = calculator.parameters
+    assert parameters == input_schema
+    assert parameters["type"] == "object"
+    assert "operation" in parameters["properties"]
+
+    # Test deprecated args_schema still works
+    args_schema = calculator.args_schema
+    assert args_schema == input_schema
+
+    # Test deprecated args property (just properties section)
+    args = calculator.args
+    assert args == input_schema["properties"]
+    assert "operation" in args
+
+
+def test_tool_format() -> None:
+    """Test Tool.format() returns human-readable string."""
+    formatted = calculator.format()
+    assert isinstance(formatted, str)
+    assert "Calculator" in formatted
+    assert "Perform arithmetic operations" in formatted
+    # Should mention it takes arguments
+    assert "arguments" in formatted.lower() or "takes" in formatted.lower()
+
+    # Test __str__ uses format()
+    str_repr = str(calculator)
+    assert str_repr == formatted
+
+
 def test_tool_to_openai_schema() -> None:
-    """Test Tool converts to OpenAI schema."""
-    schema = calculator.to_openai_schema()
+    """Test Tool converts to OpenAI schema via adapter."""
+    from udspy.adapter import ChatAdapter
+
+    adapter = ChatAdapter()
+    schema = adapter.format_tool_schema(calculator)
 
     assert schema["type"] == "function"
     assert schema["function"]["name"] == "Calculator"
@@ -152,6 +197,8 @@ def test_tool_with_optional_types() -> None:
 
     from pydantic import Field
 
+    from udspy.adapter import ChatAdapter
+
     @tool(name="OptionalTool", description="Tool with optional params")
     def optional_tool(
         required: str = Field(description="Required param"),
@@ -159,7 +206,8 @@ def test_tool_with_optional_types() -> None:
     ) -> str:
         return f"{required}-{optional}"
 
-    schema = optional_tool.to_openai_schema()
+    adapter = ChatAdapter()
+    schema = adapter.format_tool_schema(optional_tool)
 
     # Check that types are converted correctly
     params = schema["function"]["parameters"]

@@ -225,16 +225,36 @@ class ChatAdapter:
     def format_tool_schema(self, tool: Any) -> dict[str, Any]:
         """Convert a Tool object or Pydantic model to OpenAI tool schema.
 
+        This is where provider-specific schema formatting happens. The adapter
+        takes the tool's normalized schema and converts it to OpenAI's expected format.
+
         Args:
             tool: Tool object or Pydantic model class
+
         Returns:
-            OpenAI tool schema dictionary
+            OpenAI tool schema dictionary in the format:
+            {
+                "type": "function",
+                "function": {
+                    "name": str,
+                    "description": str,
+                    "parameters": dict  # Full JSON schema with type, properties, required
+                }
+            }
         """
         from udspy.tool import Tool
 
         if isinstance(tool, Tool):
-            # Tool decorator - use its built-in schema conversion
-            return tool.to_openai_schema()
+            # Tool decorator - construct OpenAI schema from Tool properties
+            # Tool.parameters gives us the complete resolved schema (type, properties, required)
+            return {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,  # Already resolved, ready for OpenAI
+                },
+            }
         else:
             # Pydantic model - convert using existing logic
             tool_model = tool
@@ -248,6 +268,7 @@ class ChatAdapter:
             )
 
             # Build OpenAI function schema
+            # Resolve any $defs references in the Pydantic schema
             tool_schema = resolve_json_schema_reference(
                 {
                     "type": "function",

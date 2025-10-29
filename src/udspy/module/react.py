@@ -351,7 +351,7 @@ class ReAct(Module):
                 parts = [
                     f"{tool_call_id}.",
                     f"Traceback '{tool_name}': {format_tool_exception(e)}.",
-                    f"Expected tool args schema: {tool.get_args_schema()}.",
+                    f"Expected tool args schema: {tool.parameters}.",
                 ]
                 observations.append(" ".join(parts))
                 logger.warning(f"Tool execution failed: {e}")

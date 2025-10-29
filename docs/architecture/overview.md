@@ -808,7 +808,7 @@ Tool class extracts schema from function signature:
 
 ```python
 # Automatic schema generation
-tool.get_args_schema() →
+tool.parameters →
 {
     "type": "object",
     "properties": {
@@ -825,12 +825,17 @@ tool.get_args_schema() →
 Adapter converts Tool → OpenAI schema:
 
 ```python
+# Tool provides the parameters schema
+from udspy.adapter import ChatAdapter
+
+adapter = ChatAdapter()
+adapter.format_tool_schema(tool) →
 {
     "type": "function",
     "function": {
         "name": "calculator",
         "description": "Perform arithmetic",
-        "parameters": {tool.get_args_schema()}
+        "parameters": tool.parameters  # Tool provides this
     }
 }
 ```

@@ -280,13 +280,13 @@ def compute(x: int) -> int:
 result = await compute.acall(x=5)
 ```
 
-#### `to_openai_schema() -> dict`
+#### `parameters` Property
 
-Convert the tool to OpenAI function calling schema.
+Get the JSON schema for OpenAI function calling.
 
 **Returns:**
 
-- `dict`: OpenAI-compatible tool schema
+- `dict`: Complete JSON schema with type, properties, and required fields
 
 **Example:**
 
@@ -299,33 +299,62 @@ def calculator(
 ) -> float:
     return eval(f"{a} {operation} {b}")
 
-schema = calculator.to_openai_schema()
+# Get the parameters schema for OpenAI
+params = calculator.parameters
+# {
+#     "type": "object",
+#     "properties": {
+#         "operation": {
+#             "type": "string",
+#             "description": "Operation type"
+#         },
+#         "a": {
+#             "type": "number",
+#             "description": "First number"
+#         },
+#         "b": {
+#             "type": "number",
+#             "description": "Second number"
+#         }
+#     },
+#     "required": ["operation", "a", "b"]
+# }
+
+# The adapter uses this to build OpenAI function schemas:
+from udspy.adapter import ChatAdapter
+adapter = ChatAdapter()
+openai_schema = adapter.format_tool_schema(calculator)
 # {
 #     "type": "function",
 #     "function": {
 #         "name": "calculator",
 #         "description": "Do math",
-#         "parameters": {
-#             "type": "object",
-#             "properties": {
-#                 "operation": {
-#                     "type": "string",
-#                     "description": "Operation type"
-#                 },
-#                 "a": {
-#                     "type": "number",
-#                     "description": "First number"
-#                 },
-#                 "b": {
-#                     "type": "number",
-#                     "description": "Second number"
-#                 }
-#             },
-#             "required": ["operation", "a", "b"],
-#             "additionalProperties": False
-#         }
+#         "parameters": calculator.parameters  # ← Uses this property
 #     }
 # }
+```
+
+#### `format() -> str`
+
+Format the tool as a human-readable string for LLM prompts.
+
+**Returns:**
+
+- `str`: Human-readable description with name, description, and parameters
+
+**Example:**
+
+```python
+@tool(name="calculator", description="Perform arithmetic operations")
+def calculator(
+    operation: str = Field(description="Operation type"),
+    a: float = Field(description="First number"),
+) -> float:
+    return a * 2
+
+# Get human-readable format for module prompts
+description = calculator.format()
+# "calculator, whose description is <desc>Perform arithmetic operations</desc>. It takes arguments {<properties>}."
 ```
 
 ---
