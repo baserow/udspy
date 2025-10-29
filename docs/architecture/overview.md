@@ -73,10 +73,10 @@ udspy is organized into clear layers with well-defined responsibilities:
 └─────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────┐
-│                  LM Layer (Future)                       │
+│                  LM Layer (Provider Abstraction)         │
 │  - Abstract interface to LLM providers                   │
-│  - Currently: OpenAI via settings.aclient                │
-│  - Future: Anthropic, local models, etc.                 │
+│  - Currently: OpenAI via settings.lm                     │
+│  - Extensible: Anthropic, local models, etc.             │
 └─────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -450,32 +450,22 @@ class Pipeline(Module):
 
 ## LM Abstraction (Language Model Layer)
 
-### Current State
+### Overview
 
-Currently, udspy directly uses OpenAI's AsyncOpenAI client via `settings.aclient`:
+The LM (Language Model) abstraction provides a **provider-agnostic interface** for interacting with LLMs. This allows udspy to work with different providers (OpenAI, Anthropic, local models, etc.) through a common interface.
+
+**Location**: `src/udspy/lm/`
+
+**Key Files**:
+- `lm/base.py` - Abstract LM interface
+- `lm/openai.py` - OpenAI implementation
+- `lm/__init__.py` - Public API exports
+
+### Interface
 
 ```python
-# In Predict._aforward():
-response = await settings.aclient.chat.completions.create(
-    model=self.model or settings.default_model,
-    messages=messages,
-    tools=tools_openai if tools_openai else None,
-    stream=stream,
-    **merged_kwargs,
-)
-```
+from abc import ABC, abstractmethod
 
-**Problems**:
-- Tightly coupled to OpenAI
-- Can't use Anthropic, Gemini, local models
-- LLM logic mixed with module orchestration
-
-### Future Design: LM Abstraction
-
-**Goal**: Abstract LLM provider behind a common interface, similar to DSPy's `dspy.LM`.
-
-**Interface**:
-```python
 class LM(ABC):
     """Abstract language model interface."""
 
@@ -484,108 +474,224 @@ class LM(ABC):
         self,
         messages: list[dict[str, Any]],
         *,
+        model: str,
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
-    ) -> ChatCompletion | AsyncGenerator[ChatCompletionChunk, None]:
-        """Generate completion with optional tool calling.
+    ) -> Any | AsyncGenerator[Any, None]:
+        """Generate completion from the language model.
 
         Args:
             messages: List of messages in OpenAI format
-            tools: Optional list of tool schemas
-            stream: Whether to stream the response
+            model: Model identifier (e.g., "gpt-4o")
+            tools: Optional list of tool schemas in OpenAI format
+            stream: If True, return an async generator of chunks
             **kwargs: Provider-specific parameters
 
         Returns:
-            ChatCompletion or AsyncGenerator of chunks
+            If stream=False: Completion response object
+            If stream=True: AsyncGenerator yielding chunks
         """
-        pass
-
-    @abstractmethod
-    def format_tool_call(self, tool_call: Any) -> dict[str, Any]:
-        """Convert provider-specific tool call to standard format."""
-        pass
-
-    @abstractmethod
-    def format_tool_result(self, tool_call_id: str, result: str) -> dict[str, Any]:
-        """Format tool result for provider."""
         pass
 ```
 
-**Implementations**:
+**Design Decisions**:
+- Single method interface - simple and focused
+- OpenAI message format as standard (widely adopted)
+- Generic return types to support any provider
+- Provider implementations handle format conversion internally
+
+### OpenAI Implementation
+
 ```python
-class OpenAILM(LM):
-    """OpenAI implementation."""
+from openai import AsyncOpenAI
+from udspy.lm import OpenAILM
 
-    def __init__(self, client: AsyncOpenAI, model: str):
-        self.client = client
-        self.model = model
+# Create instance
+client = AsyncOpenAI(api_key="sk-...")
+lm = OpenAILM(client, default_model="gpt-4o")
 
-    async def acomplete(self, messages, *, tools=None, stream=False, **kwargs):
-        return await self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=tools,
-            stream=stream,
-            **kwargs,
-        )
+# Use directly
+response = await lm.acomplete(
+    messages=[{"role": "user", "content": "Hello"}],
+    temperature=0.7
+)
+```
 
-    def format_tool_call(self, tool_call):
-        return {
-            "id": tool_call.id,
-            "name": tool_call.function.name,
-            "arguments": tool_call.function.arguments,
-        }
+**Features**:
+- Wraps AsyncOpenAI client
+- Supports default model (optional, can override per call)
+- Passes through all OpenAI parameters
+- Handles both streaming and non-streaming
+
+### Settings Integration
+
+The LM abstraction integrates with udspy's settings system:
+
+```python
+import udspy
+
+# Configure with API key (creates OpenAILM automatically)
+udspy.settings.configure(api_key="sk-...", model="gpt-4o")
+
+# Access the LM
+lm = udspy.settings.lm  # Returns OpenAILM instance
+
+# Or provide custom LM
+from udspy.lm import OpenAILM
+custom_lm = OpenAILM(client, default_model="gpt-4o")
+udspy.settings.configure(lm=custom_lm)
+```
+
+**Backward Compatibility**: `settings.aclient` still works but is deprecated. Use `settings.lm` for new code.
+
+### Context Manager Support
+
+LM instances can be overridden per-context:
+
+```python
+# Global settings
+udspy.settings.configure(api_key="global-key", model="gpt-4o-mini")
+
+# Temporary override
+with udspy.settings.context(lm=custom_lm):
+    result = predictor(question="...")  # Uses custom_lm
+
+# Back to global LM
+result = predictor(question="...")  # Uses global LM
+```
+
+**Priority**:
+1. Explicit `lm` parameter (highest)
+2. `aclient` parameter (creates OpenAILM wrapper)
+3. `api_key` parameter (creates new client + LM)
+4. Global settings (fallback)
+
+### Usage in Predict Module
+
+The Predict module accesses LMs via `settings.lm`:
+
+```python
+# Non-streaming
+response = await settings.lm.acomplete(
+    messages=messages,
+    model=model or settings.default_model,
+    tools=tool_schemas,
+    stream=False,
+    **kwargs
+)
+
+# Streaming
+stream = await settings.lm.acomplete(
+    messages=messages,
+    model=model or settings.default_model,
+    tools=tool_schemas,
+    stream=True,
+    **kwargs
+)
+```
+
+This centralizes all LLM calls and makes provider swapping trivial.
+
+### Implementing Custom Providers
+
+To add a new provider, implement the `LM` interface:
+
+```python
+from udspy.lm import LM
 
 class AnthropicLM(LM):
-    """Anthropic implementation (future)."""
+    """Anthropic Claude implementation."""
 
-    def __init__(self, client: AsyncAnthropic, model: str):
-        self.client = client
-        self.model = model
+    def __init__(self, api_key: str, default_model: str | None = None):
+        from anthropic import AsyncAnthropic
+        self.client = AsyncAnthropic(api_key=api_key)
+        self.default_model = default_model
 
-    async def acomplete(self, messages, *, tools=None, stream=False, **kwargs):
-        # Convert OpenAI format → Anthropic format
+    async def acomplete(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> Any | AsyncGenerator[Any, None]:
+        actual_model = model or self.default_model
+        if not actual_model:
+            raise ValueError("No model specified")
+
+        # Convert OpenAI format to Anthropic format
         anthropic_messages = self._convert_messages(messages)
         anthropic_tools = self._convert_tools(tools) if tools else None
 
-        response = await self.client.messages.create(
-            model=self.model,
+        # Call Anthropic API
+        return await self.client.messages.create(
+            model=actual_model,
             messages=anthropic_messages,
             tools=anthropic_tools,
             stream=stream,
-            **kwargs,
+            **kwargs
         )
 
-        # Convert Anthropic response → OpenAI-like format
-        return self._convert_response(response)
+    def _convert_messages(self, messages):
+        """Convert OpenAI → Anthropic format."""
+        # Implementation details...
 ```
 
 **Usage**:
 ```python
-# In settings
-udspy.settings.configure(
-    lm=OpenAILM(AsyncOpenAI(api_key="..."), model="gpt-4o")
-)
+from my_providers import AnthropicLM
 
-# Or context-specific
-with udspy.settings.context(
-    lm=AnthropicLM(AsyncAnthropic(api_key="..."), model="claude-3-5-sonnet")
-):
-    result = predictor(question="...")
+lm = AnthropicLM(api_key="sk-ant-...", default_model="claude-3-5-sonnet")
+udspy.settings.configure(lm=lm)
+
+# All udspy features work with your custom provider!
 ```
 
-**Migration Path**:
-1. Create `src/udspy/lm/` package
-2. Define base `LM` class
-3. Implement `OpenAILM` wrapping current behavior
-4. Update `Predict` to use `settings.lm.acomplete()` instead of direct client
-5. Add other providers as needed
+### Message Format Standard
 
-**Responsibility Boundary**:
-- **LM Layer**: Provider API calls, format conversion, retries
-- **Adapter Layer**: Signature ↔ messages, output parsing
-- **Module Layer**: Business logic, tool loops, orchestration
+LM implementations should accept/return **OpenAI message format**:
+
+```python
+[
+    {"role": "system", "content": "You are helpful."},
+    {"role": "user", "content": "Hello!"},
+    {"role": "assistant", "content": "Hi!"},
+]
+```
+
+**Why OpenAI format?**
+- Industry standard
+- Simple and flexible
+- Easy to convert to other formats
+- Well-documented
+
+Custom providers convert internally.
+
+### Responsibility Boundary
+
+**LM Layer Owns**:
+- Making API calls to providers
+- Handling streaming vs non-streaming responses
+- Provider-specific parameter passing
+- Format conversion (provider ↔ OpenAI format)
+
+**LM Layer Does NOT Own**:
+- Prompt formatting (Adapter Layer)
+- Output parsing (Adapter Layer)
+- Tool execution (Module Layer)
+- Retry/error handling (Module Layer)
+- Orchestration logic (Module Layer)
+
+### Related Documentation
+
+See [LM Abstraction](lm.md) for comprehensive documentation including:
+- Detailed API reference
+- Custom provider implementation guide
+- Context manager examples
+- Type handling
+- Best practices
 
 ---
 
