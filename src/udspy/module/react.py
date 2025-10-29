@@ -7,7 +7,7 @@ import json
 import logging
 import secrets
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from pydantic import create_model
 
@@ -20,10 +20,7 @@ from udspy.module.predict import Predict
 from udspy.signature import Signature, make_signature
 from udspy.streaming import Prediction
 from udspy.tool import Tool, Tools
-from udspy.utils import format_tool_exception
-
-if TYPE_CHECKING:
-    from udspy.tool import Tool
+from udspy.utils.formatting import format_tool_exception
 
 logger = logging.getLogger(__name__)
 

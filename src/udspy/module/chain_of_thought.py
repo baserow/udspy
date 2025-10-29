@@ -1,6 +1,5 @@
 """Chain of Thought reasoning module."""
 
-from collections.abc import AsyncGenerator
 from typing import Any
 
 from udspy.adapter import ChatAdapter
@@ -8,7 +7,7 @@ from udspy.callback import with_callbacks
 from udspy.module.base import Module
 from udspy.module.predict import Predict
 from udspy.signature import Signature, make_signature
-from udspy.streaming import StreamEvent
+from udspy.streaming import Prediction
 from udspy.tool import Tool
 
 
@@ -94,12 +93,11 @@ class ChainOfThought(Module):
         )
 
     @with_callbacks
-    async def aexecute(
-        self, *, stream: bool = False, **inputs: Any
-    ) -> AsyncGenerator[StreamEvent, None]:
+    async def aexecute(self, *, stream: bool = False, **inputs: Any) -> Prediction:
         """Execute chain of thought prediction.
 
-        Delegates to the wrapped Predict module's aexecute method.
+        Delegates to the wrapped Predict module's aexecute method, which will
+        automatically emit streaming events if stream=True and a queue is active.
 
         Args:
             stream: If True, request streaming from LLM provider

@@ -7,7 +7,7 @@ from typing import Any
 from udspy.callback import with_callbacks
 from udspy.confirmation import ConfirmationRequired
 from udspy.streaming import Prediction, StreamEvent
-from udspy.utils import ensure_sync_context
+from udspy.utils.async_support import ensure_sync_context
 
 
 class Module:

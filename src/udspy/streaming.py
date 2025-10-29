@@ -4,10 +4,9 @@ import asyncio
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
-from udspy.tool import ToolCall
-
 if TYPE_CHECKING:
     from udspy import Module
+    from udspy.tool import ToolCall
 
 # Context variable for the current stream's event queue
 _stream_queue: ContextVar[asyncio.Queue[Any] | None] = ContextVar("_stream_queue", default=None)
@@ -111,7 +110,7 @@ class Prediction(StreamEvent, dict[str, Any]):
         ```
     """
 
-    def __init__(self, /, native_tool_calls: list[ToolCall] | None = None, **kwargs: Any) -> None:
+    def __init__(self, /, native_tool_calls: list["ToolCall"] | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.native_tool_calls = native_tool_calls
         # If any outputs are present, without native_tool_calls it's final

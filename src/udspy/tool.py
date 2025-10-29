@@ -7,7 +7,8 @@ from typing import Any, get_type_hints
 from pydantic import BaseModel, create_model
 
 from udspy.callback import with_callbacks
-from udspy.utils import execute_function_async, minimize_schema, resolve_json_schema_reference
+from udspy.utils.async_support import execute_function_async
+from udspy.utils.schema import minimize_schema, resolve_json_schema_reference
 
 
 class Tool(BaseModel):

@@ -9,7 +9,7 @@ from collections.abc import Callable
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
-from udspy.utils import execute_function_async
+from udspy.utils.async_support import execute_function_async
 
 if TYPE_CHECKING:
     from udspy.tool import ToolCall

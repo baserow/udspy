@@ -10,7 +10,7 @@ from pydantic import BaseModel, TypeAdapter
 from pydantic.fields import FieldInfo
 
 from udspy.signature import Signature
-from udspy.utils import minimize_schema, resolve_json_schema_reference
+from udspy.utils.schema import minimize_schema, resolve_json_schema_reference
 
 
 def format_value(value: Any) -> str:
