@@ -120,7 +120,7 @@ async for event in predictor.aexecute(
     stream=True,
     question="Explain quantum computing"
 ):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         print(event.delta, end="", flush=True)
     elif isinstance(event, Prediction):
         print(f"\n\nFinal: {event.answer}")
@@ -133,11 +133,11 @@ The streaming API yields:
 - `Prediction(**outputs)` - Final result with all fields
 
 ```python
-from udspy import StreamChunk, Prediction
+from udspy import OutputStreamChunk, Prediction
 
 async for event in predictor.aexecute(stream=True, **inputs):
     match event:
-        case StreamChunk(field=field, delta=delta):
+        case OutputStreamChunk(field=field, delta=delta):
             print(f"[{field}] {delta}", end="")
         case Prediction() as pred:
             print(f"\n\nComplete: {pred}")
@@ -214,6 +214,51 @@ print(result.answer)  # Access via attribute
 print(result["answer"])  # Access via dict key
 ```
 
+## Error Handling and Retry
+
+### Automatic Retry on Parse Errors
+
+`Predict` automatically retries when LLM responses fail to parse correctly. This handles common issues like:
+- Missing or malformed field markers
+- Invalid JSON in structured outputs
+- Format inconsistencies
+
+**Retry behavior**:
+- **Max attempts**: 3 (1 initial + 2 retries)
+- **Backoff strategy**: Exponential backoff (0.1s, 0.2s, up to 3s)
+- **Only retries**: `AdapterParseError` (not network errors or other exceptions)
+- **Applies to**: Both streaming and non-streaming execution
+
+```python
+# This will automatically retry if parse fails
+try:
+    result = predictor(question="...")
+except tenacity.RetryError as e:
+    # All 3 attempts failed
+    print(f"Failed after retries: {e}")
+```
+
+**Why automatic retry?**
+- LLM format errors are usually transient and succeed on retry
+- Reduces boilerplate error handling code
+- Improves reliability without user intervention
+
+See [ADR-007: Automatic Retry on Parse Errors](../decisions.md#adr-007-automatic-retry-on-parse-errors) for full details.
+
+### Error Types
+
+**AdapterParseError**: LLM response doesn't match expected format
+- Automatically retried up to 3 times
+- Check signature output fields match what LLM is generating
+
+**ValidationError**: Output doesn't match Pydantic field types
+- Not retried (indicates signature mismatch)
+- Adjust signature types or field descriptions
+
+**OpenAI API errors**: Network issues, rate limits, etc.
+- Not retried automatically (use your own retry logic for these)
+- Consider using exponential backoff for rate limits
+
 ## Design Rationale
 
 ### Why Not Auto-execute Tools by Default?
@@ -233,7 +278,7 @@ Unlike DSPy which uses custom adapters, udspy uses OpenAI's native function call
 3. **Reliability**: Well-tested and production-ready
 4. **Features**: Access to latest tool calling improvements
 
-See [ADR-001: Native Tool Calling](../decisions.md) (if available) for full rationale.
+See [ADR-001: Native Tool Calling](../decisions.md#adr-001-initial-project-setup) for full rationale.
 
 ## Common Patterns
 

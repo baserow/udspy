@@ -53,7 +53,7 @@ Modules support streaming through an async generator pattern:
 
 ```python
 async for event in module.aexecute(stream=True, question="Explain AI"):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         print(event.delta, end="", flush=True)
     elif isinstance(event, Prediction):
         print(f"\nFinal: {event.answer}")

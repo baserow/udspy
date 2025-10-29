@@ -17,7 +17,7 @@ async def main():
     predictor = StreamingPredict(QA)
 
     async for chunk in predictor.stream(question="What is AI?"):
-        if isinstance(chunk, StreamChunk):
+        if isinstance(chunk, OutputStreamChunk):
             print(chunk.delta, end="", flush=True)
 
 asyncio.run(main())
@@ -42,7 +42,7 @@ async def main():
     async for item in predictor.stream(
         question="What is the sum of first 10 primes?"
     ):
-        if isinstance(item, StreamChunk):
+        if isinstance(item, OutputStreamChunk):
             if item.field_name == "reasoning":
                 print(f"💭 {item.delta}", end="", flush=True)
             elif item.field_name == "answer":
@@ -72,7 +72,7 @@ async def ask_question(question: str):
     async def generate():
         predictor = StreamingPredict(QA)
         async for chunk in predictor.stream(question=question):
-            if isinstance(chunk, StreamChunk) and not chunk.is_complete:
+            if isinstance(chunk, OutputStreamChunk) and not chunk.is_complete:
                 # chunk.delta contains the new incremental text
                 # chunk.content contains the full accumulated text so far
                 yield f"data: {chunk.delta}\n\n"

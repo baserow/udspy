@@ -10,6 +10,7 @@ This document tracks major architectural decisions made in udspy, presented chro
 4. [Human-in-the-Loop with Confirmation System (2025-01-25)](#adr-004-human-in-the-loop-with-confirmation-system)
 5. [ReAct Agent Module (2025-01-25)](#adr-005-react-agent-module)
 6. [Unified Module Execution Pattern (aexecute) (2025-01-25)](#adr-006-unified-module-execution-pattern-aexecute)
+7. [Automatic Retry on Parse Errors (2025-01-29)](#adr-007-automatic-retry-on-parse-errors)
 
 ---
 
@@ -666,6 +667,149 @@ We chose `aexecute()` (without underscore prefix) because:
 - [CLAUDE.md](https://github.com/silvestrid/udspy/blob/main/CLAUDE.md) - Chronological architectural changes (development log)
 - [Architecture Overview](overview.md) - Component relationships
 - [Contributing Guide](https://github.com/silvestrid/udspy/blob/main/CONTRIBUTING.md) - How to propose new decisions
+
+---
+
+## ADR-007: Automatic Retry on Parse Errors
+
+**Date**: 2025-01-29
+
+**Status**: Accepted
+
+### Context
+
+LLMs occasionally generate responses that don't match the expected output format, causing `AdapterParseError` to be raised. This is especially common with:
+- Field markers being omitted or malformed
+- JSON parsing errors in structured outputs
+- Missing required output fields
+- Format inconsistencies
+
+These errors are usually transient - the LLM can often generate a valid response on retry. Without automatic retry, users had to implement retry logic themselves, leading to boilerplate code and inconsistent error handling.
+
+### Decision
+
+Implement automatic retry logic using the `tenacity` library on both `Predict._aforward()` and `Predict._astream()` methods:
+
+```python
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+@retry(
+    retry=retry_if_exception_type(AdapterParseError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=0.1, max=3),
+)
+async def _aforward(self, completion_kwargs: dict[str, Any], should_emit: bool) -> Prediction:
+    """Process non-streaming LLM call with automatic retry on parse errors.
+
+    Retries up to 2 times (3 total attempts) with exponential backoff (0.1-3s)
+    when AdapterParseError occurs, giving the LLM multiple chances to format
+    the response correctly.
+    """
+```
+
+**Key parameters**:
+- **Max attempts**: 3 (1 initial + 2 retries)
+- **Retry condition**: Only retry on `AdapterParseError` (not other exceptions)
+- **Wait strategy**: Exponential backoff starting at 0.1s, max 3s
+- **Applies to**: Both streaming (`_astream`) and non-streaming (`_aforward`) execution
+
+### Implementation Details
+
+1. **Decorator location**: Applied to internal `_aforward` and `_astream` methods (not public API methods)
+2. **Tenacity library**: Minimal dependency (~50KB) with excellent async support
+3. **Error propagation**: After 3 failed attempts, raises `tenacity.RetryError` wrapping the original `AdapterParseError`
+4. **Test isolation**: Tests use a `fast_retry` fixture in `conftest.py` that patches retry decorators to use `wait_none()` for instant retries
+
+### Consequences
+
+**Benefits**:
+- **Improved reliability**: Transient parse errors are automatically recovered
+- **Better user experience**: Users don't see spurious errors from LLM format issues
+- **Reduced boilerplate**: No need for users to implement retry logic
+- **Consistent behavior**: All modules get retry logic automatically
+- **Configurable backoff**: Exponential backoff prevents API hammering
+
+**Trade-offs**:
+- **Increased latency on errors**: Failed attempts add 0.1-3s delay per retry (max ~6s for 3 attempts)
+- **Hidden failures**: First 2 parse errors are not visible to users (but logged internally)
+- **Token usage**: Failed attempts consume tokens without producing results
+- **Test complexity**: Tests need to mock/patch retry behavior to avoid slow tests
+
+### Alternatives Considered
+
+**1. No automatic retry** (status quo before this ADR)
+- **Pros**: Simpler, explicit, no hidden behavior
+- **Cons**: Every user has to implement retry logic themselves
+- **Rejected**: Too much boilerplate, inconsistent handling
+
+**2. Configurable retry parameters** (e.g., `max_retries`, `backoff_multiplier`)
+- **Pros**: More flexible, users can tune for their needs
+- **Cons**: More complexity, more surface area for bugs
+- **Rejected**: Current defaults work well for 95% of cases, can be added later if needed
+
+**3. Retry at higher level** (e.g., in `aexecute` instead of `_aforward`/`_astream`)
+- **Pros**: Simpler implementation, single retry point
+- **Cons**: Would retry tool calls and other non-LLM logic unnecessarily
+- **Rejected**: Parse errors only occur in LLM response parsing, not tool execution
+
+**4. Use different retry library** (e.g., `backoff`, manual implementation)
+- **Pros**: Potentially smaller dependency
+- **Cons**: Tenacity is well-maintained, widely used, excellent async support
+- **Rejected**: Tenacity is the industry standard for Python retry logic
+
+### Testing Strategy
+
+To keep tests fast, a global `fast_retry` fixture is used in `tests/conftest.py`:
+
+```python
+@pytest.fixture(autouse=True)
+def fast_retry():
+    """Patch retry decorators to use no wait time for fast tests."""
+    fast_retry_decorator = retry(
+        retry=retry_if_exception_type(AdapterParseError),
+        stop=stop_after_attempt(3),
+        wait=wait_none(),  # No wait between retries
+    )
+
+    with patch("udspy.module.predict.Predict._aforward",
+               new=fast_retry_decorator(Predict._aforward.__wrapped__)):
+        with patch("udspy.module.predict.Predict._astream",
+                   new=fast_retry_decorator(Predict._astream.__wrapped__)):
+            yield
+```
+
+This ensures:
+- Tests run instantly (no exponential backoff wait times)
+- Retry logic is still exercised in tests
+- Production code uses proper backoff timings
+
+### Migration Guide
+
+**This is a non-breaking change** - no user code needs to be updated.
+
+Users who previously implemented their own retry logic can remove it:
+
+```python
+# Before (manual retry)
+for attempt in range(3):
+    try:
+        result = predictor(question="...")
+        break
+    except AdapterParseError:
+        if attempt == 2:
+            raise
+        time.sleep(0.1 * (2 ** attempt))
+
+# After (automatic retry)
+result = predictor(question="...")  # Retry is automatic
+```
+
+### Future Considerations
+
+1. **Make retry configurable**: Add `max_retries` parameter to `Predict.__init__()` if users need to tune it
+2. **Add retry callback**: Allow users to hook into retry events for logging/metrics
+3. **Smarter retry**: Analyze parse error type and adjust retry strategy (e.g., don't retry on schema validation errors that won't be fixed by retry)
+4. **Retry budget**: Add global retry limit to prevent excessive token usage from many retries
 
 ---
 

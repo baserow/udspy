@@ -150,7 +150,7 @@ async for event in agent.aexecute(
     stream=True,
     question="What is quantum computing?"
 ):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         if event.field == "reasoning":
             print(f"Thinking: {event.delta}", end="", flush=True)
     elif isinstance(event, Prediction):

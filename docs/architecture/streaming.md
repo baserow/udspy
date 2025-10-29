@@ -7,12 +7,12 @@ Streaming support allows incremental processing of LLM outputs, providing real-t
 All modules support streaming out of the box through the `astream()` method:
 
 ```python
-from udspy import Predict, StreamChunk, Prediction
+from udspy import Predict, OutputStreamChunk, Prediction
 
 predictor = Predict("question -> answer")
 
 async for event in predictor.astream(question="Explain AI"):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         print(event.delta, end="", flush=True)
     elif isinstance(event, Prediction):
         print(f"\n\nFinal result: {event.answer}")
@@ -22,12 +22,12 @@ async for event in predictor.astream(question="Explain AI"):
 
 The streaming API yields two types of events:
 
-### StreamChunk
+### OutputStreamChunk
 
 Incremental text updates for a specific field:
 
 ```python
-class StreamChunk(StreamEvent):
+class OutputStreamChunk(StreamEvent):
     module: Module          # Module that generated this chunk
     field_name: str        # Which output field (e.g., "answer")
     delta: str             # New text since last chunk
@@ -38,7 +38,7 @@ class StreamChunk(StreamEvent):
 Example:
 ```python
 async for event in predictor.astream(question="..."):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         print(f"[{event.field_name}] {event.delta}", end="", flush=True)
         if event.is_complete:
             print(f"\n--- {event.field_name} complete ---")
@@ -72,7 +72,7 @@ from udspy import ChainOfThought
 cot = ChainOfThought("question -> answer")
 
 async for event in cot.astream(question="What is 157 * 234?"):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         if event.field_name == "reasoning":
             print(f"💭 {event.delta}", end="", flush=True)
         elif event.field_name == "answer":
@@ -117,7 +117,7 @@ async def search(query: str = Field(...)) -> str:
 async for event in predictor.astream(question="..."):
     if isinstance(event, ToolProgress):
         print(f"[{event.tool_name}] {event.message} ({event.progress*100:.0f}%)")
-    elif isinstance(event, StreamChunk):
+    elif isinstance(event, OutputStreamChunk):
         print(event.delta, end="", flush=True)
 ```
 
@@ -140,7 +140,7 @@ Streams both reasoning and answer:
 ```python
 cot = ChainOfThought("question -> answer")
 async for event in cot.astream(question="..."):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         if event.field_name == "reasoning":
             # Reasoning streams first
             ...
@@ -158,7 +158,7 @@ from udspy import ReAct
 
 agent = ReAct("question -> answer", tools=[search])
 async for event in agent.astream(question="..."):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         if event.field_name == "reasoning":
             print(f"💭 {event.delta}", end="", flush=True)
     elif isinstance(event, Prediction):
@@ -213,7 +213,7 @@ result = await predictor.aforward(question="...")
 ```python
 async for event in module.astream(**inputs):
     match event:
-        case StreamChunk():
+        case OutputStreamChunk():
             # Handle streaming text
             print(event.delta, end="", flush=True)
         case Prediction():
@@ -225,7 +225,7 @@ async for event in module.astream(**inputs):
 
 ```python
 async for event in module.astream(**inputs):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         if event.field_name == "reasoning":
             # Different formatting for reasoning
             print(f"💭 {event.delta}", end="")
@@ -259,7 +259,7 @@ async def long_running_tool():
 accumulated = {}
 
 async for event in module.astream(**inputs):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         field = event.field_name
         if field not in accumulated:
             accumulated[field] = ""
@@ -289,7 +289,7 @@ Errors can occur mid-stream:
 ```python
 try:
     async for event in module.astream(**inputs):
-        if isinstance(event, StreamChunk):
+        if isinstance(event, OutputStreamChunk):
             print(event.delta, end="", flush=True)
 except Exception as e:
     print(f"\n\nError during streaming: {e}")

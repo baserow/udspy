@@ -52,7 +52,7 @@ All modules support streaming for real-time output:
 
 ```python
 async for event in module.aexecute(stream=True, **inputs):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         print(event.delta, end="", flush=True)
     elif isinstance(event, Prediction):
         print(f"\nFinal: {event}")
@@ -147,7 +147,7 @@ To create a custom module:
 4. Yield final `Prediction` at the end
 
 ```python
-from udspy import Module, Prediction, StreamChunk
+from udspy import Module, Prediction, OutputStreamChunk
 
 class CustomModule(Module):
     def __init__(self, signature):
@@ -165,7 +165,7 @@ class CustomModule(Module):
                 # Yield final prediction
                 yield Prediction(**final_result)
             else:
-                # Pass through other events (StreamChunks, etc.)
+                # Pass through other events (OutputStreamChunks, etc.)
                 yield event
 ```
 

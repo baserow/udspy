@@ -185,7 +185,7 @@ History works seamlessly with all async patterns:
 ```python
 # Async streaming
 async for event in predictor.astream(question="...", history=history):
-    if isinstance(event, StreamChunk):
+    if isinstance(event, OutputStreamChunk):
         print(event.delta, end="", flush=True)
 
 # Async non-streaming
