@@ -9,7 +9,7 @@ import asyncio
 from pydantic import Field
 
 from udspy import InputField, OutputField, ReAct, Signature, settings, tool
-from udspy.streaming import Prediction, StreamChunk
+from udspy.streaming import OutputStreamChunk, Prediction, ThoughtStreamChunk
 
 settings.configure(
     model="gpt-oss:120b-cloud",
@@ -23,8 +23,8 @@ def search(query: str = Field(description="The search query")) -> str:
     """Mock search tool - in a real application, this would call a search API."""
     search_results = {
         "python": "Python is a high-level, interpreted programming language known for its readability and versatility. Created by Guido van Rossum and first released in 1991.",
-        "weather paris": "Paris weather: Partly cloudy, 18°C (64°F), humidity 65%. Light rain expected tomorrow.",
-        "population tokyo": "Tokyo has a population of approximately 14 million people in the city proper, and about 37 million in the greater Tokyo area.",
+        "paris": "Paris weather: Partly cloudy, 18°C (64°F), humidity 65%. Light rain expected tomorrow.",
+        "tokyo": "Tokyo has a population of approximately 14 million people in the city proper, and about 37 million in the greater Tokyo area.",
     }
 
     query_lower = query.lower()
@@ -58,9 +58,20 @@ async def stream(agent: ReAct, question: str):
 
     current_field = None
     final_result = None
+    thought = None
 
     async for event in agent.astream(question=question):
-        if isinstance(event, StreamChunk):
+        if isinstance(event, ThoughtStreamChunk):
+            # Print thought process as it streams
+            if thought is None:
+                print("\n[THOUGHT PROCESS]")
+                thought = event
+            if event.delta and not event.is_complete:
+                print(f"{event.delta}", end="", flush=True)
+            elif event.is_complete:
+                print("[END OF THOUGHT PROCESS]\n\n")  # End of thought line
+
+        elif isinstance(event, OutputStreamChunk):
             # New field started
             if event.field_name != current_field:
                 if current_field is not None:
@@ -105,17 +116,6 @@ async def research_example_1():
     else:
         print("\n(Note: No final answer extracted)\n")
 
-    # Show trajectory summary
-    if "trajectory" in final_result:
-        trajectory = final_result.trajectory
-        num_steps = len([k for k in trajectory if k.startswith("reasoning_")])
-        print(f"Number of reasoning steps: {num_steps}")
-
-        # Show what tools were used
-        tools_used = [trajectory[k] for k in trajectory if k.startswith("tool_name_")]
-        if tools_used:
-            print(f"Tools used: {', '.join(tools_used)}")
-
 
 async def streaming_example_2():
     agent = ReAct(
@@ -125,7 +125,10 @@ async def streaming_example_2():
         max_iters=5,
     )
 
-    question = "Search for Tokyo population and calculate 37 million divided by 1000"
+    question = (
+        "Search for Tokyo population and calculate 37 million divided by 1000. "
+        "Once you have both pieces of information, return the results ordered."
+    )
 
     print(f"Question: {question}\n")
     print("Agent is thinking...\n")
@@ -136,7 +139,7 @@ async def streaming_example_2():
     print("\n=== Final Result ===")
 
     if hasattr(result, "answer") and result.answer:
-        print(f"✓ Answer: {result.answer}\n")
+        print(f"✓ Answer:\n{result.answer}\n")
     else:
         print("✓ Completed (no final answer extracted)\n")
 

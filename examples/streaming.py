@@ -24,12 +24,12 @@ class ReasonedQA(udspy.Signature):
 
 async def main():
     """Run streaming prediction example."""
-    predictor = udspy.StreamingPredict(ReasonedQA)
+    predictor = udspy.Predict(ReasonedQA)
 
     print("Question: What is the sum of the first 10 prime numbers?\n")
 
-    async for item in predictor.stream(question="What is the sum of the first 10 prime numbers?"):
-        if isinstance(item, udspy.StreamChunk):
+    async for item in predictor.astream(question="What is the sum of the first 10 prime numbers?"):
+        if isinstance(item, udspy.OutputStreamChunk):
             if not item.is_complete and item.content:
                 # Print only the new content (delta)
                 if item.delta:

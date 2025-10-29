@@ -2,10 +2,10 @@
 
 import json
 import os
-
-from pydantic import BaseModel, Field
+from typing import Literal
 
 import udspy
+from udspy import InputField, OutputField, Predict, Signature
 
 # Configure
 api_key = os.getenv("OPENAI_API_KEY")
@@ -15,17 +15,11 @@ if not api_key:
 udspy.settings.configure(api_key=api_key, model="gpt-4o-mini")
 
 
-# Step 1: Define tool schema (describes the tool to the LLM)
-class Calculator(BaseModel):
-    """Perform arithmetic operations."""
-
-    operation: str = Field(description="The operation: add, subtract, multiply, divide")
-    a: float = Field(description="First number")
-    b: float = Field(description="Second number")
-
-
-# Step 2: Implement the actual tool function
-def calculator(operation: str, a: float, b: float) -> float:
+# Step 1: Implement the actual tool function
+@udspy.tool(name="calculator", description="Perform basic arithmetic operations.")
+def calculator(
+    operation: Literal["add", "subtract", "multiply", "divide"], a: float, b: float
+) -> float:
     """Execute calculator operation."""
     ops = {
         "add": a + b,
@@ -36,7 +30,7 @@ def calculator(operation: str, a: float, b: float) -> float:
     return ops[operation]
 
 
-# Step 3: Use the OpenAI client directly to handle multi-turn conversation
+# Step 2: Use the OpenAI client directly to handle multi-turn conversation
 def ask_with_tools(question: str) -> str:
     """Ask a question with tool support.
 
@@ -46,7 +40,6 @@ def ask_with_tools(question: str) -> str:
     3. Second call: Send tool result back to LLM
     4. LLM provides final answer
     """
-    from udspy import InputField, OutputField, Predict, Signature
 
     class QA(Signature):
         """Answer questions."""
@@ -55,7 +48,7 @@ def ask_with_tools(question: str) -> str:
         answer: str = OutputField()
 
     # Create predictor with tools
-    predictor = Predict(QA, tools=[Calculator])
+    predictor = Predict(QA, tools=[calculator])
 
     # Build messages for multi-turn conversation
     messages = [
@@ -67,7 +60,7 @@ def ask_with_tools(question: str) -> str:
     ]
 
     client = udspy.settings.aclient
-    tool_schemas = predictor.adapter.format_tool_schemas(predictor.tools)
+    tool_schemas = predictor.adapter.format_tool_schemas(predictor.tools.values())
 
     import asyncio
 

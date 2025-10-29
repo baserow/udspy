@@ -27,7 +27,7 @@ def search(query: str = Field(description="The search query")) -> str:
     search_results = {
         "python": "Python is a high-level, interpreted programming language known for its readability and versatility.",
         "react": "React is a JavaScript library for building user interfaces, developed by Facebook.",
-        "weather tokyo": "Tokyo weather: Sunny, 22°C (72°F), humidity 60%",
+        "tokyo": "Tokyo weather: Sunny, 22°C (72°F), humidity 60%",
     }
 
     query_lower = query.lower()
@@ -87,9 +87,6 @@ async def basic_research_example():
     result = await agent.aforward(question=question)
 
     print(f"Answer: {result.answer}\n")
-    print(
-        f"Number of reasoning steps: {len([k for k in result.trajectory if k.startswith('reasoning_')])}\n"
-    )
 
 
 async def user_clarification_example():

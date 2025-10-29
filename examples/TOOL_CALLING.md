@@ -83,8 +83,8 @@ if "tool_calls" in result:
 
 See the example files:
 
-- **`tool_calling_simple.py`** - Clear, step-by-step example with annotations
-- **`tool_calling_example.py`** - Complete implementation with error handling
+- **`tool_calling_manual.py`** - Clear, step-by-step example with annotations
+- **`tool_calling_auto.py`** - Complete implementation with error handling
 
 ## Key Points
 

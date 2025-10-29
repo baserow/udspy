@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import Field
 
+import udspy
 from udspy import BaseCallback, InputField, OutputField, Predict, Signature, settings, tool
 
 settings.configure(
@@ -304,10 +305,12 @@ def example_per_instance_callbacks():
     debug_logger = LoggingCallback()
 
     # Production predictor: only performance monitoring
-    prod_predictor = Predict(QA, callbacks=[production_monitor])
+    with udspy.settings.context(callbacks=[production_monitor]):
+        prod_predictor = Predict(QA)
 
     # Debug predictor: verbose logging
-    debug_predictor = Predict(QA, callbacks=[debug_logger])
+    with udspy.settings.context(callbacks=[debug_logger]):
+        debug_predictor = Predict(QA)
 
     print("\n--- Production Predictor (Performance Monitoring Only) ---")
     result1 = prod_predictor(question="What is AI?")

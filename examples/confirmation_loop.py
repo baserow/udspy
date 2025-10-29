@@ -11,8 +11,6 @@ Run with: uv run python examples/confirmation_loop.py
 
 import asyncio
 
-from pydantic import Field
-
 from udspy import (
     ConfirmationRejected,
     ConfirmationRequired,
@@ -27,21 +25,21 @@ from udspy import (
 
 # Configure settings (use your preferred model)
 settings.configure(
-    model="gpt-4o-mini",
-    # base_url="http://localhost:11434/v1",  # For local models
+    model="gpt-oss:20b-cloud",
+    base_url="http://localhost:11434/v1",  # For local models
 )
 
 
 # Define tools with confirmation requirements
 @tool(name="delete_file", description="Delete a file", require_confirmation=True)
-def delete_file(path: str = Field(description="File path to delete")) -> str:
+def delete_file(path: str) -> str:
     """Delete a file - requires confirmation."""
     # In a real app, this would actually delete the file
     return f"File '{path}' has been deleted"
 
 
 @tool(name="search", description="Search for information")
-def search(query: str = Field(description="Search query")) -> str:
+def search(query: str) -> str:
     """Search tool - no confirmation needed."""
     # Mock search results
     results = {
@@ -215,7 +213,7 @@ async def example_with_helper():
         print(f"\n✓ Final result: {result.result}\n")
 
 
-async def example_sync_version():
+def example_sync_version():
     """Example 4: Sync version (no async/await)."""
     print("\n=== Example 4: Synchronous Version ===\n")
 
@@ -242,7 +240,6 @@ async def example_sync_version():
 
 
 async def main():
-    """Run all examples."""
     # Example 1: Basic loop
     await example_basic_loop()
 
@@ -252,11 +249,11 @@ async def main():
     # Example 3: Helper function
     await example_with_helper()
 
-    # Example 4: Sync version (run directly, not with await)
-    example_sync_version()
-
-    print("\n✓ All examples completed!")
-
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+    # Example 4: Sync version (run directly, without await)
+    example_sync_version()
+
+    print("\n✓ All examples completed!")
