@@ -59,7 +59,7 @@ def ask_with_tools(question: str) -> str:
         },
     ]
 
-    client = udspy.settings.aclient
+    client = udspy.settings.lm.client
     tool_schemas = predictor.adapter.format_tool_schemas(predictor.tools.values())
 
     import asyncio
