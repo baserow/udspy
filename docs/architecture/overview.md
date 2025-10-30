@@ -890,8 +890,11 @@ class History:
     def add_user_message(self, content: str)
     def add_assistant_message(self, content: str, tool_calls: list | None)
     def add_tool_result(self, tool_call_id: str, content: str)
-    def add_system_message(self, content: str)
+    def add_system_message(self, content: str)  # Appends to end
+    def set_system_message(self, content: str)  # Always at position 0 (recommended)
 ```
+
+**Note**: Use `set_system_message()` instead of `add_system_message()` to ensure the system prompt is always at position 0. When using Predict, the system prompt is automatically managed.
 
 ### Usage
 
@@ -913,28 +916,28 @@ result = predictor(question="What are its features?", history=history)
 
 ### How Predict Uses History
 
+Predict automatically manages the system prompt in history:
+
 ```python
 def _build_initial_messages(self, signature, inputs, history):
-    messages = []
+    # Always set system message at position 0 (replaces if exists)
+    history.set_system_message(
+        self.adapter.format_instructions(signature)
+    )
 
-    # Add history messages if provided
-    if history:
-        messages.extend(history.messages)
-    else:
-        # Add system message with instructions
-        messages.append({
-            "role": "system",
-            "content": self.adapter.format_instructions(signature)
-        })
-
-    # Add current input
-    messages.append({
-        "role": "user",
-        "content": self.adapter.format_inputs(signature, inputs)
-    })
-
-    return messages
+    # Add current user input
+    history.add_user_message(
+        self.adapter.format_inputs(signature, inputs)
+    )
 ```
+
+**Key behaviors**:
+1. **System prompt is always at position 0** - Managed automatically from signature
+2. **User message added at the end** - Current input appended to history
+3. **After generation** - Assistant response added to history
+4. **Tool calls recorded** - Tool interactions preserved in history
+
+This means you can pre-populate history with only user/assistant messages, and the system prompt will be automatically managed.
 
 ### When to Use
 
