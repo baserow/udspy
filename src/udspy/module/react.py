@@ -312,15 +312,14 @@ class ReAct(Module):
 
         # Handle malformed next_tool_calls (should be list, but may be string if JSON parsing failed)
         next_tool_calls = pred.get("next_tool_calls", [])
-        # Some smaller models create an object with "items" key instead of a list. Let's handle that too.
+        # Some smaller models create an object with an "items" key instead of an array
+        # of tool_calls. Let's handle that too.
         if isinstance(next_tool_calls, dict) and "items" in next_tool_calls:
             next_tool_calls = next_tool_calls["items"]
 
         if not isinstance(next_tool_calls, list):
-            logger.warning(
-                f"Malformed next_tool_calls (expected list, got {type(next_tool_calls).__name__}): {next_tool_calls}"
-            )
-            next_tool_calls = []
+            trajectory[f"observation_{idx}"] = f"Error: Malformed next_tool_calls (expected list, got {type(next_tool_calls).__name__})"
+            return False
 
         observations = []
         should_stop = False
