@@ -393,3 +393,336 @@ def test_react_init_module_updates_tool_call_model() -> None:
 
     # The Literal type should now include tool2
     # (This is implicit in the signature rebuild)
+
+
+@pytest.mark.asyncio
+async def test_chain_of_thought_with_module_callback() -> None:
+    """Test ChainOfThought executes module callbacks and adds tools dynamically."""
+    from conftest import make_mock_response
+    from openai.types.chat import ChatCompletion, ChatCompletionMessage
+    from openai.types.chat.chat_completion import Choice as CompletionChoice
+    from openai.types.chat.chat_completion_message_tool_call import (
+        ChatCompletionMessageToolCall,
+        Function,
+    )
+
+    from udspy import ChainOfThought
+
+    @tool(name="calculator", description="Perform calculations")
+    def calculator(expression: str = Field(...)) -> str:
+        return f"Result: {eval(expression, {'__builtins__': {}}, {})}"
+
+    @tool(name="load_calculator", description="Load calculator tool")
+    def load_calculator() -> callable:  # type: ignore[valid-syntax]
+        @module_callback
+        def callback(context):
+            current = list(context.module.tools.values())
+            context.module.init_module(tools=current + [calculator])
+            return "Calculator loaded"
+
+        return callback
+
+    response1 = ChatCompletion(
+        id="test",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=Function(name="load_calculator", arguments="{}"),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
+
+    response2 = make_mock_response('[[ ## reasoning ## ]]\nCalculator loaded\n[[ ## answer ## ]]\n4')
+
+    call_count = {"count": 0}
+
+    async def mock_create(**_kwargs):  # type: ignore[no-untyped-def]
+        call_count["count"] += 1
+        if call_count["count"] == 1:
+            return response1
+        return response2
+
+    settings.lm.client.chat.completions.create = mock_create
+
+    cot = ChainOfThought(QA, tools=[load_calculator])
+    assert "calculator" not in cot.predict.tools
+
+    await cot.aforward(question="Load calculator and calculate 2+2")
+
+    assert "calculator" in cot.predict.tools
+
+
+@pytest.mark.asyncio
+async def test_predict_uses_dynamically_loaded_tool() -> None:
+    """Test Predict actually uses a tool after loading it dynamically."""
+    from conftest import make_mock_response
+    from openai.types.chat import ChatCompletion, ChatCompletionMessage
+    from openai.types.chat.chat_completion import Choice as CompletionChoice
+    from openai.types.chat.chat_completion_message_tool_call import (
+        ChatCompletionMessageToolCall,
+        Function,
+    )
+
+    @tool(name="calculator", description="Perform calculations")
+    def calculator(expression: str = Field(...)) -> str:
+        return f"Result: {eval(expression, {'__builtins__': {}}, {})}"
+
+    @tool(name="load_calculator", description="Load calculator")
+    def load_calculator() -> callable:  # type: ignore[valid-syntax]
+        @module_callback
+        def callback(context):
+            current = list(context.module.tools.values())
+            context.module.init_module(tools=current + [calculator])
+            return "Calculator loaded successfully"
+
+        return callback
+
+    response1 = ChatCompletion(
+        id="test",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=Function(name="load_calculator", arguments="{}"),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
+
+    response2 = ChatCompletion(
+        id="test",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            CompletionChoice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_2",
+                            type="function",
+                            function=Function(name="calculator", arguments='{"expression": "157 * 834"}'),
+                        )
+                    ],
+                ),
+                finish_reason="tool_calls",
+            )
+        ],
+    )
+
+    response3 = make_mock_response("[[ ## answer ## ]]\n130938")
+
+    call_count = {"count": 0}
+
+    async def mock_create(**_kwargs):  # type: ignore[no-untyped-def]
+        call_count["count"] += 1
+        if call_count["count"] == 1:
+            return response1
+        elif call_count["count"] == 2:
+            return response2
+        return response3
+
+    settings.lm.client.chat.completions.create = mock_create
+
+    predictor = Predict(QA, tools=[load_calculator])
+    result = await predictor.aforward(question="What is 157 * 834?")
+
+    assert "calculator" in predictor.tools
+    assert "130938" in result.answer
+
+
+@pytest.mark.asyncio
+async def test_react_uses_dynamically_loaded_tool() -> None:
+    """Test ReAct actually uses a tool after loading it dynamically."""
+    from conftest import make_mock_response
+
+    @tool(name="calculator", description="Perform calculations")
+    def calculator(expression: str = Field(...)) -> str:
+        result = eval(expression, {"__builtins__": {}}, {})
+        return f"Result: {result}"
+
+    @tool(name="load_calculator", description="Load calculator tool")
+    def load_calculator() -> callable:  # type: ignore[valid-syntax]
+        @module_callback
+        def callback(context):
+            current = [
+                t for t in context.module.tools.values() if t.name not in ("finish", "ask_to_user")
+            ]
+            context.module.init_module(tools=current + [calculator])
+            return "Calculator loaded successfully"
+
+        return callback
+
+    responses = [
+        '[[ ## next_thought ## ]]\nI need to load the calculator\n[[ ## next_tool_calls ## ]]\n[{"name": "load_calculator", "args": {}}]',
+        '[[ ## next_thought ## ]]\nNow I can calculate\n[[ ## next_tool_calls ## ]]\n[{"name": "calculator", "args": {"expression": "25 * 4"}}]',
+        '[[ ## next_thought ## ]]\nI have the answer\n[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]',
+        "[[ ## reasoning ## ]]\nExtracting answer\n[[ ## answer ## ]]\n100",
+    ]
+
+    call_count = {"count": 0}
+
+    async def mock_create(**_kwargs):  # type: ignore[no-untyped-def]
+        response = make_mock_response(responses[call_count["count"]])
+        call_count["count"] += 1
+        return response
+
+    settings.lm.client.chat.completions.create = mock_create
+
+    agent = ReAct(QA, tools=[load_calculator], max_iters=3)
+    result = await agent.aforward(question="What is 25 * 4?")
+
+    assert "calculator" in agent.tools
+    assert "100" in result.answer
+
+
+@pytest.mark.asyncio
+async def test_multiple_dynamic_tool_loads() -> None:
+    """Test loading multiple tools dynamically in sequence."""
+    from conftest import make_mock_response
+
+    @tool(name="calculator", description="Perform calculations")
+    def calculator(expression: str = Field(...)) -> str:
+        return f"Result: {eval(expression, {'__builtins__': {}}, {})}"
+
+    @tool(name="formatter", description="Format numbers")
+    def formatter(number: str = Field(...)) -> str:
+        return f"Formatted: {number}"
+
+    @tool(name="load_calculator", description="Load calculator")
+    def load_calculator() -> callable:  # type: ignore[valid-syntax]
+        @module_callback
+        def callback(context):
+            current = [
+                t for t in context.module.tools.values()
+                if t.name not in ("finish", "ask_to_user")
+            ]
+            if calculator not in current:
+                context.module.init_module(tools=current + [calculator])
+            return "Calculator loaded"
+
+        return callback
+
+    @tool(name="load_formatter", description="Load formatter")
+    def load_formatter() -> callable:  # type: ignore[valid-syntax]
+        @module_callback
+        def callback(context):
+            current = [
+                t for t in context.module.tools.values()
+                if t.name not in ("finish", "ask_to_user")
+            ]
+            if formatter not in current:
+                context.module.init_module(tools=current + [formatter])
+            return "Formatter loaded"
+
+        return callback
+
+    responses = [
+        '[[ ## next_thought ## ]]\nLoad calculator\n[[ ## next_tool_calls ## ]]\n[{"name": "load_calculator", "args": {}}]',
+        '[[ ## next_thought ## ]]\nLoad formatter\n[[ ## next_tool_calls ## ]]\n[{"name": "load_formatter", "args": {}}]',
+        '[[ ## next_thought ## ]]\nUse tools\n[[ ## next_tool_calls ## ]]\n[{"name": "calculator", "args": {"expression": "10 + 5"}}]',
+        '[[ ## next_thought ## ]]\nFormat result\n[[ ## next_tool_calls ## ]]\n[{"name": "formatter", "args": {"number": "15"}}]',
+        '[[ ## next_thought ## ]]\nDone\n[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]',
+        "[[ ## reasoning ## ]]\nCompleted\n[[ ## answer ## ]]\nFormatted: 15",
+    ]
+
+    call_count = {"count": 0}
+
+    async def mock_create(**_kwargs):  # type: ignore[no-untyped-def]
+        response = make_mock_response(responses[call_count["count"]])
+        call_count["count"] += 1
+        return response
+
+    settings.lm.client.chat.completions.create = mock_create
+
+    agent = ReAct(QA, tools=[load_calculator, load_formatter], max_iters=5)
+
+    assert "calculator" not in agent.tools
+    assert "formatter" not in agent.tools
+
+    await agent.aforward(question="Calculate and format")
+
+    assert "calculator" in agent.tools
+    assert "formatter" in agent.tools
+
+
+@pytest.mark.asyncio
+async def test_callback_with_invalid_tool_name() -> None:
+    """Test that attempting to use an invalid tool name is handled gracefully."""
+    from conftest import make_mock_response
+
+    @tool(name="valid_tool", description="A valid tool")
+    def valid_tool() -> str:
+        return "Valid tool executed"
+
+    responses = [
+        '[[ ## next_thought ## ]]\nTry invalid tool\n[[ ## next_tool_calls ## ]]\n[{"name": "nonexistent_tool", "args": {}}]',
+        '[[ ## next_thought ## ]]\nHandle error\n[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]',
+        "[[ ## reasoning ## ]]\nError handled\n[[ ## answer ## ]]\nTool not found",
+    ]
+
+    call_count = {"count": 0}
+
+    async def mock_create(**_kwargs):  # type: ignore[no-untyped-def]
+        response = make_mock_response(responses[call_count["count"]])
+        call_count["count"] += 1
+        return response
+
+    settings.lm.client.chat.completions.create = mock_create
+
+    agent = ReAct(QA, tools=[valid_tool], max_iters=2)
+    result = await agent.aforward(question="Test invalid tool")
+
+    assert result is not None
+
+
+def test_callback_context_access() -> None:
+    """Test callback can access module state through context."""
+
+    @tool(name="inspector", description="Inspect module")
+    def inspector() -> callable:  # type: ignore[valid-syntax]
+        @module_callback
+        def callback(context):
+            tool_count = len(context.module.tools)
+            tool_names = list(context.module.tools.keys())
+            return f"Module has {tool_count} tools: {', '.join(tool_names)}"
+
+        return callback
+
+    predictor = Predict(QA, tools=[inspector])
+    context = PredictContext(module=predictor)
+
+    result = inspector()
+    observation = result(context)
+
+    assert "Module has" in observation
+    assert "inspector" in observation

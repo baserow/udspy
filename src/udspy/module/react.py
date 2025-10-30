@@ -392,13 +392,12 @@ class ReAct(Module):
             trajectory[f"tool_calls_{idx}"].append({"id": tool_call_id, **tool_call})
 
             logger.debug(f"Tool call - name: {tool_name}, args: {tool_args}, id: {tool_call_id}")
+            tool = None
             try:
                 tool = self.tools[tool_name]
                 result = await tool.acall(**tool_args)
 
-                # Check if result is a module callback
                 if is_module_callback(result):
-                    # Execute callback with context
                     context = ReactContext(module=self, trajectory=trajectory)
                     observation = result(context)
                 else:
@@ -406,7 +405,6 @@ class ReAct(Module):
 
                 observations.append(f"{tool_call_id}. {observation}")
             except ConfirmationRequired as e:
-                # FIXME
                 e.context = {
                     "trajectory": trajectory.copy(),
                     "iteration": idx,
@@ -419,8 +417,9 @@ class ReAct(Module):
                 parts = [
                     f"{tool_call_id}.",
                     f"Traceback '{tool_name}': {format_tool_exception(e)}.",
-                    f"Expected tool args schema: {tool.parameters}.",
                 ]
+                if tool is not None:
+                    parts.append(f"Expected tool args schema: {tool.parameters}.")
                 observations.append(" ".join(parts))
                 logger.warning(f"Tool execution failed: {e}")
 
