@@ -52,8 +52,7 @@ class ChainOfThought(Module):
             model: Model name (overrides global default)
             tools: List of Pydantic tool models
             adapter: Custom adapter
-            callbacks: Optional list of callback handlers for this module instance
-            **kwargs: Additional arguments for chat completion
+            **kwargs: Additional arguments for chat completion (including callbacks)
         """
 
         # Convert string signature to Signature class

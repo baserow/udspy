@@ -97,8 +97,7 @@ class Predict(Module):
             tools: List of tool functions (decorated with @tool) or Pydantic models
             max_turns: Maximum number of LLM calls for tool execution loop (default: 10)
             adapter: Custom adapter (defaults to ChatAdapter)
-            callbacks: Optional list of callback handlers for this module instance
-            **kwargs: Additional arguments for chat completion (temperature, etc.)
+            **kwargs: Additional arguments for chat completion (temperature, callbacks, etc.)
         """
 
         # Convert string signature to Signature class

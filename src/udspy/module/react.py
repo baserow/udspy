@@ -103,7 +103,6 @@ class ReAct(Module):
             tools: List of tool functions (decorated with @tool) or Tool objects
             max_iters: Maximum number of reasoning iterations (default: 10)
             enable_ask_to_user: Whether to enable ask_to_user tool (default: True)
-            callbacks: Optional list of callback handlers for this module instance
         """
         from udspy.tool import Tool
 

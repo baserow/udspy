@@ -15,7 +15,7 @@ This document defines the architecture, design principles, and responsibility bo
 7. [Tools](#tools)
 8. [History](#history)
 9. [Streaming](#streaming)
-10. [Confirmation & Suspend/Resume](#confirmation--suspendresume)
+10. [Confirmation & Suspend/Resume](#confirmation-suspendresume)
 11. [Callbacks](#callbacks)
 12. [How to Extend](#how-to-extend)
 13. [Design Patterns](#design-patterns)

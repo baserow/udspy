@@ -33,6 +33,7 @@ nav:
   - Architecture:
       - Overview: architecture/overview.md
       - Design Decisions: architecture/decisions.md
+      - LM Abstraction: architecture/lm.md
       - Signatures: architecture/signatures.md
       - Adapters: architecture/adapters.md
       - Modules:
