@@ -79,8 +79,9 @@ def _clean_model_name(model: str) -> str:
     Returns:
         Clean model name (e.g., "llama-3-70b")
     """
-    if "/" in model:
-        return model.split("/", 1)[1]
+    prefix, rest = model.split("/", 1)
+    if prefix in PROVIDER_REGISTRY:
+        return rest
     return model
 
 

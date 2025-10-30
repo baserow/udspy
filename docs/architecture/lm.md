@@ -1,63 +1,199 @@
 # Language Model (LM) Abstraction
 
-The LM abstraction layer provides a provider-agnostic interface for interacting with language models in udspy. This allows the library to work with different LLM providers (OpenAI, Anthropic, local models, etc.) through a common interface.
+The LM abstraction layer provides a unified interface for interacting with different language model providers in udspy. Through a single factory function and registry-based provider detection, you can seamlessly work with OpenAI, Groq, AWS Bedrock, Ollama, and custom providers.
 
 ## Overview
 
 The LM abstraction consists of:
 
-1. **`LM` base class** - Abstract interface defining the contract all providers must implement
-2. **`OpenAILM` implementation** - Concrete implementation for OpenAI's API
-3. **Settings integration** - Seamless integration with udspy's configuration system
-4. **Context support** - Per-context provider selection for multi-tenant applications
+1. **`LM()` factory function** - Creates provider-specific LM instances with auto-detection
+2. **Provider registry** - Maps provider names to configuration (base URLs, etc.)
+3. **`BaseLM` abstract class** - Interface all providers must implement
+4. **`OpenAILM` implementation** - Works with all OpenAI-compatible APIs
+5. **Settings integration** - Seamless configuration and context management
 
-## Core Concepts
+## Quick Start
 
-### LM Base Class
+### Basic Usage
 
-The `LM` abstract base class defines a single method that all providers must implement:
+```python
+import udspy
+from udspy import LM
+
+# Configure with environment variables
+udspy.settings.configure(model="gpt-4o-mini", api_key="sk-...")
+
+# Or use explicit LM instance
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
+udspy.settings.configure(lm=lm)
+```
+
+### Multiple Providers
+
+```python
+# OpenAI (default)
+lm = LM(model="gpt-4o", api_key="sk-...")
+
+# Groq (via model prefix)
+lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
+
+# Ollama (local, no API key needed)
+lm = LM(model="ollama/llama2")
+
+# Custom endpoint (explicit base_url)
+lm = LM(
+    model="llama-3-70b",
+    api_key="...",
+    base_url="https://api.groq.com/openai/v1"
+)
+```
+
+## LM Factory Function
+
+The `LM()` factory function provides a litellm-style interface for creating language model instances:
+
+```python
+from udspy import LM
+
+lm = LM(
+    model: str,                    # Required: model identifier
+    api_key: str | None = None,    # Optional: API key (not needed for Ollama)
+    base_url: str | None = None,   # Optional: custom endpoint
+    **kwargs                       # Optional: client configuration
+) -> BaseLM
+```
+
+### Provider Detection
+
+The factory auto-detects the provider from:
+
+1. **Model prefix**: `"groq/llama-3-70b"` → Groq provider
+2. **Base URL keywords**: `"https://api.groq.com"` → Groq provider
+3. **Fallback**: OpenAI provider
+
+### Supported Providers
+
+| Provider | Prefix | Default Base URL | API Key Required |
+|----------|--------|-----------------|-----------------|
+| OpenAI | None (default) | (OpenAI default) | Yes |
+| Groq | `groq/` | `https://api.groq.com/openai/v1` | Yes |
+| AWS Bedrock | `bedrock/` | (region-specific) | Yes |
+| Ollama | `ollama/` | `http://localhost:11434/v1` | No |
+
+### Provider Examples
+
+```python
+from udspy import LM
+
+# OpenAI
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
+
+# Groq with prefix
+lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
+
+# Groq with explicit base_url
+lm = LM(
+    model="llama-3-70b",
+    api_key="gsk-...",
+    base_url="https://api.groq.com/openai/v1"
+)
+
+# Ollama (local)
+lm = LM(model="ollama/llama2")  # No API key needed
+
+# Ollama with explicit base_url
+lm = LM(model="llama2", base_url="http://localhost:11434/v1")
+
+# AWS Bedrock
+lm = LM(
+    model="bedrock/anthropic.claude-3",
+    api_key="...",
+    base_url="https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1"
+)
+```
+
+## Provider Registry
+
+The provider registry maps provider names to default configuration:
+
+```python
+PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
+    "openai": {
+        "default_base_url": None,  # Uses OpenAI's default
+    },
+    "groq": {
+        "default_base_url": "https://api.groq.com/openai/v1",
+    },
+    "bedrock": {
+        "default_base_url": None,  # Region-specific, must be provided
+    },
+    "ollama": {
+        "default_base_url": "http://localhost:11434/v1",
+    },
+}
+```
+
+### Adding Custom Providers
+
+To add a new provider to the registry:
+
+```python
+from udspy.lm.factory import PROVIDER_REGISTRY
+
+# Add your custom provider
+PROVIDER_REGISTRY["myapi"] = {
+    "default_base_url": "https://api.myservice.com/v1",
+}
+
+# Now you can use it with model prefix
+from udspy import LM
+lm = LM(model="myapi/my-model", api_key="...")
+```
+
+## BaseLM Abstract Class
+
+All LM implementations must implement the `BaseLM` interface:
 
 ```python
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator
+from typing import Any
 
-class LM(ABC):
+class BaseLM(ABC):
     @abstractmethod
     async def acomplete(
         self,
         messages: list[dict[str, Any]],
         *,
-        model: str,
+        model: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
-    ) -> Any | AsyncGenerator[Any, None]:
+    ) -> Any:
         """Generate a completion from the language model."""
         pass
 ```
 
 **Parameters:**
-- `messages`: List of messages in OpenAI format: `[{"role": "user", "content": "..."}]`
-- `model`: Model identifier (e.g., "gpt-4o", "claude-3-5-sonnet")
+- `messages`: List of messages in OpenAI format
+- `model`: Optional model override (uses default if not provided)
 - `tools`: Optional tool schemas in OpenAI format
-- `stream`: If True, return an async generator of chunks
-- `**kwargs`: Provider-specific parameters (temperature, max_tokens, etc.)
+- `stream`: If True, return streaming response
+- `**kwargs`: Provider-specific parameters (temperature, etc.)
 
-**Returns:**
-- If `stream=False`: Completion response object
-- If `stream=True`: AsyncGenerator yielding completion chunks
+## OpenAILM Implementation
 
-### OpenAI Implementation
-
-`OpenAILM` wraps the AsyncOpenAI client to provide the LM interface:
+`OpenAILM` provides the implementation for all OpenAI-compatible APIs:
 
 ```python
 from openai import AsyncOpenAI
 from udspy.lm import OpenAILM
 
-# Create OpenAI LM with default model
+# Create directly
 client = AsyncOpenAI(api_key="sk-...")
 lm = OpenAILM(client, default_model="gpt-4o")
+
+# Access the model
+print(lm.model)  # "gpt-4o"
 
 # Use directly
 response = await lm.acomplete(
@@ -68,110 +204,133 @@ response = await lm.acomplete(
 
 **Key features:**
 - Wraps AsyncOpenAI client
-- Supports default model (can be overridden per call)
+- Supports default model (optional override per call)
 - Passes through all OpenAI parameters
-- Handles both streaming and non-streaming responses
+- Handles both streaming and non-streaming
+- Works with any OpenAI-compatible API
 
 ## Settings Integration
 
-The LM abstraction is tightly integrated with udspy's settings system:
+The LM abstraction is deeply integrated with udspy's settings system.
 
-### Configuration
-
-Configure the LM in three ways:
+### Configuration Methods
 
 ```python
 import udspy
-from openai import AsyncOpenAI
-from udspy.lm import OpenAILM
+from udspy import LM
 
-# 1. Simple: API key (creates OpenAILM automatically)
-udspy.settings.configure(api_key="sk-...", model="gpt-4o")
+# Method 1: Auto-create from parameters
+udspy.settings.configure(model="gpt-4o", api_key="sk-...")
 
-# 2. With custom client (creates OpenAILM automatically)
-client = AsyncOpenAI(api_key="sk-...", timeout=30.0)
-udspy.settings.configure(aclient=client, model="gpt-4o")
+# Method 2: Auto-create from environment variables
+# Set: UDSPY_LM_MODEL=gpt-4o, UDSPY_LM_API_KEY=sk-...
+udspy.settings.configure()
 
-# 3. With custom LM instance (full control)
-lm = OpenAILM(client, default_model="gpt-4o")
+# Method 3: Provide custom LM instance
+lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
 udspy.settings.configure(lm=lm)
+
+# Method 4: With callbacks and kwargs
+udspy.settings.configure(
+    model="gpt-4o",
+    api_key="sk-...",
+    callbacks=[MyCallback()],
+    temperature=0.7
+)
 ```
 
 ### Accessing the LM
-
-Access the configured LM via `settings.lm`:
 
 ```python
 # Get the configured LM
 lm = udspy.settings.lm
 
-# Use in your code
+# Access the underlying client
+client = udspy.settings.lm.client
+
+# Get the model
+model = udspy.settings.lm.model
+
+# Use directly
 response = await lm.acomplete(
-    messages=[{"role": "user", "content": "Hello"}],
-    model="gpt-4o",  # Optional: override default
-    temperature=0.7
+    messages=[{"role": "user", "content": "Hello"}]
 )
 ```
 
-**Note:** `settings.aclient` still works for backward compatibility but is deprecated. Use `settings.lm` instead.
-
 ## Context Manager Support
 
-The LM abstraction supports context-specific overrides, useful for multi-tenant applications:
+Use context managers for per-request LM overrides:
 
 ```python
 import udspy
-from udspy.lm import OpenAILM
-from openai import AsyncOpenAI
+from udspy import LM
 
 # Global settings
-udspy.settings.configure(api_key="global-key", model="gpt-4o-mini")
+udspy.settings.configure(model="gpt-4o-mini", api_key="global-key")
+
+# Temporary override with different model
+with udspy.settings.context(model="gpt-4", api_key="global-key"):
+    result = predictor(question="...")  # Uses gpt-4
 
 # Temporary override with custom LM
-custom_client = AsyncOpenAI(api_key="tenant-key")
-custom_lm = OpenAILM(custom_client, default_model="gpt-4o")
+groq_lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
+with udspy.settings.context(lm=groq_lm):
+    result = predictor(question="...")  # Uses Groq
 
-with udspy.settings.context(lm=custom_lm):
-    # Uses custom_lm
-    result = predictor(question="...")
-
-# Back to global LM
-result = predictor(question="...")  # Uses global LM
+# Back to global settings
+result = predictor(question="...")  # Uses gpt-4o-mini
 ```
 
-### Context Priority
+### Multi-Tenant Applications
 
-When using the context manager:
-
-1. **Explicit `lm` parameter** - Highest priority
-2. **`aclient` parameter** - Creates OpenAILM wrapper
-3. **`api_key` parameter** - Creates new client and OpenAILM wrapper
-4. **Global settings** - Fallback
+Perfect for serving different users with different API keys:
 
 ```python
-# Priority example
-with udspy.settings.context(
-    lm=custom_lm,        # This takes priority
-    aclient=other_client  # Ignored because lm is provided
-):
-    pass
+async def handle_user_request(user):
+    # Each user can have their own LM configuration
+    user_lm = LM(model=user.preferred_model, api_key=user.api_key)
+
+    with udspy.settings.context(lm=user_lm):
+        result = predictor(question=user.question)
+        return result
 ```
 
 ## Implementing Custom Providers
 
-To add support for a new LLM provider, implement the `LM` interface:
+### Option 1: Use Existing Registry
+
+If your provider has an OpenAI-compatible API:
 
 ```python
-from typing import Any, AsyncGenerator
-from udspy.lm import LM
+from udspy import LM
 
-class AnthropicLM(LM):
+# Just provide the base_url
+lm = LM(
+    model="my-model",
+    api_key="...",
+    base_url="https://api.myprovider.com/v1"
+)
+```
+
+### Option 2: Extend BaseLM
+
+For providers that need format conversion:
+
+```python
+from typing import Any
+from udspy.lm import BaseLM
+
+class AnthropicLM(BaseLM):
     """Anthropic Claude implementation."""
 
     def __init__(self, api_key: str, default_model: str | None = None):
         from anthropic import AsyncAnthropic
         self.client = AsyncAnthropic(api_key=api_key)
-        self.default_model = default_model
+        self._default_model = default_model
+
+    @property
+    def model(self) -> str | None:
+        return self._default_model
 
     async def acomplete(
         self,
@@ -181,16 +340,14 @@ class AnthropicLM(LM):
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
-    ) -> Any | AsyncGenerator[Any, None]:
+    ) -> Any:
         """Generate completion using Anthropic API."""
-        actual_model = model or self.default_model
+        actual_model = model or self._default_model
         if not actual_model:
             raise ValueError("No model specified")
 
         # Convert OpenAI format to Anthropic format
         anthropic_messages = self._convert_messages(messages)
-
-        # Convert OpenAI tools to Anthropic tools if needed
         anthropic_tools = self._convert_tools(tools) if tools else None
 
         # Call Anthropic API
@@ -204,18 +361,18 @@ class AnthropicLM(LM):
 
         return response
 
-    def _convert_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Convert OpenAI message format to Anthropic format."""
-        # Implementation details...
+    def _convert_messages(self, messages):
+        """Convert OpenAI format to Anthropic format."""
+        # Implementation...
         pass
 
-    def _convert_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Convert OpenAI tool format to Anthropic format."""
-        # Implementation details...
+    def _convert_tools(self, tools):
+        """Convert OpenAI tools to Anthropic tools."""
+        # Implementation...
         pass
 ```
 
-### Use Your Custom Provider
+### Use Custom Provider
 
 ```python
 import udspy
@@ -259,146 +416,62 @@ The LM abstraction uses **OpenAI's message format** as the standard:
 
 **Custom providers** should convert to/from OpenAI format internally.
 
-## Tool Format Standard
-
-Tools use OpenAI's function calling schema:
-
-```python
-[
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get the weather for a location",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "City name"
-                    }
-                },
-                "required": ["location"]
-            }
-        }
-    }
-]
-```
-
-Custom providers should convert tool schemas to their native format.
-
-## Error Handling
-
-LM implementations should handle provider-specific errors and optionally convert them to common exceptions:
-
-```python
-from openai import APIError, RateLimitError
-
-class OpenAILM(LM):
-    async def acomplete(self, ...):
-        try:
-            response = await self.client.chat.completions.create(...)
-            return response
-        except RateLimitError as e:
-            # Could convert to common LMRateLimitError
-            raise
-        except APIError as e:
-            # Could convert to common LMError
-            raise
-```
-
-**Note:** Currently, udspy doesn't define common error classes, so providers can raise their native exceptions.
-
-## Type Handling
-
-The LM abstraction uses union return types to support both streaming and non-streaming:
-
-```python
-async def acomplete(...) -> Any | AsyncGenerator[Any, None]:
-    pass
-```
-
-In Predict module, this is handled with type: ignore comments where mypy can't narrow the type:
-
-```python
-response = await settings.lm.acomplete(**kwargs)  # Could be streaming or not
-message = response.choices[0].message  # type: ignore[union-attr]
-```
-
-This is acceptable because:
-1. The `stream` parameter determines the actual type
-2. Runtime errors are unlikely (tests verify correctness)
-3. Alternative (overloads) doesn't work well with abstract base classes
-
 ## Best Practices
 
 ### For Users
 
-1. **Use `settings.lm`** instead of `settings.aclient` for new code
-2. **Prefer `configure(lm=...)`** for custom providers
-3. **Use context manager** for multi-tenant scenarios
-4. **Always specify a default model** to avoid runtime errors
+1. **Use model prefixes** for clarity: `"groq/llama-3-70b"` instead of manual base_url
+2. **Store API keys in environment variables** - never hardcode
+3. **Use context managers** for multi-tenant scenarios
+4. **Always specify a model** to avoid runtime errors
+5. **Prefer `settings.lm.client`** over deprecated `settings.aclient`
 
 ### For Provider Implementers
 
 1. **Convert to/from OpenAI format** in your implementation
-2. **Handle streaming properly** - return AsyncGenerator when `stream=True`
+2. **Handle streaming properly** - return appropriate type when `stream=True`
 3. **Validate required parameters** - raise clear errors for missing config
 4. **Document provider-specific kwargs** - help users understand options
 5. **Test thoroughly** - ensure compatibility with udspy modules
+6. **Implement `model` property** - return the default model
+
+## Environment Variables
+
+udspy recognizes these environment variables:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `UDSPY_LM_MODEL` | Default model | `gpt-4o-mini` |
+| `UDSPY_LM_API_KEY` | API key | `sk-...` |
+| `UDSPY_LM_BASE_URL` | Custom base URL | `https://api.groq.com/openai/v1` |
+| `OPENAI_API_KEY` | Fallback API key | `sk-...` |
+
+```python
+# Set environment variables
+export UDSPY_LM_MODEL="groq/llama-3-70b"
+export UDSPY_LM_API_KEY="gsk-..."
+
+# Configure from environment
+import udspy
+udspy.settings.configure()  # Uses environment variables
+```
 
 ## Comparison with DSPy
 
 | Aspect | udspy | DSPy |
 |--------|-------|------|
-| **Interface** | `LM.acomplete()` | `LM.__call__()` |
+| **Factory** | `LM()` with auto-detection | Manual provider selection |
+| **Interface** | `BaseLM.acomplete()` | `LM.__call__()` |
 | **Async** | Async-first | Sync-first with async support |
 | **Message format** | OpenAI standard | LM-specific adapters |
-| **Settings** | Integrated with settings | Separate configuration |
-| **Context support** | Built-in via `settings.context()` | Manual per-call |
+| **Settings** | Integrated | Separate configuration |
+| **Context support** | Built-in `settings.context()` | Manual per-call |
 | **Streaming** | Single method, `stream` param | Separate methods |
-
-## Internal Usage
-
-Within udspy, the LM is accessed via settings in the Predict module:
-
-```python
-# In Predict.aexecute() - non-streaming
-response = await settings.lm.acomplete(
-    messages=messages,
-    model=model or settings.default_model,
-    tools=tool_schemas,
-    stream=False,
-    **kwargs
-)
-
-# In Predict._aexecute_stream() - streaming
-stream = await settings.lm.acomplete(
-    messages=messages,
-    model=model or settings.default_model,
-    tools=tool_schemas,
-    stream=True,
-    **kwargs
-)
-```
-
-This keeps all LLM calls centralized and makes it easy to swap providers.
-
-## Future Enhancements
-
-Possible future improvements:
-
-1. **Common error classes** - `LMError`, `LMRateLimitError`, etc.
-2. **Response normalization** - Standard response format across providers
-3. **Built-in retry logic** - Automatic retries with exponential backoff
-4. **Token counting** - Provider-agnostic token usage tracking
-5. **Caching layer** - Optional caching for repeated calls
-6. **Provider registry** - `settings.configure(provider="anthropic", ...)`
-7. **Local model support** - Ollama, LM Studio, vLLM integration
+| **Providers** | Registry-based | Class per provider |
 
 ## Related Documentation
 
 - [Settings and Configuration](../examples/context_settings.md)
 - [Modules Architecture](modules.md)
 - [Predict Module](modules/predict.md)
-- [Adapters](adapters.md)
+- [Other Providers Example](../examples/basic_usage.md)
