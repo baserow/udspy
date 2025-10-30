@@ -74,7 +74,7 @@ async def test_predict_astream() -> None:
 
         return mock_stream()
 
-    mock_async_client = settings.aclient
+    mock_async_client = settings.lm.client
     mock_async_client.chat.completions.create = mock_create
 
     predictor = Predict(QA)
@@ -97,7 +97,7 @@ async def test_predict_aforward() -> None:
 
     from udspy import settings
 
-    mock_async_client = settings.aclient
+    mock_async_client = settings.lm.client
     mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
     mock_async_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
@@ -113,7 +113,7 @@ def test_predict_forward_sync() -> None:
 
     from udspy import settings
 
-    mock_async_client = settings.aclient
+    mock_async_client = settings.lm.client
     mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
     mock_async_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
@@ -178,7 +178,7 @@ async def test_emit_event() -> None:
 
         return mock_stream()
 
-    mock_async_client = settings.aclient
+    mock_async_client = settings.lm.client
     mock_async_client.chat.completions.create = mock_create
 
     predictor = Predict(QA)

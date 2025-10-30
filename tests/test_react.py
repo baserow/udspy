@@ -69,7 +69,7 @@ async def test_react_basic_execution() -> None:
         else:
             return extract_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     # Create ReAct with search tool
@@ -107,7 +107,7 @@ async def test_react_string_signature() -> None:
         else:
             return extract_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     # Create ReAct with string signature
@@ -128,7 +128,7 @@ async def test_react_tool_confirmation() -> None:
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
         return react_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     react = ReAct(QA, tools=[delete_file_tool], enable_ask_to_user=False)
@@ -169,7 +169,7 @@ def test_react_forward_sync() -> None:
         else:
             return extract_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     react = ReAct(QA, tools=[], enable_ask_to_user=False)
@@ -244,7 +244,7 @@ async def test_tool_execution_after_confirmation() -> None:
             # Extract call
             return extract_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     agent = ReAct(QA, tools=[tracked_tool], enable_ask_to_user=False)
@@ -316,7 +316,7 @@ async def test_user_feedback_triggers_re_reasoning() -> None:
         else:
             return extract_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     agent = ReAct(QA, tools=[search_tool], enable_ask_to_user=True)
@@ -366,7 +366,7 @@ async def test_react_with_string_signature() -> None:
             return finish_response
         return extract_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     # Test string signature: "input1, input2 -> output1, output2"
@@ -409,7 +409,7 @@ async def test_react_resume_with_pending_tool_call() -> None:
             return response2
         return extract_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     agent = ReAct(QA, tools=[delete_file_tool], max_iters=5)
@@ -468,7 +468,7 @@ async def test_react_resume_pending_tool_call_with_exception() -> None:
             return response2
         return extract_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     agent = ReAct(QA, tools=[failing_tool], max_iters=5)

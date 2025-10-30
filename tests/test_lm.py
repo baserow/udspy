@@ -9,7 +9,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
 from udspy import settings
-from udspy.lm import LM, OpenAILM
+from udspy.lm import BaseLM, LM, OpenAILM
 
 
 class TestOpenAILM:
@@ -162,17 +162,6 @@ class TestSettingsLMIntegration:
 
         assert settings.lm == custom_lm
 
-    def test_configure_with_aclient_creates_openai_lm(self) -> None:
-        """Test that providing aclient creates OpenAILM wrapper."""
-        custom_aclient = AsyncOpenAI(api_key="sk-custom")
-
-        settings.configure(aclient=custom_aclient, model="gpt-4o")
-
-        lm = settings.lm
-        assert isinstance(lm, OpenAILM)
-        assert lm.client == custom_aclient
-        assert lm.default_model == "gpt-4o"
-
     def test_lm_not_configured_raises_error(self) -> None:
         """Test that accessing lm before configuration raises error."""
         # Reset settings
@@ -183,14 +172,14 @@ class TestSettingsLMIntegration:
             _ = settings.lm
 
         # Restore settings
-        settings.configure(api_key="sk-test")
+        settings.configure(api_key="sk-test", model="gpt-4o-mini")
 
     def test_backward_compatibility_aclient_still_works(self) -> None:
-        """Test that settings.aclient still works (backward compatibility)."""
-        settings.configure(api_key="sk-test")
+        """Test that settings.lm.client still works (backward compatibility)."""
+        settings.configure(api_key="sk-test", model="gpt-4o-mini")
 
         # Should not raise
-        aclient = settings.aclient
+        aclient = settings.lm.client
         assert isinstance(aclient, AsyncOpenAI)
 
 
@@ -212,22 +201,6 @@ class TestLMContextManager:
         # Back to global LM
         assert settings.lm == global_lm
 
-    def test_context_with_aclient_creates_lm(self) -> None:
-        """Test that context with aclient creates OpenAILM."""
-        settings.configure(api_key="sk-global")
-        global_lm = settings.lm
-
-        custom_aclient = AsyncOpenAI(api_key="sk-context")
-
-        with settings.context(aclient=custom_aclient, model="gpt-4o"):
-            context_lm = settings.lm
-            assert isinstance(context_lm, OpenAILM)
-            assert context_lm != global_lm
-            assert context_lm.client == custom_aclient
-
-        # Back to global LM
-        assert settings.lm == global_lm
-
     def test_context_with_api_key_creates_lm(self) -> None:
         """Test that context with api_key creates new client and LM."""
         settings.configure(api_key="sk-global", model="gpt-4o-mini")
@@ -241,22 +214,9 @@ class TestLMContextManager:
         # Back to global LM
         assert settings.lm == global_lm
 
-    def test_context_lm_priority_over_aclient(self) -> None:
-        """Test that lm parameter takes priority over aclient."""
-        settings.configure(api_key="sk-global")
-
-        mock_client = AsyncMock(spec=AsyncOpenAI)
-        custom_lm = OpenAILM(client=mock_client, default_model="gpt-4o")
-
-        other_client = AsyncOpenAI(api_key="sk-other")
-
-        with settings.context(lm=custom_lm, aclient=other_client):
-            # Should use lm, not create one from aclient
-            assert settings.lm == custom_lm
-
     def test_nested_lm_contexts(self) -> None:
         """Test nested context managers with different LMs."""
-        settings.configure(api_key="sk-global")
+        settings.configure(api_key="sk-global", model="gpt-4o-mini")
         global_lm = settings.lm
 
         mock_client1 = AsyncMock(spec=AsyncOpenAI)
@@ -278,18 +238,17 @@ class TestLMContextManager:
         assert settings.lm == global_lm
 
     def test_context_preserves_lm_when_only_changing_other_settings(self) -> None:
-        """Test that LM is preserved when context only changes model/kwargs."""
+        """Test that LM is preserved when context only changes kwargs."""
         settings.configure(api_key="sk-global", model="gpt-4o-mini")
         original_lm = settings.lm
-
-        # Only changing model should keep the same LM
-        with settings.context(model="gpt-4"):
-            assert settings.lm is original_lm
-            assert settings.default_model == "gpt-4"
 
         # Only changing kwargs should keep the same LM
         with settings.context(temperature=0.9):
             assert settings.lm is original_lm
+
+        # Changing model creates a new LM
+        with settings.context(model="gpt-4", api_key="sk-global"):
+            assert settings.lm is not original_lm
 
         # After all contexts, should be back to original LM
         assert settings.lm is original_lm
@@ -299,14 +258,14 @@ class TestLMAbstraction:
     """Tests for LM abstraction interface."""
 
     def test_lm_is_abstract(self) -> None:
-        """Test that LM cannot be instantiated directly."""
+        """Test that BaseLM cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            LM()  # type: ignore[abstract]
+            BaseLM()  # type: ignore[abstract]
 
     def test_custom_lm_implementation(self) -> None:
         """Test that custom LM implementations work."""
 
-        class MockLM(LM):
+        class MockLM(BaseLM):
             def __init__(self) -> None:
                 self.calls: list[dict[str, Any]] = []
 
@@ -350,4 +309,4 @@ class TestLMAbstraction:
 
         # Could be used in actual predictions (tested elsewhere)
         # Just verify it's accessible
-        assert isinstance(settings.lm, LM)
+        assert isinstance(settings.lm, BaseLM)

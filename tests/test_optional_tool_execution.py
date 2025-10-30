@@ -81,7 +81,7 @@ async def test_auto_execute_tools_true() -> None:
         else:
             return second_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     predictor = Predict(QA, tools=[calculator])
@@ -131,7 +131,7 @@ async def test_auto_execute_tools_false() -> None:
         call_count += 1
         return response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     predictor = Predict(QA, tools=[calculator])
@@ -187,7 +187,7 @@ def test_forward_with_auto_execute_tools_false() -> None:
         call_count += 1
         return response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     predictor = Predict(QA, tools=[calculator])
@@ -237,7 +237,7 @@ def test_call_with_auto_execute_tools_false() -> None:
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
         return response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     predictor = Predict(QA, tools=[calculator])

@@ -123,7 +123,7 @@ async def test_predict_with_history() -> None:
         call_count += 1
         return response
 
-    settings.aclient.chat.completions.create = mock_create
+    settings.lm.client.chat.completions.create = mock_create
 
     predictor = Predict(QA)
     history = History()
@@ -147,7 +147,7 @@ def test_predict_forward_with_history() -> None:
     """Test sync forward() with History."""
     from conftest import make_mock_response
 
-    settings.aclient.chat.completions.create = AsyncMock(
+    settings.lm.client.chat.completions.create = AsyncMock(
         return_value=make_mock_response("[[ ## answer ## ]]\nTest response")
     )
 
@@ -217,7 +217,7 @@ async def test_predict_with_history_and_tools() -> None:
             return response1
         return response2
 
-    settings.aclient.chat.completions.create = mock_create
+    settings.lm.client.chat.completions.create = mock_create
 
     predictor = Predict(QA, tools=[calculator])
     history = History()
@@ -256,7 +256,7 @@ async def test_predict_history_preserves_context() -> None:
         call_count += 1
         return response
 
-    settings.aclient.chat.completions.create = mock_create
+    settings.lm.client.chat.completions.create = mock_create
 
     predictor = Predict(QA)
     history = History()

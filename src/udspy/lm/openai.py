@@ -24,6 +24,11 @@ class OpenAILM(LM):
         self.client = client
         self.default_model = default_model
 
+    @property
+    def model(self) -> str | None:
+        """Get the default model."""
+        return self.default_model
+
     async def acomplete(
         self,
         messages: list[dict[str, Any]],

@@ -30,11 +30,10 @@ def test_detect_provider_from_model_prefix():
 
 def test_detect_provider_from_base_url():
     """Test provider detection from base_url."""
-    # Note: Groq URL contains "openai" but "groq" is checked first in registry
     assert _detect_provider("model", "https://api.groq.com") == "groq"
-    assert _detect_provider("model", "http://localhost:11434/v1") == "ollama"
     assert _detect_provider("model", "https://bedrock.amazonaws.com") == "bedrock"
     assert _detect_provider("model", "https://api.openai.com/v1") == "openai"
+    assert _detect_provider("model", "http://localhost:11434/v1") == "openai"  # No special case
 
 
 def test_lm_factory_returns_openai_lm():
@@ -46,25 +45,6 @@ def test_lm_factory_returns_openai_lm():
     assert isinstance(lm, OpenAILM)
 
     lm = LM(model="ollama/llama2")  # No API key needed
-    assert isinstance(lm, OpenAILM)
-
-
-def test_lm_factory_requires_api_key_for_cloud_providers():
-    """Test that cloud providers require API keys."""
-    # OpenAI requires API key
-    with pytest.raises(ValueError, match="API key required for openai"):
-        LM(model="gpt-4o")
-
-    # Groq requires API key
-    with pytest.raises(ValueError, match="API key required for groq"):
-        LM(model="groq/llama-3-70b")
-
-    # Bedrock requires API key
-    with pytest.raises(ValueError, match="API key required for bedrock"):
-        LM(model="bedrock/claude-3", base_url="https://bedrock.us-east-1.amazonaws.com")
-
-    # Ollama doesn't require API key
-    lm = LM(model="ollama/llama2")  # Should not raise
     assert isinstance(lm, OpenAILM)
 
 

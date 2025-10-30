@@ -56,7 +56,7 @@ def test_chain_of_thought_forward() -> None:
         "[[ ## answer ## ]]\n"
         "4"
     )
-    settings.aclient.chat.completions.create = AsyncMock(return_value=make_mock_response(content))
+    settings.lm.client.chat.completions.create = AsyncMock(return_value=make_mock_response(content))
 
     cot = ChainOfThought(QA)
     result = cot(question="What is 2+2?")

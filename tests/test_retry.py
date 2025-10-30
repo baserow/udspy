@@ -133,7 +133,7 @@ async def test_aforward_retries_on_adapter_parse_error():
 
     # Mock the API response
     mock_response = make_mock_response("[[ ## answer ## ]]\n4")
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=mock_response)
 
     # Execute - should retry and eventually succeed
@@ -155,7 +155,7 @@ async def test_aforward_stops_after_max_retries():
 
     # Mock the API response
     mock_response = make_mock_response("[[ ## answer ## ]]\n4")
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=mock_response)
 
     # Should fail after 3 attempts (tenacity wraps in RetryError)
@@ -206,7 +206,7 @@ async def test_astream_retries_on_adapter_parse_error():
             yield chunk
 
     # Return a new stream on each call
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(side_effect=lambda **kwargs: mock_stream())
 
     # Execute - should retry and eventually succeed
@@ -265,7 +265,7 @@ async def test_astream_stops_after_max_retries():
             yield chunk
 
     # Return a new stream on each call
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(side_effect=lambda **kwargs: mock_stream())
 
     # Should fail after 3 attempts (tenacity wraps in RetryError)

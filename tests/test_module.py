@@ -37,7 +37,7 @@ def test_predict_initialization() -> None:
     predictor = Predict(QA)
 
     assert predictor.signature == QA
-    assert predictor.model == "gpt-4o-mini"
+    assert predictor.model is None  # Model is optional, uses LM's default if not set
     assert isinstance(predictor.tool_schemas, list)
 
 
@@ -52,7 +52,7 @@ def test_predict_forward() -> None:
 
     from conftest import make_mock_response
 
-    settings.aclient.chat.completions.create = AsyncMock(
+    settings.lm.client.chat.completions.create = AsyncMock(
         return_value=make_mock_response("[[ ## answer ## ]]\nParis")
     )
 

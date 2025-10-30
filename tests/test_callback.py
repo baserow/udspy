@@ -51,7 +51,7 @@ async def test_module_callbacks():
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\n4")
-    settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
+    settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     with udspy.settings.context(callbacks=[callback]):
         result = await predictor.aforward(question="What is 2+2?")
@@ -78,7 +78,7 @@ async def test_lm_callbacks():
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
-    settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
+    settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     with udspy.settings.context(callbacks=[callback]):
         result = await predictor.aforward(question="What is the capital of France?")
@@ -131,10 +131,10 @@ async def test_global_callbacks():
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\nTest answer")
-    settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
+    settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     # Save the mocked client
-    mock_client = settings.aclient
+    mock_client = settings.lm.client
 
     # Configure global callbacks (keep using the mocked client)
     with settings.context(callbacks=[callback], aclient=mock_client):
@@ -161,7 +161,7 @@ async def test_callback_exception_handling():
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\n4")
-    settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
+    settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     # Should still work despite callback error
     with udspy.settings.context(callbacks=[FaultyCallback(), good_callback]):
@@ -177,7 +177,7 @@ def test_sync_callbacks():
 
     # Mock the OpenAI API response
     mock_response = make_mock_response("[[ ## answer ## ]]\nPython is a programming language")
-    settings.aclient.chat.completions.create = AsyncMock(return_value=mock_response)
+    settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     with udspy.settings.context(callbacks=[callback]):
         result = predictor(question="What is Python?")

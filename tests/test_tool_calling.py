@@ -147,7 +147,7 @@ async def test_tool_calling_with_content() -> None:
         for chunk in chunks:
             yield chunk
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=mock_stream())
 
     predictor = Predict(MathQuery, tools=[calculator])
@@ -208,7 +208,7 @@ async def test_tool_calling_without_content() -> None:
         ],
     )
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=response)
 
     predictor = Predict(MathQuery, tools=[calculator])
@@ -265,7 +265,7 @@ async def test_multiple_tool_calls() -> None:
         ],
     )
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=response)
 
     predictor = Predict(MathQuery, tools=[calculator])

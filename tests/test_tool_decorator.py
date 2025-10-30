@@ -161,7 +161,7 @@ async def test_predict_with_tool_automatic_execution() -> None:
             return second_response
 
     # Mock the client
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     # Create predictor with tool
@@ -270,7 +270,7 @@ async def test_tool_error_handling() -> None:
         else:
             return second_response
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = mock_create
 
     predictor = Predict(QA, tools=[failing_tool])

@@ -58,7 +58,7 @@ async def test_max_turns_reached_error() -> None:
         ],
     )
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=response)
 
     predictor = Predict(QA, tools=[calculator], max_turns=2)
@@ -96,7 +96,7 @@ async def test_tool_not_found_error() -> None:
 
     response2 = make_mock_response("[[ ## answer ## ]]\nI encountered an error.")
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     call_count = 0
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
@@ -150,7 +150,7 @@ async def test_tool_execution_exception() -> None:
 
     response2 = make_mock_response("[[ ## answer ## ]]\nThe tool failed.")
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     call_count = 0
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
@@ -200,7 +200,7 @@ async def test_history_update_with_tools() -> None:
 
     response2 = make_mock_response("[[ ## answer ## ]]\n8")
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     call_count = 0
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
@@ -327,7 +327,7 @@ async def test_no_tools_available_but_tool_calls_present() -> None:
         ],
     )
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=response)
 
     # Create predictor with no tools but auto_execute_tools=True
@@ -376,7 +376,7 @@ async def test_invalid_json_in_tool_arguments() -> None:
         "[[ ## reasoning ## ]]\nCompleted\n[[ ## result ## ]]\nCompleted"
     )
 
-    mock_aclient = settings.aclient
+    mock_aclient = settings.lm.client
     call_count = 0
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
