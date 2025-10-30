@@ -700,8 +700,8 @@ def load_tools(category: str = Field(...)) -> callable:
 
 For complete documentation and examples, see:
 - [Dynamic Tools Guide](../examples/dynamic_tools.md) - Complete guide with examples
-- [dynamic_calculator.py](../../examples/dynamic_calculator.py) - Calculator example
-- [dynamic_tools.py](../../examples/dynamic_tools.py) - Advanced examples
+
+**Example Code**: See `examples/dynamic_calculator.py` and `examples/dynamic_tools.py` in the [GitHub repository](https://github.com/silvestrid/udspy/tree/main/examples)
 
 ---
 

@@ -401,7 +401,7 @@ class ReAct(Module):
             trajectory=formatted_trajectory,
         )
 
-        thought = pred["next_thought"]
+        thought = pred.get("next_thought", "").strip()
         trajectory[f"thought_{idx}"] = thought
         trajectory[f"tool_calls_{idx}"] = []
 

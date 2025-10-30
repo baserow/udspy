@@ -77,7 +77,7 @@ class Question(Signature):
     answer: str = OutputField()
 
 
-def main() -> None:
+def single_calculation_example() -> None:
     """Run calculator example showing dynamic tool loading."""
     print("=== Dynamic Calculator Example ===\n")
 
@@ -88,7 +88,7 @@ def main() -> None:
         print(f"  - {tool_name}")
     print()
 
-    question = "What is 157 multiplied by 834?"
+    question = "Use the calculator to evaluate 15.7 multiplied by 834?"
     print(f"Question: {question}\n")
 
     result = agent(question=question)
@@ -116,7 +116,7 @@ def multi_calculation_example() -> None:
 
     agent = ReAct(Question, tools=[load_calculator], max_iters=8)
 
-    question = "What is (25 + 75) divided by 4, and then multiplied by 12?"
+    question = "Use the calculator to evaluate (25 + 75) divided by 4, and then multiplied by 12?"
     print(f"Question: {question}\n")
 
     result = agent(question=question)
@@ -147,7 +147,7 @@ def conditional_loading_example() -> None:
 if __name__ == "__main__":
     udspy.settings.configure()
 
-    main()
+    single_calculation_example()
     multi_calculation_example()
     conditional_loading_example()
 

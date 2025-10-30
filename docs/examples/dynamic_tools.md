@@ -323,6 +323,6 @@ def assess_and_load(task: str) -> callable:
 
 - [ReAct API Reference](../api/react.md)
 - [Tool Calling Guide](tool_calling.md)
-- [Module Callbacks API](../api/callback.md)
-- [Example: dynamic_calculator.py](../../examples/dynamic_calculator.py)
-- [Example: dynamic_tools.py](../../examples/dynamic_tools.py)
+- [Module Callbacks API](../api/module_callback.md)
+
+**Example Code**: See `examples/dynamic_calculator.py` and `examples/dynamic_tools.py` in the [GitHub repository](https://github.com/silvestrid/udspy/tree/main/examples)

@@ -52,6 +52,7 @@ nav:
       - Streaming: examples/streaming.md
       - Tool Calling: examples/tool_calling.md
       - ReAct: examples/react.md
+      - Dynamic Tools: examples/dynamic_tools.md
       - Confirmation: examples/confirmation.md
       - Conversation History: examples/history.md
       - Advanced: examples/advanced.md
@@ -61,6 +62,7 @@ nav:
       - Adapters: api/adapter.md
       - Streaming: api/streaming.md
       - Callbacks: api/callback.md
+      - Module Callbacks: api/module_callback.md
       - History: api/history.md
       - ReAct: api/react.md
       - Tools: api/tool.md

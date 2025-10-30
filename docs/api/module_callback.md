@@ -432,4 +432,5 @@ def is_module_callback(obj: Any) -> bool: ...
 - [Tool API](tool.md) - Tool creation and usage
 - [ReAct API](react.md) - ReAct module documentation
 - [Predict API](module.md) - Predict module documentation
-- [dynamic_calculator.py](../../examples/dynamic_calculator.py) - Calculator example
+
+**Example Code**: See `examples/dynamic_calculator.py` and `examples/dynamic_tools.py` in the [GitHub repository](https://github.com/silvestrid/udspy/tree/main/examples)
