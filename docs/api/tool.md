@@ -606,8 +606,108 @@ class Tool:
 
 ---
 
+## Dynamic Tool Management
+
+Tools can return **module callbacks** to dynamically add other tools during execution. This is useful for:
+
+- Loading specialized tools on demand
+- Adding tools based on user permissions
+- Progressive tool discovery
+
+### Basic Example
+
+```python
+from udspy import tool, module_callback
+from pydantic import Field
+
+# The tool that will be loaded dynamically
+@tool(name="calculator", description="Perform calculations")
+def calculator(expression: str = Field(...)) -> str:
+    return str(eval(expression, {"__builtins__": {}}, {}))
+
+# Meta-tool that loads the calculator
+@tool(name="load_calculator", description="Load calculator tool")
+def load_calculator() -> callable:
+    """Load calculator dynamically."""
+
+    @module_callback
+    def add_calculator(context):
+        # Get current tools (excluding built-ins)
+        current = [
+            t for t in context.module.tools.values()
+            if t.name not in ("finish", "ask_to_user")
+        ]
+
+        # Add calculator
+        context.module.init_module(tools=current + [calculator])
+
+        return "Calculator loaded successfully"
+
+    return add_calculator
+
+# Use with ReAct
+from udspy import ReAct, Signature, InputField, OutputField
+
+class Question(Signature):
+    """Answer questions. Load tools if needed."""
+    question: str = InputField()
+    answer: str = OutputField()
+
+agent = ReAct(Question, tools=[load_calculator])
+result = agent(question="What is 157 * 834?")
+# Agent will:
+# 1. Call load_calculator() to get the calculator tool
+# 2. Use calculator(expression="157 * 834")
+# 3. Return the answer
+```
+
+### How It Works
+
+1. **Tool returns callable**: Instead of a string/value, return a function decorated with `@module_callback`
+2. **Callback receives context**: Context has the module instance and execution state
+3. **Callback modifies tools**: Call `context.module.init_module(tools=[...])` to add/remove tools
+4. **Callback returns observation**: Return a string that appears in the trajectory
+5. **Tools persist**: Newly added tools remain available for the rest of execution
+
+### Category-Based Loading
+
+```python
+@tool(name="load_tools", description="Load tools by category")
+def load_tools(category: str = Field(...)) -> callable:
+    @module_callback
+    def add_tools(context):
+        current = list(context.module.tools.values())
+
+        if category == "math":
+            new_tools = [calculator, statistics]
+        elif category == "web":
+            new_tools = [search, scrape]
+        else:
+            return f"Unknown category: {category}"
+
+        context.module.init_module(tools=current + new_tools)
+        return f"Loaded {len(new_tools)} {category} tools"
+
+    return add_tools
+```
+
+### Important Notes
+
+- **Must return string**: Module callbacks must return a string (the observation)
+- **Async by default**: Callbacks are called during tool execution
+- **Built-ins preserved**: `finish` and `ask_to_user` are automatically kept
+- **Persistence**: Tools remain available for the entire execution
+
+For complete documentation and examples, see:
+- [Dynamic Tools Guide](../examples/dynamic_tools.md) - Complete guide with examples
+- [dynamic_calculator.py](../../examples/dynamic_calculator.py) - Calculator example
+- [dynamic_tools.py](../../examples/dynamic_tools.py) - Advanced examples
+
+---
+
 ## See Also
 
+- [Dynamic Tools Guide](../examples/dynamic_tools.md) - Dynamic tool management
 - [Confirmation API](confirmation.md) - Confirmation system and `@confirm_first` decorator
 - [ReAct API](react.md) - Using tools with ReAct agents
 - [ReAct Examples](../examples/react.md) - Tool usage examples
