@@ -38,8 +38,8 @@ class ChainOfThought(Module):
         signature: type[Signature] | str,
         *,
         reasoning_description: str = "Step-by-step reasoning process",
-        model: str | None = None,
         tools: list[Tool] | None = None,
+        model: str | None = None,
         adapter: ChatAdapter | None = None,
         **kwargs: Any,
     ):
@@ -54,14 +54,35 @@ class ChainOfThought(Module):
             adapter: Custom adapter
             **kwargs: Additional arguments for chat completion (including callbacks)
         """
-
-        # Convert string signature to Signature class
         if isinstance(signature, str):
             signature = Signature.from_string(signature)
 
         self.original_signature = signature
+        self.reasoning_description = reasoning_description
+        self.model = model
+        self.adapter = adapter
+        self.kwargs = kwargs
 
-        # Create extended signature with reasoning field
+        # Initialize module with tools
+        self.init_module(tools=tools)
+
+    def init_module(self, tools: list[Any] | None = None) -> None:
+        """Initialize or reinitialize ChainOfThought with new tools.
+
+        Args:
+            tools: New tools to initialize with
+        """
+        extended_signature = self._build_extended_signature()
+        self._create_predictor(extended_signature, tools)
+
+    def _build_extended_signature(self) -> type[Signature]:
+        """Build extended signature with reasoning field.
+
+        Returns:
+            Signature with reasoning field prepended to outputs
+        """
+        signature = self.original_signature
+
         input_fields = {
             name: field.annotation for name, field in signature.get_input_fields().items()
         }
@@ -69,26 +90,27 @@ class ChainOfThought(Module):
             name: field.annotation for name, field in signature.get_output_fields().items()
         }
 
-        # Prepend reasoning to outputs
         extended_outputs = {"reasoning": str, **output_fields}
 
-        # Create new signature with reasoning
         extended_signature = make_signature(
             input_fields,  # type: ignore[arg-type]
             extended_outputs,  # type: ignore[arg-type]
             signature.get_instructions(),
         )
 
-        # Override reasoning field description
-        extended_signature.model_fields["reasoning"].description = reasoning_description
+        extended_signature.model_fields["reasoning"].description = self.reasoning_description
 
-        # Create predictor with extended signature
+        return extended_signature
+
+    def _create_predictor(self, signature: type[Signature], tools: list[Any] | None) -> None:
+        """Create the internal Predict module.
+
+        Args:
+            signature: Extended signature with reasoning field
+            tools: Tools to pass to Predict
+        """
         self.predict = Predict(
-            extended_signature,
-            model=model,
-            tools=tools,
-            adapter=adapter,
-            **kwargs,
+            signature, tools=tools, model=self.model, adapter=self.adapter, **self.kwargs
         )
 
     @with_callbacks

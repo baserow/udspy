@@ -76,7 +76,6 @@ class SignatureMeta(type(BaseModel)):  # type: ignore[misc]
         if name == "Signature":
             return cls
 
-        # Validate that all fields are marked as input or output
         for field_name, field_info in cls.model_fields.items():
             if not isinstance(field_info, FieldInfo):
                 continue
@@ -173,7 +172,6 @@ class Signature(BaseModel, metaclass=SignatureMeta):
             All fields default to `str` type. For custom types, use the
             class-based approach with InputField() and OutputField().
         """
-        # Split on '->'
         if "->" not in spec:
             raise ValueError(
                 f"Invalid signature format: '{spec}'. "
@@ -186,7 +184,6 @@ class Signature(BaseModel, metaclass=SignatureMeta):
                 f"Invalid signature format: '{spec}'. Must have exactly one '->' separator"
             )
 
-        # Parse inputs (comma-separated, trimmed)
         input_str = parts[0].strip()
         if not input_str:
             raise ValueError("Signature must have at least one input field")
@@ -194,7 +191,6 @@ class Signature(BaseModel, metaclass=SignatureMeta):
         input_names = [name.strip() for name in input_str.split(",")]
         input_fields: dict[str, type] = {name: str for name in input_names if name}
 
-        # Parse outputs (comma-separated, trimmed)
         output_str = parts[1].strip()
         if not output_str:
             raise ValueError("Signature must have at least one output field")

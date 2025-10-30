@@ -8,7 +8,7 @@ from udspy.decorators import suspendable
 from udspy.streaming import Prediction
 
 
-class TestSignature(Signature):
+class SignatureTest(Signature):
     """Test signature."""
 
     question: str = InputField()
@@ -17,10 +17,6 @@ class TestSignature(Signature):
 
 class SimpleTestModule(Module):
     """Test module that raises ConfirmationRequired."""
-
-    def __init__(self):
-        """Initialize without callbacks."""
-        self.callbacks = []
 
     @suspendable
     async def aexecute(self, *, stream=False, **inputs):

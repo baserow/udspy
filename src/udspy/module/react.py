@@ -15,12 +15,16 @@ from udspy.callback import with_callbacks
 from udspy.confirmation import ConfirmationRequired, respond_to_confirmation
 from udspy.decorators import suspendable
 from udspy.module.base import Module
+from udspy.module.callbacks import ReactContext, is_module_callback
 from udspy.module.chain_of_thought import ChainOfThought
 from udspy.module.predict import Predict
 from udspy.signature import Signature, make_signature
 from udspy.streaming import Prediction
 from udspy.tool import Tool, Tools
 from udspy.utils.formatting import format_tool_exception
+
+# Rebuild Tools model to resolve forward references
+Tools.model_rebuild()
 
 logger = logging.getLogger(__name__)
 
@@ -104,36 +108,25 @@ class ReAct(Module):
             max_iters: Maximum number of reasoning iterations (default: 10)
             enable_ask_to_user: Whether to enable ask_to_user tool (default: True)
         """
-        from udspy.tool import Tool
-
-        # Convert string signature to Signature class
         if isinstance(signature, str):
             signature = Signature.from_string(signature)
 
         self.signature = signature
-
+        self.user_signature = signature
         self.max_iters = max_iters
         self.enable_ask_to_user = enable_ask_to_user
 
-        tool_list = [t if isinstance(t, Tool) else Tool(t) for t in tools]
+        self.init_module(tools=tools)
+
+    def _init_tools(self) -> None:
+        """Initialize tools dictionary with user-provided tools."""
+        tool_list = [t if isinstance(t, Tool) else Tool(t) for t in self._tools]
         self.tools: dict[str, Tool] = {tool.name: tool for tool in tool_list if tool.name}
+        self._add_builtin_tools()
 
-        inputs = ", ".join([f"`{k}`" for k in self.signature.get_input_fields().keys()])
+    def _add_builtin_tools(self) -> None:
+        """Add built-in tools: finish and ask_to_user (if enabled)."""
         outputs = ", ".join([f"`{k}`" for k in self.signature.get_output_fields().keys()])
-
-        base_instructions = getattr(self.signature, "__doc__", "")
-        instr = [f"{base_instructions}\n"] if base_instructions else []
-
-        instr.extend(
-            [
-                f"You are an Agent. In each episode, you will be given the fields {inputs} as input. And you can see your past trajectory so far.",
-                f"Your goal is to use one or more of the supplied tools to collect any necessary information for producing {outputs}.\n",
-                "To do this, you will interleave next_thought, next_tool_calls in each turn, and also when finishing the task.",
-                "After each tool call, you receive a resulting observation, which gets appended to your trajectory.\n",
-                "When writing next_thought, you may reason about the current situation and plan for future steps.",
-                "When selecting the next_tool_calls, you may choose one or more of the following tools that will be executed in the same episode:",
-            ]
-        )
 
         def finish_tool() -> str:  # pyright: ignore[reportUnusedParameter]
             """Finish tool that accepts and ignores any arguments."""
@@ -158,6 +151,37 @@ class ReAct(Module):
                 require_confirmation=True,
             )
 
+    def _rebuild_signatures(self) -> None:
+        """Rebuild react and extract signatures with current tools.
+
+        This method reconstructs the signatures used by the ReAct module,
+        incorporating the current set of tools. It's called during initialization
+        and when tools are dynamically updated via init_module().
+        """
+        self.react_signature = self._build_react_signature()
+        self.extract_signature = self._build_extract_signature()
+        self.react_module = Predict(self.react_signature)
+        self.extract_module = ChainOfThought(self.extract_signature)
+
+    def _build_react_signature(self) -> type[Signature]:
+        """Build ReAct signature with tool descriptions in instructions."""
+        inputs = ", ".join([f"`{k}`" for k in self.user_signature.get_input_fields().keys()])
+        outputs = ", ".join([f"`{k}`" for k in self.user_signature.get_output_fields().keys()])
+
+        base_instructions = getattr(self.user_signature, "__doc__", "")
+        instr = [f"{base_instructions}\n"] if base_instructions else []
+
+        instr.extend(
+            [
+                f"You are an Agent. In each episode, you will be given the fields {inputs} as input. And you can see your past trajectory so far.",
+                f"Your goal is to use one or more of the supplied tools to collect any necessary information for producing {outputs}.\n",
+                "To do this, you will interleave next_thought, next_tool_calls in each turn, and also when finishing the task.",
+                "After each tool call, you receive a resulting observation, which gets appended to your trajectory.\n",
+                "When writing next_thought, you may reason about the current situation and plan for future steps.",
+                "When selecting the next_tool_calls, you may choose one or more of the following tools that will be executed in the same episode:",
+            ]
+        )
+
         instr.append(Tools(tools=list(self.tools.values())).format() + "\n")
         instr.extend(
             [
@@ -168,14 +192,9 @@ class ReAct(Module):
         )
 
         react_input_fields: dict[str, type] = {}
-        for name, field_info in self.signature.get_input_fields().items():
+        for name, field_info in self.user_signature.get_input_fields().items():
             react_input_fields[name] = field_info.annotation or str
-
-        react_input_fields.update(
-            {
-                "trajectory": str,
-            }
-        )
+        react_input_fields["trajectory"] = str
 
         ToolCallModel = create_model(
             "ToolCall",
@@ -188,31 +207,71 @@ class ReAct(Module):
             "next_tool_calls": list[ToolCallModel],  # type: ignore[valid-type]
         }
 
-        self.react_signature = make_signature(
+        return make_signature(
             react_input_fields,
             react_output_fields,
             "\n".join(instr),
         )
 
+    def _build_extract_signature(self) -> type[Signature]:
+        """Build extract signature for final answer extraction from trajectory."""
+        base_instructions = getattr(self.user_signature, "__doc__", "")
+
         extract_input_fields: dict[str, type] = {}
         extract_output_fields: dict[str, type] = {}
 
-        for name, field_info in self.signature.get_input_fields().items():
+        for name, field_info in self.user_signature.get_input_fields().items():
             extract_input_fields[name] = field_info.annotation or str
 
-        for name, field_info in self.signature.get_output_fields().items():
+        for name, field_info in self.user_signature.get_output_fields().items():
             extract_output_fields[name] = field_info.annotation or str
 
         extract_input_fields["trajectory"] = str
 
-        self.extract_signature = make_signature(
+        return make_signature(
             extract_input_fields,
             extract_output_fields,
             base_instructions or "Extract the final answer from the trajectory",
         )
 
-        self.react_module = Predict(self.react_signature)
-        self.extract_module = ChainOfThought(self.extract_signature)
+    def init_module(self, tools: list[Any] | None = None) -> None:
+        """Initialize or reinitialize ReAct with new tools.
+
+        This method rebuilds the tools dictionary and regenerates the react
+        signature with new tool descriptions. Built-in tools (finish and
+        ask_to_user) are automatically preserved.
+
+        Args:
+            tools: New tools to initialize with. Can be:
+                - Functions decorated with @tool
+                - Tool instances
+                - None to clear all non-built-in tools
+
+        Example:
+            ```python
+            from udspy import module_callback
+
+            @module_callback
+            def load_specialized_tools(context):
+                # Get current non-built-in tools
+                current_tools = [
+                    t for t in context.module.tools.values()
+                    if t.name not in ("finish", "ask_to_user")
+                ]
+
+                # Add new tools
+                new_tools = [weather_tool, calendar_tool]
+
+                # Reinitialize with all tools
+                context.module.init_module(tools=current_tools + new_tools)
+
+                return f"Added {len(new_tools)} specialized tools"
+            ```
+        """
+
+        self._tools = tools or []
+        self._init_tools()
+        self._rebuild_signatures()
 
     def _format_trajectory(self, trajectory: dict[str, Any]) -> str:
         """Format trajectory as a string for the LLM.
@@ -318,7 +377,9 @@ class ReAct(Module):
             next_tool_calls = next_tool_calls["items"]
 
         if not isinstance(next_tool_calls, list):
-            trajectory[f"observation_{idx}"] = f"Error: Malformed next_tool_calls (expected list, got {type(next_tool_calls).__name__})"
+            trajectory[f"observation_{idx}"] = (
+                f"Error: Malformed next_tool_calls (expected list, got {type(next_tool_calls).__name__})"
+            )
             return False
 
         observations = []
@@ -334,7 +395,16 @@ class ReAct(Module):
             try:
                 tool = self.tools[tool_name]
                 result = await tool.acall(**tool_args)
-                observations.append(f"{tool_call_id}. {result}")
+
+                # Check if result is a module callback
+                if is_module_callback(result):
+                    # Execute callback with context
+                    context = ReactContext(module=self, trajectory=trajectory)
+                    observation = result(context)
+                else:
+                    observation = str(result)
+
+                observations.append(f"{tool_call_id}. {observation}")
             except ConfirmationRequired as e:
                 # FIXME
                 e.context = {

@@ -109,7 +109,7 @@ def automatic_system_prompt_management() -> None:
     history1 = History()
     print(f"Messages before Predict: {len(history1)}")
 
-    result = predictor(question="What is Python?", history=history1)
+    predictor(question="What is Python?", history=history1)
     print(f"Messages after Predict: {len(history1)}")
     print(f"First message role: {history1.messages[0]['role']}")
     print(f"First message content preview: {history1.messages[0]['content'][:50]}...\n")
@@ -122,7 +122,7 @@ def automatic_system_prompt_management() -> None:
     print(f"Messages before Predict: {len(history2)}")
     print(f"First message role: {history2.messages[0]['role']}")
 
-    result = predictor(question="New question", history=history2)
+    predictor(question="New question", history=history2)
     print(f"Messages after Predict: {len(history2)}")
     print(f"First message role: {history2.messages[0]['role']}")
     print("System prompt was automatically prepended!\n")

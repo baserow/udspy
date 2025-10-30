@@ -29,10 +29,7 @@ def build_initial_messages(
         inputs: Input values from user
         history: History object to update with messages
     """
-    # Always set/replace system message at position 0
     history.set_system_message(adapter.format_instructions(signature))
-
-    # Add user message at the end
     history.add_user_message(adapter.format_inputs(signature, inputs))
 
 

@@ -138,13 +138,10 @@ class History:
         message = {"role": "system", "content": content}
 
         if not self.messages:
-            # Empty history - just add it
             self.messages.append(message)
         elif self.messages[0]["role"] == "system":
-            # Replace existing system message
             self.messages[0] = message
         else:
-            # Prepend to existing messages
             self.messages.insert(0, message)
 
     def add_tool_result(self, tool_call_id: str, content: str) -> None:

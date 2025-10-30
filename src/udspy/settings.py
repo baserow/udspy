@@ -21,7 +21,6 @@ class Settings:
         self._default_kwargs: dict[str, Any] = {}
         self._callbacks: list[Any] = []
 
-        # Context-specific overrides (thread-safe)
         self._context_lm: ContextVar[BaseLM | None] = ContextVar("context_lm", default=None)
         self._context_kwargs: ContextVar[dict[str, Any] | None] = ContextVar(
             "context_kwargs", default=None
@@ -79,7 +78,6 @@ class Settings:
         if lm:
             self._lm = lm
         else:
-            # Create LM from environment variables
             model = os.getenv("UDSPY_LM_MODEL")
             api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY")
             base_url = os.getenv("UDSPY_LM_BASE_URL")
@@ -91,7 +89,6 @@ class Settings:
                     "Example: udspy.settings.configure(lm=LM(model='gpt-4o', api_key='sk-...'))"
                 )
 
-            # Create LM using factory
             self._lm = LM(model=model, api_key=api_key, base_url=base_url)
 
         if callbacks is not None:
@@ -111,12 +108,10 @@ class Settings:
         Raises:
             RuntimeError: If LM not configured
         """
-        # Check context first
         context_lm = self._context_lm.get()
         if context_lm is not None:
             return context_lm
 
-        # Fall back to global LM
         if self._lm is None:
             raise RuntimeError(
                 "LM not configured. Call udspy.settings.configure() first.\n"
@@ -127,7 +122,6 @@ class Settings:
     @property
     def callbacks(self) -> list[Any]:
         """Get the default callbacks (context-aware)."""
-        # Check context first
         context_callbacks = self._context_callbacks.get()
         if context_callbacks is not None:
             return context_callbacks
@@ -137,10 +131,8 @@ class Settings:
     @property
     def default_kwargs(self) -> dict[str, Any]:
         """Get the default kwargs for completions (context-aware)."""
-        # Start with global defaults
         result = self._default_kwargs.copy()
 
-        # Override with context-specific kwargs if present
         context_kwargs = self._context_kwargs.get()
         if context_kwargs is not None:
             result.update(context_kwargs)
@@ -158,7 +150,6 @@ class Settings:
             Setting value or default
         """
         if key == "callbacks":
-            # Check context first
             context_callbacks = self._context_callbacks.get()
             if context_callbacks is not None:
                 return context_callbacks
@@ -207,13 +198,11 @@ class Settings:
             with udspy.settings.context(lm=groq_lm):
                 result = predictor(question="...")  # Uses Groq
         """
-        # Save current context values
         prev_lm = self._context_lm.get()
         prev_kwargs = self._context_kwargs.get()
         prev_callbacks = self._context_callbacks.get()
 
         try:
-            # Set context-specific LM
             if lm:
                 self._context_lm.set(lm)
 
@@ -221,7 +210,6 @@ class Settings:
                 self._context_callbacks.set(callbacks)
 
             if kwargs:
-                # Merge with previous context kwargs if any
                 merged_kwargs = (prev_kwargs or {}).copy()
                 merged_kwargs.update(kwargs)
                 self._context_kwargs.set(merged_kwargs)
@@ -229,11 +217,9 @@ class Settings:
             yield
 
         finally:
-            # Restore previous context values
             self._context_lm.set(prev_lm)
             self._context_kwargs.set(prev_kwargs)
             self._context_callbacks.set(prev_callbacks)
 
 
-# Global settings instance
 settings = Settings()

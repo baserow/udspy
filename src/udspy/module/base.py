@@ -1,7 +1,8 @@
 """Base classes for modules."""
 
 import asyncio
-from collections.abc import AsyncGenerator
+from abc import abstractmethod
+from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 from udspy.callback import with_callbacks
@@ -63,6 +64,52 @@ class Module:
             NotImplementedError: If not implemented by subclass
         """
         raise NotImplementedError(f"{self.__class__.__name__} must implement aexecute() method")
+
+    @abstractmethod
+    def init_module(self, tools: list[Callable[..., Any]] | None = None) -> None:
+        """Initialize or reinitialize the module with new tools.
+
+        This method provides a way to completely reinitialize module state,
+        including tools, tool schemas, and signatures. It's designed to be
+        called from module callbacks that need to dynamically modify the
+        module during execution.
+
+        When implementing this method, subclasses should:
+        1. Rebuild the tools dictionary
+        2. Regenerate tool schemas (if applicable)
+        3. Rebuild signatures with new tool descriptions (if applicable)
+        4. Preserve built-in tools (if applicable)
+
+        Args:
+            tools: New tools to initialize with. Format depends on subclass:
+                - Can be functions (will be wrapped in Tool)
+                - Can be Tool instances
+                - None means clear all non-built-in tools
+
+        Example:
+            ```python
+            from udspy import module_callback
+
+            @module_callback
+            def add_tools(context):
+                # Get current tools
+                current = list(context.module.tools.values())
+
+                # Add new tools
+                new_tools = [weather_tool, calendar_tool]
+
+                # Reinitialize module with all tools
+                context.module.init_module(tools=current + new_tools)
+
+                return "Added weather and calendar tools"
+            ```
+
+        Note:
+            This method is typically called from within a module callback
+            decorated with @module_callback. The callback receives a context
+            object with access to the module instance.
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} must implement init_module() method")
 
     async def astream(
         self, *, resume_state: Any = None, **inputs: Any

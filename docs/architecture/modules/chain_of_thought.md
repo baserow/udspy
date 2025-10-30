@@ -167,43 +167,6 @@ result.recommendation  # Original output
 result.confidence      # Original output
 ```
 
-## Comparison with DSPy
-
-### Similarities
-
-- Same concept: adds reasoning field to signature
-- Improves accuracy through explicit reasoning
-- Transparent reasoning process
-
-### Differences
-
-| Feature | udspy | DSPy |
-|---------|-------|------|
-| Implementation | Signature extension | Signature prepend method |
-| Customization | reasoning_description | rationale_field parameter |
-| Complexity | ~45 lines | ~40 lines |
-| Dependencies | make_signature | signature.prepend() |
-
-### udspy Approach
-
-```python
-# Simpler API
-cot = ChainOfThought(QA)
-```
-
-### DSPy Approach
-
-```python
-# More flexible but complex
-cot = dspy.ChainOfThought(
-    "question -> answer",
-    rationale_field=dspy.OutputField(
-        prefix="Reasoning: Let's think step by step",
-        desc="${reasoning}"
-    )
-)
-```
-
 ## When to Use
 
 ### Good Use Cases ✓

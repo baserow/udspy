@@ -99,8 +99,6 @@ class Predict(Module):
             adapter: Custom adapter (defaults to ChatAdapter)
             **kwargs: Additional arguments for chat completion (temperature, callbacks, etc.)
         """
-
-        # Convert string signature to Signature class
         if isinstance(signature, str):
             signature = Signature.from_string(signature)
 
@@ -112,13 +110,7 @@ class Predict(Module):
             raise ValueError("max_turns must be at least 1")
         self.adapter = adapter or ChatAdapter()
 
-        self.tools: dict[str, Tool] = {}
-        self.tool_schemas: list[Any] = []
-
-        for tool in tools or []:
-            if tool.name:
-                self.tools[tool.name] = tool
-            self.tool_schemas.append(self.adapter.format_tool_schema(tool))
+        self.init_module(tools=tools)
 
     @property
     def model(self) -> str | None:
@@ -128,6 +120,53 @@ class Predict(Module):
     @property
     def kwargs(self) -> dict[str, Any]:
         return {**settings.default_kwargs, **self._kwargs}
+
+    def init_module(self, tools: list[Any] | None = None) -> None:
+        """Initialize or reinitialize Predict with new tools.
+
+        This method rebuilds the tools dictionary and regenerates tool schemas.
+        It's designed to be called from module callbacks to dynamically modify
+        available tools during execution.
+
+        Args:
+            tools: New tools to initialize with. Can be:
+                - Functions decorated with @tool
+                - Tool instances
+                - None to clear all tools
+
+        Example:
+            ```python
+            from udspy import module_callback
+
+            @module_callback
+            def add_specialized_tools(context):
+                # Get current tools
+                current_tools = list(context.module.tools.values())
+
+                # Add new tools
+                new_tools = [weather_tool, calendar_tool]
+
+                # Reinitialize with all tools
+                context.module.init_module(tools=current_tools + new_tools)
+
+                return "Added weather and calendar tools"
+            ```
+        """
+        self._init_tools(tools or [])
+
+    def _init_tools(self, tools: list[Any]) -> None:
+        """Initialize tools dictionary with provided tools.
+
+        Args:
+            tools: List of tools (functions or Tool instances)
+        """
+        tool_list = [t if isinstance(t, Tool) else Tool(t) for t in tools]
+        self.tools = {tool.name: tool for tool in tool_list if tool.name}
+        self._build_tool_schemas()
+
+    def _build_tool_schemas(self) -> None:
+        """Build OpenAI tool schemas from current tools."""
+        self.tool_schemas = [self.adapter.format_tool_schema(tool) for tool in self.tools.values()]
 
     @suspendable
     @with_callbacks
@@ -156,7 +195,6 @@ class Predict(Module):
         """
         from udspy.streaming import _stream_queue
 
-        # Ensure we have a history to track the conversation
         if history is None:
             history = History()
 
@@ -307,7 +345,7 @@ class Predict(Module):
             tool_calls: List of tool calls to execute
             history: History object to update
         """
-        await execute_tool_calls(self.tools, native_tool_calls, history)
+        await execute_tool_calls(self, self.tools, native_tool_calls, history)
 
     def _update_history_with_prediction(self, history: History, prediction: Prediction) -> None:
         """Update history with assistant's prediction.
@@ -424,7 +462,6 @@ class Predict(Module):
         """
         from udspy.callback import BaseCallback
 
-        # Get combined global and instance-level callbacks
         global_callbacks = settings.get("callbacks", [])
         instance_callbacks = getattr(self, "callbacks", [])
         callbacks = global_callbacks + instance_callbacks
@@ -484,7 +521,6 @@ class Predict(Module):
 
         from udspy.streaming import _stream_queue
 
-        # Start LM callbacks
         call_id = uuid.uuid4().hex
         self._execute_lm_callbacks("start", call_id, inputs=completion_kwargs)
 
@@ -612,7 +648,6 @@ class Predict(Module):
         """
         import uuid
 
-        # Start LM callbacks
         call_id = uuid.uuid4().hex
         self._execute_lm_callbacks("start", call_id, inputs=completion_kwargs)
 
@@ -718,7 +753,6 @@ class Predict(Module):
             await queue.put(error_event)
             raise
         finally:
-            # End LM callbacks
             self._execute_lm_callbacks("end", call_id, outputs=outputs_dict, exception=exception)
             if emit_sentinel:
                 await queue.put(None)

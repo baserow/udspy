@@ -1,14 +1,20 @@
 """Tool execution functions for Predict module."""
 
 import json
+from typing import TYPE_CHECKING
 
 from openai import BaseModel
 
 from udspy.history import History
+from udspy.module.callbacks import PredictContext, is_module_callback
 from udspy.tool import Tool, ToolCall
+
+if TYPE_CHECKING:
+    from udspy.module.predict import Predict
 
 
 async def execute_tool_calls(
+    predict: "Predict",
     tools: dict[str, Tool],
     native_tool_calls: list[ToolCall],
     history: History,
@@ -16,14 +22,15 @@ async def execute_tool_calls(
     """Execute tool calls and add results to history.
 
     First adds the assistant message with tool calls, then executes each tool
-    and adds the results as tool messages to history.
+    and adds the results as tool messages to history. Supports module callbacks
+    for dynamic tool management.
 
     Args:
+        predict: The Predict module instance
         tools: Dictionary mapping tool names to Tool instances
         native_tool_calls: List of tool calls to execute
         history: History object to update with tool calls and results
     """
-    # Add assistant message with tool calls
     history.add_assistant_message(
         tool_calls=[
             {
@@ -35,7 +42,6 @@ async def execute_tool_calls(
         ]
     )
 
-    # Execute each tool and add results
     for tool_call in native_tool_calls:
         call_id = tool_call.call_id
         tool_name = tool_call.name
@@ -44,11 +50,17 @@ async def execute_tool_calls(
         content: str = ""
         if tool_name in tools:
             try:
-                content = await tools[tool_name](**tool_args)
-                if isinstance(content, BaseModel):
-                    content = content.model_dump_json()
-                elif not isinstance(content, str):
-                    content = json.dumps(content)
+                result = await tools[tool_name](**tool_args)
+
+                if is_module_callback(result):
+                    context = PredictContext(module=predict, history=history)
+                    content = result(context)
+                elif isinstance(result, BaseModel):
+                    content = result.model_dump_json()
+                elif not isinstance(result, str):
+                    content = json.dumps(result)
+                else:
+                    content = result
             except Exception as e:
                 content = f"Error executing tool: {e}"
         else:

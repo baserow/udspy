@@ -70,22 +70,17 @@ async def process_content_delta(
     if not acc_delta:
         return acc_delta, current_field
 
-    # Check if we've found a field marker
     match = field_pattern.search(acc_delta)
     if match:
-        # Emit previous field as complete
         if current_field:
             field_content = "".join(accumulated_content[current_field])
             await queue.put(
                 OutputStreamChunk(module, current_field, "", field_content, is_complete=True)
             )
 
-        # Start new field
         current_field = match.group(1)
         acc_delta = match.group(2)
 
-    # If we're in a field and the accumulated delta doesn't partially match the pattern,
-    # emit it as a chunk
     if (
         current_field
         and current_field in output_fields

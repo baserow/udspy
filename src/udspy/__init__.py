@@ -19,6 +19,13 @@ from udspy.module import (
     Prediction,
     ReAct,
 )
+from udspy.module.callbacks import (
+    ModuleCallback,
+    ModuleContext,
+    PredictContext,
+    ReactContext,
+    module_callback,
+)
 from udspy.settings import settings
 from udspy.signature import InputField, OutputField, Signature, make_signature
 from udspy.streaming import OutputStreamChunk, StreamEvent, emit_event
@@ -46,6 +53,12 @@ __all__ = [
     "BaseCallback",
     "with_callbacks",
     "ACTIVE_CALL_ID",
+    # Module Callbacks
+    "module_callback",
+    "ModuleCallback",
+    "ModuleContext",
+    "PredictContext",
+    "ReactContext",
     # Confirmation
     "ConfirmationRequired",
     "ConfirmationRejected",

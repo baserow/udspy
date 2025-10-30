@@ -44,7 +44,6 @@ def check_valid_outputs_or_raise(
     Raises:
         AdapterParseError: If tool calls reference unknown tools or outputs don't match signature
     """
-    # Verify tool calls refer to known tools (only if we have tools configured)
     if tools:
         for tool_call in native_tool_calls:
             tool_name = tool_call.name
@@ -56,7 +55,6 @@ def check_valid_outputs_or_raise(
                     parsed_result={"error": f"Tool '{tool_name}' not found among available tools."},
                 )
 
-    # If no tool calls, verify outputs match signature fields
     if not native_tool_calls and outputs.keys() != signature.get_output_fields().keys():
         raise AdapterParseError(
             adapter_name=adapter_name,
