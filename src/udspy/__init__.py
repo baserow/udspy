@@ -11,6 +11,7 @@ from udspy.confirmation import (
     respond_to_confirmation,
 )
 from udspy.history import History
+from udspy.lm import LM
 from udspy.module import (
     ChainOfThought,
     Module,
@@ -28,6 +29,8 @@ __version__ = "0.1.2"
 __all__ = [
     # Settings
     "settings",
+    # Language Models
+    "LM",
     # Signatures
     "Signature",
     "InputField",

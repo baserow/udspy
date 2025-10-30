@@ -121,8 +121,9 @@ class Predict(Module):
             self.tool_schemas.append(self.adapter.format_tool_schema(tool))
 
     @property
-    def model(self) -> str:
-        return self._model or settings.default_model
+    def model(self) -> str | None:
+        """Get the model name override, or None to use LM's default."""
+        return self._model
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -282,12 +283,15 @@ class Predict(Module):
             Prediction object for this turn
         """
         completion_kwargs: dict[str, Any] = {
-            "model": self.model,
             "messages": messages,
             "stream": stream,
             "tools": self.tool_schemas,
             **self.kwargs,
         }
+
+        # Only pass model if explicitly set (otherwise LM uses its default)
+        if self.model is not None:
+            completion_kwargs["model"] = self.model
 
         func = self._astream if stream else self._aforward
         return await func(completion_kwargs, should_emit)

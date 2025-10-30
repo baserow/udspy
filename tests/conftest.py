@@ -36,15 +36,15 @@ def fast_retry():
 
 @pytest.fixture(autouse=True)
 def configure_client() -> None:
-    """Configure a mock async OpenAI client for testing."""
+    """Configure a mock LM for testing."""
     # Use mock async client to avoid actual API calls
     # (Sync wrappers use asyncio.run() which works with async client)
-    mock_aclient = MagicMock(spec=AsyncOpenAI)
+    from udspy.lm import OpenAILM
 
-    udspy.settings.configure(
-        aclient=mock_aclient,
-        model="gpt-4o-mini",
-    )
+    mock_aclient = MagicMock(spec=AsyncOpenAI)
+    mock_lm = OpenAILM(mock_aclient, default_model="gpt-4o-mini")
+
+    udspy.settings.configure(lm=mock_lm)
 
 
 @pytest.fixture

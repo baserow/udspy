@@ -6,32 +6,23 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
-from openai import AsyncOpenAI
-
-from udspy.lm import LM, OpenAILM
+from udspy.lm import LM, BaseLM
 
 
 class Settings:
     """Global settings for udspy.
 
-    Since udspy is async-first, we only need the async OpenAI client.
-    Sync wrappers (forward(), __call__()) use asyncio.run() internally,
-    which works fine with the async client.
+    udspy uses a single LM (Language Model) instance to handle all provider interactions.
+    Create an LM using the factory function and configure it globally or per-context.
     """
 
     def __init__(self) -> None:
-        self._aclient: AsyncOpenAI | None = None
-        self._lm: LM | None = None
-        self._default_model: str | None = None
+        self._lm: BaseLM | None = None
         self._default_kwargs: dict[str, Any] = {}
         self._callbacks: list[Any] = []
 
         # Context-specific overrides (thread-safe)
-        self._context_aclient: ContextVar[AsyncOpenAI | None] = ContextVar(
-            "context_aclient", default=None
-        )
-        self._context_lm: ContextVar[LM | None] = ContextVar("context_lm", default=None)
-        self._context_model: ContextVar[str | None] = ContextVar("context_model", default=None)
+        self._context_lm: ContextVar[BaseLM | None] = ContextVar("context_lm", default=None)
         self._context_kwargs: ContextVar[dict[str, Any] | None] = ContextVar(
             "context_kwargs", default=None
         )
@@ -41,88 +32,81 @@ class Settings:
 
     def configure(
         self,
+        lm: BaseLM | None = None,
+        model: str | None = None,
         api_key: str | None = None,
         base_url: str | None = None,
-        model: str | None = None,
-        aclient: AsyncOpenAI | None = None,
-        lm: LM | None = None,
         callbacks: list[Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        """Configure global OpenAI client and defaults.
+        """Configure global language model and defaults.
 
-        If parameters are not provided, attempts to read from environment variables:
+        If lm is not provided but model is, creates LM from environment variables:
         - api_key: UDSPY_LM_API_KEY or OPENAI_API_KEY
         - model: UDSPY_LM_MODEL
         - base_url: UDSPY_LM_BASE_URL
 
         Args:
-            api_key: OpenAI API key (creates default async client). If not provided,
-                reads from UDSPY_LM_API_KEY or OPENAI_API_KEY environment variables
-            base_url: Base URL for OpenAI API. If not provided, reads from
-                UDSPY_LM_BASE_URL environment variable
-            model: Default model to use for all predictions. If not provided, reads
-                from UDSPY_LM_MODEL environment variable
-            aclient: Custom async OpenAI client
-            lm: Custom LM instance (overrides aclient if provided)
+            lm: Language model instance. If not provided, creates from model/api_key/base_url
+            model: Model identifier (e.g., "gpt-4o", "groq/llama-3"). Used if lm not provided
+            api_key: API key. If not provided, reads from UDSPY_LM_API_KEY or OPENAI_API_KEY
+            base_url: Base URL. If not provided, reads from UDSPY_LM_BASE_URL
             callbacks: List of callback handlers for telemetry/monitoring
-            **kwargs: Default kwargs for all chat completions (temperature, etc.)
+            **kwargs: Default kwargs for all completions (temperature, etc.)
 
-        Example:
-            ```python
-            import udspy
-            from udspy import BaseCallback
-
-            # With environment variables (no parameters needed)
-            # Set UDSPY_LM_API_KEY=sk-... and UDSPY_LM_MODEL=gpt-4o
+        Examples:
+            # From environment variables (recommended)
+            # Set: UDSPY_LM_MODEL=gpt-4o, UDSPY_LM_API_KEY=sk-...
             udspy.settings.configure()
 
-            # With explicit parameters
-            udspy.settings.configure(api_key="sk-...", model="gpt-4o")
+            # From explicit parameters
+            udspy.settings.configure(model="gpt-4o", api_key="sk-...")
+
+            # With custom LM instance
+            from udspy import LM
+            lm = LM(model="gpt-4o", api_key="sk-...")
+            udspy.settings.configure(lm=lm)
+
+            # With Groq
+            lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
+            udspy.settings.configure(lm=lm)
+
+            # With Ollama (local)
+            lm = LM(model="ollama/llama2")
+            udspy.settings.configure(lm=lm)
 
             # With callbacks
+            from udspy import BaseCallback
+
             class LoggingCallback(BaseCallback):
                 def on_lm_start(self, call_id, instance, inputs):
-                    print(f"LLM called with: {inputs}")
+                    print(f"LLM called: {inputs}")
 
             udspy.settings.configure(
-                api_key="sk-...",
                 model="gpt-4o",
+                api_key="sk-...",
                 callbacks=[LoggingCallback()]
             )
-
-            # With custom client
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key="sk-...", timeout=30.0)
-            udspy.settings.configure(aclient=client, model="gpt-4o")
-
-            # With custom LM
-            from udspy.lm import OpenAILM
-            lm = OpenAILM(client, default_model="gpt-4o")
-            udspy.settings.configure(lm=lm)
-            ```
         """
-        # Read from environment variables if not provided
-        if api_key is None:
-            api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
-
-        if model is None:
-            model = os.getenv("UDSPY_LM_MODEL")
-
-        if base_url is None:
-            base_url = os.getenv("UDSPY_LM_BASE_URL")
-
         if lm:
             self._lm = lm
-        elif aclient:
-            self._aclient = aclient
-            self._lm = OpenAILM(aclient, default_model=model)
         else:
-            self._aclient = AsyncOpenAI(api_key=api_key, base_url=base_url)
-            self._lm = OpenAILM(self._aclient, default_model=model)
+            # Create LM from parameters or environment variables
+            if model is None:
+                model = os.getenv("UDSPY_LM_MODEL")
+            if api_key is None:
+                api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY")
+            if base_url is None:
+                base_url = os.getenv("UDSPY_LM_BASE_URL")
 
-        if model:
-            self._default_model = model
+            if not model:
+                raise ValueError(
+                    "No model specified. Either provide lm= or model=, "
+                    "or set UDSPY_LM_MODEL environment variable."
+                )
+
+            # Create LM using factory
+            self._lm = LM(model=model, api_key=api_key, base_url=base_url)
 
         if callbacks is not None:
             self._callbacks = callbacks
@@ -130,11 +114,16 @@ class Settings:
         self._default_kwargs.update(kwargs)
 
     @property
-    def lm(self) -> LM:
+    def lm(self) -> BaseLM:
         """Get the language model instance (context-aware).
 
-        This is the preferred way to access the LM for predictions.
-        Returns an LM abstraction that works with any provider.
+        This is the standard way to access the LM for predictions.
+
+        Returns:
+            LM instance for making predictions
+
+        Raises:
+            RuntimeError: If LM not configured
         """
         # Check context first
         context_lm = self._context_lm.get()
@@ -143,42 +132,11 @@ class Settings:
 
         # Fall back to global LM
         if self._lm is None:
-            raise RuntimeError("LM not configured. Call udspy.settings.configure() first.")
-        return self._lm
-
-    @property
-    def aclient(self) -> AsyncOpenAI:
-        """Get the async OpenAI client (context-aware).
-
-        Deprecated: Use settings.lm instead for provider abstraction.
-        This is kept for backward compatibility.
-        """
-        # Check context first
-        context_aclient = self._context_aclient.get()
-        if context_aclient is not None:
-            return context_aclient
-
-        # Fall back to global client
-        if self._aclient is None:
             raise RuntimeError(
-                "OpenAI client not configured. Call udspy.settings.configure() first."
+                "LM not configured. Call udspy.settings.configure() first.\n"
+                "Example: udspy.settings.configure(model='gpt-4o', api_key='sk-...')"
             )
-        return self._aclient
-
-    @property
-    def default_model(self) -> str:
-        """Get the default model name (context-aware)."""
-        # Check context first
-        context_model = self._context_model.get()
-        if context_model is not None:
-            return context_model
-
-        # Fall back to global model
-        if self._default_model is None:
-            raise ValueError(
-                "No model configured. Call settings.configure(model='...') or set in context."
-            )
-        return self._default_model
+        return self._lm
 
     @property
     def callbacks(self) -> list[Any]:
@@ -192,7 +150,7 @@ class Settings:
 
     @property
     def default_kwargs(self) -> dict[str, Any]:
-        """Get the default kwargs for chat completions (context-aware)."""
+        """Get the default kwargs for completions (context-aware)."""
         # Start with global defaults
         result = self._default_kwargs.copy()
 
@@ -224,35 +182,29 @@ class Settings:
     @contextmanager
     def context(
         self,
-        api_key: str = "",
-        base_url: str | None = None,
+        lm: BaseLM | None = None,
         model: str | None = None,
-        aclient: AsyncOpenAI | None = None,
-        lm: LM | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
         callbacks: list[Any] | None = None,
         **kwargs: Any,
     ) -> Iterator[None]:
         """Context manager for temporary settings overrides.
 
-        This is thread-safe and allows you to use different API keys, models,
-        or other settings within a specific context. Useful for multi-tenant
-        applications.
+        This is thread-safe and allows you to use different LMs or settings
+        within a specific context. Useful for multi-tenant applications.
 
         Args:
-            api_key: Temporary OpenAI API key (creates temporary client)
-            model: Temporary model to use
-            aclient: Temporary async OpenAI client
-            lm: Temporary LM instance (overrides aclient if provided)
+            lm: Temporary LM instance. If not provided, creates from model/api_key/base_url
+            model: Temporary model identifier
+            api_key: Temporary API key
+            base_url: Temporary base URL
             callbacks: Temporary callback handlers
-            **kwargs: Temporary kwargs for chat completions
+            **kwargs: Temporary kwargs for completions
 
-        Example:
-            ```python
-            import udspy
-            from udspy import Predict, Signature, InputField, OutputField
-
+        Examples:
             # Global settings
-            udspy.settings.configure(api_key="global-key", model="gpt-4o-mini")
+            udspy.settings.configure(model="gpt-4o-mini", api_key="global-key")
 
             class QA(Signature):
                 question: str = InputField()
@@ -260,35 +212,33 @@ class Settings:
 
             predictor = Predict(QA)
 
-            # Temporary override for a specific context (e.g., different tenant)
-            with udspy.settings.context(api_key="tenant-key", model="gpt-4"):
-                result = predictor(question="...")  # Uses "tenant-key" and "gpt-4"
+            # Temporary override for specific context
+            with udspy.settings.context(model="gpt-4", api_key="tenant-key"):
+                result = predictor(question="...")  # Uses gpt-4 with tenant-key
 
             # Back to global settings
-            result = predictor(question="...")  # Uses "global-key" and "gpt-4o-mini"
-            ```
+            result = predictor(question="...")  # Uses gpt-4o-mini with global-key
+
+            # With custom LM
+            from udspy import LM
+
+            with udspy.settings.context(lm=LM(model="groq/llama-3-70b", api_key="...")):
+                result = predictor(question="...")  # Uses Groq
         """
         # Save current context values
-        prev_aclient = self._context_aclient.get()
         prev_lm = self._context_lm.get()
-        prev_model = self._context_model.get()
         prev_kwargs = self._context_kwargs.get()
         prev_callbacks = self._context_callbacks.get()
 
         try:
-            # Set context-specific values
+            # Set context-specific LM
             if lm:
                 self._context_lm.set(lm)
-            elif aclient:
-                self._context_aclient.set(aclient)
-                self._context_lm.set(OpenAILM(aclient, default_model=model))
-            elif api_key or base_url:
-                temp_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-                self._context_aclient.set(temp_client)
-                self._context_lm.set(OpenAILM(temp_client, default_model=model))
-
-            if model:
-                self._context_model.set(model)
+            elif model or api_key or base_url:
+                # Create temporary LM
+                temp_model = model or os.getenv("UDSPY_LM_MODEL") or "gpt-4o"
+                temp_lm = LM(model=temp_model, api_key=api_key, base_url=base_url)
+                self._context_lm.set(temp_lm)
 
             if callbacks is not None:
                 self._context_callbacks.set(callbacks)
@@ -303,9 +253,7 @@ class Settings:
 
         finally:
             # Restore previous context values
-            self._context_aclient.set(prev_aclient)
             self._context_lm.set(prev_lm)
-            self._context_model.set(prev_model)
             self._context_kwargs.set(prev_kwargs)
             self._context_callbacks.set(prev_callbacks)
 
