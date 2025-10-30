@@ -530,17 +530,18 @@ The LM abstraction integrates with udspy's settings system:
 
 ```python
 import udspy
+from udspy import LM
 
-# Configure with API key (creates OpenAILM automatically)
-udspy.settings.configure(api_key="sk-...", model="gpt-4o")
+# Configure from environment variables (creates OpenAILM automatically)
+# Set: UDSPY_LM_MODEL=gpt-4o, UDSPY_LM_API_KEY=sk-...
+udspy.settings.configure()
 
-# Access the LM
+# Or provide explicit LM instance
+lm = LM(model="gpt-4o", api_key="sk-...")
+udspy.settings.configure(lm=lm)
+
+# Access the configured LM
 lm = udspy.settings.lm  # Returns OpenAILM instance
-
-# Or provide custom LM
-from udspy.lm import OpenAILM
-custom_lm = OpenAILM(client, default_model="gpt-4o")
-udspy.settings.configure(lm=custom_lm)
 ```
 
 **Backward Compatibility**: `settings.aclient` still works but is deprecated. Use `settings.lm` for new code.
@@ -550,10 +551,14 @@ udspy.settings.configure(lm=custom_lm)
 LM instances can be overridden per-context:
 
 ```python
+from udspy import LM
+
 # Global settings
-udspy.settings.configure(api_key="global-key", model="gpt-4o-mini")
+global_lm = LM(model="gpt-4o-mini", api_key="global-key")
+udspy.settings.configure(lm=global_lm)
 
 # Temporary override
+custom_lm = LM(model="gpt-4", api_key="custom-key")
 with udspy.settings.context(lm=custom_lm):
     result = predictor(question="...")  # Uses custom_lm
 
@@ -1432,11 +1437,15 @@ async def astream(self, **inputs):
 **Pattern**: Thread-safe configuration overrides
 
 ```python
+from udspy import LM
+
 # Global
-udspy.settings.configure(model="gpt-4o-mini")
+global_lm = LM(model="gpt-4o-mini", api_key="sk-...")
+udspy.settings.configure(lm=global_lm)
 
 # Context-specific
-with udspy.settings.context(model="gpt-4"):
+gpt4_lm = LM(model="gpt-4", api_key="sk-...")
+with udspy.settings.context(lm=gpt4_lm):
     result = predictor(...)  # Uses gpt-4
 
 # Back to global

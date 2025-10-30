@@ -14,11 +14,10 @@ from pydantic import Field
 
 import udspy
 from udspy import BaseCallback, InputField, OutputField, Predict, Signature, settings, tool
+from udspy.lm import LM
 
-settings.configure(
-    model="gpt-oss:120b-cloud",
-    base_url="http://localhost:11434/v1",
-)
+lm = LM(model="gpt-oss:120b-cloud", base_url="http://localhost:11434/v1")
+settings.configure(lm=lm)
 
 
 # =============================================================================

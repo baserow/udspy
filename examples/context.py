@@ -9,6 +9,7 @@ import os
 
 import udspy
 from udspy import InputField, OutputField, Predict, Signature
+from udspy.lm import LM
 
 # Configure global settings from environment variables
 udspy.settings.configure()
@@ -31,7 +32,9 @@ if __name__ == "__main__":
 
     # Temporarily use a different model in a specific context
     print("=== Using context-specific model (gpt-4) ===")
-    with udspy.settings.context(model="gpt-4", temperature=0.0):
+    api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY")
+    context_lm = LM(model="gpt-4", api_key=api_key)
+    with udspy.settings.context(lm=context_lm, temperature=0.0):
         result = predictor(question="What is the capital of France?")
         print(f"Answer: {result.answer}")
         print("Model used: gpt-4\n")
@@ -52,20 +55,24 @@ if __name__ == "__main__":
     user2_api_key = os.getenv("USER2_API_KEY", global_api_key)
 
     print("User 1 request:")
-    with udspy.settings.context(api_key=user1_api_key):
+    user1_lm = LM(model="gpt-4o-mini", api_key=user1_api_key)
+    with udspy.settings.context(lm=user1_lm):
         result = predictor(question="What is AI?")
         print(f"Answer: {result.answer}\n")
 
     print("User 2 request:")
-    with udspy.settings.context(api_key=user2_api_key):
+    user2_lm = LM(model="gpt-4o-mini", api_key=user2_api_key)
+    with udspy.settings.context(lm=user2_lm):
         result = predictor(question="What is ML?")
         print(f"Answer: {result.answer}\n")
 
     # Nested contexts
     print("=== Nested contexts ===")
-    with udspy.settings.context(model="gpt-4", temperature=0.5):
+    outer_lm = LM(model="gpt-4", api_key=api_key)
+    with udspy.settings.context(lm=outer_lm, temperature=0.5):
         print("Outer context (gpt-4, temp=0.5)")
 
+        # Inner context only changes temperature, keeps same LM
         with udspy.settings.context(temperature=0.9):
             print("Inner context (gpt-4, temp=0.9)")
             # This will use gpt-4 with temperature=0.9

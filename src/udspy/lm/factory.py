@@ -41,6 +41,7 @@ PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     },
 }
 
+
 def _detect_provider(model: str) -> str:
     """Detect provider from model string or base_url using registry.
 
@@ -59,7 +60,7 @@ def _detect_provider(model: str) -> str:
         prefix = model.split("/")[0].lower()
         if prefix in PROVIDER_REGISTRY:
             return prefix
-  
+
     return "openai"
 
 

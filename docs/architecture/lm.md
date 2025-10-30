@@ -20,8 +20,8 @@ The LM abstraction consists of:
 import udspy
 from udspy import LM
 
-# Configure with environment variables
-udspy.settings.configure(model="gpt-4o-mini", api_key="sk-...")
+# Configure from environment variables (UDSPY_LM_MODEL, UDSPY_LM_API_KEY)
+udspy.settings.configure()
 
 # Or use explicit LM instance
 lm = LM(model="gpt-4o-mini", api_key="sk-...")

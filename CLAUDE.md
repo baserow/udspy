@@ -74,11 +74,15 @@ Need to support different API keys and models in different contexts (e.g., multi
 Implemented thread-safe context manager using Python's `contextvars` module:
 
 ```python
+from udspy.lm import LM
+
 # Global settings
-udspy.settings.configure(api_key="global-key", model="gpt-4o-mini")
+global_lm = LM(model="gpt-4o-mini", api_key="global-key")
+udspy.settings.configure(lm=global_lm)
 
 # Temporary override in context
-with udspy.settings.context(api_key="user-key", model="gpt-4"):
+user_lm = LM(model="gpt-4", api_key="user-key")
+with udspy.settings.context(lm=user_lm):
     result = predictor(question="...")  # Uses user-key and gpt-4
 
 # Back to global settings
@@ -89,9 +93,9 @@ result = predictor(question="...")  # Uses global-key and gpt-4o-mini
 
 1. **Thread-Safe**: Uses `ContextVar` for thread-safe context isolation
 2. **Nestable**: Contexts can be nested with proper inheritance
-3. **Comprehensive**: Supports overriding api_key, model, client, async_client, and any kwargs
-4. **Clean API**: Simple context manager interface
-5. **Backwards Compatible**: Existing code continues to work without changes
+3. **Comprehensive**: Supports overriding lm, callbacks, and any kwargs
+4. **Clean API**: Simple context manager interface with LM instances
+5. **Flexible**: Use different LM providers per context
 
 ### Implementation Details
 
@@ -104,26 +108,30 @@ result = predictor(question="...")  # Uses global-key and gpt-4o-mini
 
 1. **Multi-tenant applications**: Different API keys per user
    ```python
-   with udspy.settings.context(api_key=user.api_key):
+   user_lm = LM(model="gpt-4o-mini", api_key=user.api_key)
+   with udspy.settings.context(lm=user_lm):
        result = predictor(question=user.question)
    ```
 
 2. **Model selection per request**: Use different models for different tasks
    ```python
-   with udspy.settings.context(model="gpt-4"):
+   powerful_lm = LM(model="gpt-4", api_key=api_key)
+   with udspy.settings.context(lm=powerful_lm):
        result = expensive_predictor(question=complex_question)
    ```
 
 3. **Testing**: Isolate test settings without affecting global state
    ```python
-   with udspy.settings.context(api_key="sk-test", temperature=0.0):
+   test_lm = LM(model="gpt-4o-mini", api_key="sk-test")
+   with udspy.settings.context(lm=test_lm, temperature=0.0):
        assert predictor(question="2+2").answer == "4"
    ```
 
 4. **Async operations**: Safe concurrent operations with different settings
    ```python
    async def handle_user(user):
-       with udspy.settings.context(api_key=user.api_key):
+       user_lm = LM(model="gpt-4o-mini", api_key=user.api_key)
+       with udspy.settings.context(lm=user_lm):
            async for chunk in streaming_predictor.stream(...):
                yield chunk
    ```

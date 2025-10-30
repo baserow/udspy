@@ -9,7 +9,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
 from udspy import settings
-from udspy.lm import BaseLM, LM, OpenAILM
+from udspy.lm import LM, BaseLM, OpenAILM
 
 
 class TestOpenAILM:

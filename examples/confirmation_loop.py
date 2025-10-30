@@ -22,12 +22,11 @@ from udspy import (
     settings,
     tool,
 )
+from udspy.lm import LM
 
 # Configure settings (use your preferred model)
-settings.configure(
-    model="gpt-oss:20b-cloud",
-    base_url="http://localhost:11434/v1",  # For local models
-)
+lm = LM(model="gpt-oss:20b-cloud", base_url="http://localhost:11434/v1")
+settings.configure(lm=lm)
 
 
 # Define tools with confirmation requirements

@@ -44,7 +44,10 @@ See [Signatures](../signatures.md) for more details.
 ```python
 # Global default
 import udspy
-udspy.settings.configure(model="gpt-4o-mini")
+from udspy import LM
+
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
+udspy.settings.configure(lm=lm)
 
 # Per-module override
 predictor = Predict(QA, model="gpt-4o")

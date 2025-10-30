@@ -19,12 +19,15 @@ The context manager is **thread-safe** using Python's `contextvars`, making it s
 
 ```python
 import udspy
+from udspy import LM
 
 # Configure global settings
-udspy.settings.configure(api_key="sk-global", model="gpt-4o-mini")
+global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+udspy.settings.configure(lm=global_lm)
 
 # Temporarily use a different model
-with udspy.settings.context(model="gpt-4"):
+gpt4_lm = LM(model="gpt-4", api_key="sk-global")
+with udspy.settings.context(lm=gpt4_lm):
     predictor = Predict(QA)
     result = predictor(question="What is AI?")
     # Uses gpt-4
@@ -37,7 +40,8 @@ result = predictor(question="What is ML?")
 
 ```python
 # Use a different API key for specific requests
-with udspy.settings.context(api_key="sk-user-specific"):
+user_lm = LM(model="gpt-4o-mini", api_key="sk-user-specific")
+with udspy.settings.context(lm=user_lm):
     result = predictor(question="User-specific query")
     # Uses the user-specific API key
 ```
@@ -45,8 +49,9 @@ with udspy.settings.context(api_key="sk-user-specific"):
 ### Override Multiple Settings
 
 ```python
+gpt4_lm = LM(model="gpt-4", api_key="sk-...")
 with udspy.settings.context(
-    model="gpt-4",
+    lm=gpt4_lm,
     temperature=0.0,
     max_tokens=500
 ):
@@ -58,13 +63,16 @@ with udspy.settings.context(
 Handle different users with different API keys:
 
 ```python
+from udspy import LM
+
 def handle_user_request(user_id: str, question: str):
     """Handle a request from a specific user."""
     # Get user-specific API key from database
     user_api_key = get_user_api_key(user_id)
 
     # Use user's API key for this request
-    with udspy.settings.context(api_key=user_api_key):
+    user_lm = LM(model="gpt-4o-mini", api_key=user_api_key)
+    with udspy.settings.context(lm=user_lm):
         predictor = Predict(QA)
         result = predictor(question=question)
 
@@ -80,9 +88,13 @@ answer2 = handle_user_request("user2", "What is Rust?")
 Contexts can be nested, with inner contexts overriding outer ones:
 
 ```python
-udspy.settings.configure(model="gpt-4o-mini", temperature=0.7)
+from udspy import LM
 
-with udspy.settings.context(model="gpt-4", temperature=0.5):
+global_lm = LM(model="gpt-4o-mini", api_key="sk-...")
+udspy.settings.configure(lm=global_lm, temperature=0.7)
+
+gpt4_lm = LM(model="gpt-4", api_key="sk-...")
+with udspy.settings.context(lm=gpt4_lm, temperature=0.5):
     # Uses gpt-4, temp=0.5
 
     with udspy.settings.context(temperature=0.0):
@@ -100,9 +112,11 @@ Context managers work seamlessly with async code:
 
 ```python
 import asyncio
+from udspy import LM
 
 async def generate_response(question: str, user_api_key: str):
-    with udspy.settings.context(api_key=user_api_key):
+    user_lm = LM(model="gpt-4o-mini", api_key=user_api_key)
+    with udspy.settings.context(lm=user_lm):
         predictor = StreamingPredict(QA)
         async for chunk in predictor.stream(question=question):
             yield chunk
@@ -121,11 +135,13 @@ async def main():
 Use contexts to isolate test settings:
 
 ```python
+from udspy import LM
+
 def test_with_specific_model():
     """Test behavior with a specific model."""
+    test_lm = LM(model="gpt-4", api_key="sk-test")
     with udspy.settings.context(
-        api_key="sk-test",
-        model="gpt-4",
+        lm=test_lm,
         temperature=0.0,  # Deterministic for testing
     ):
         predictor = Predict(QA)
@@ -133,20 +149,22 @@ def test_with_specific_model():
         assert "4" in result.answer
 ```
 
-## Custom Clients
+## Custom Endpoints
 
-You can also provide custom OpenAI clients:
+You can use custom endpoints with the LM factory:
 
 ```python
-from openai import OpenAI, AsyncOpenAI
+from udspy import LM
 
-custom_client = OpenAI(
+# Use custom endpoint
+custom_lm = LM(
+    model="custom-model",
     api_key="sk-custom",
-    base_url="https://custom-endpoint.example.com",
+    base_url="https://custom-endpoint.example.com/v1",
 )
 
-with udspy.settings.context(client=custom_client):
-    # Uses custom client with custom endpoint
+with udspy.settings.context(lm=custom_lm):
+    # Uses custom endpoint
     result = predictor(question="...")
 ```
 
@@ -154,14 +172,11 @@ with udspy.settings.context(client=custom_client):
 
 ```python
 import udspy
-from udspy import Signature, InputField, OutputField, Predict
+from udspy import Signature, InputField, OutputField, Predict, LM
 
 # Global configuration
-udspy.settings.configure(
-    api_key="sk-default",
-    model="gpt-4o-mini",
-    temperature=0.7,
-)
+default_lm = LM(model="gpt-4o-mini", api_key="sk-default")
+udspy.settings.configure(lm=default_lm, temperature=0.7)
 
 class QA(Signature):
     """Answer questions."""
@@ -174,7 +189,8 @@ predictor = Predict(QA)
 result = predictor(question="What is AI?")
 
 # Scenario 2: High-quality request (use GPT-4)
-with udspy.settings.context(model="gpt-4"):
+gpt4_lm = LM(model="gpt-4", api_key="sk-default")
+with udspy.settings.context(lm=gpt4_lm):
     result = predictor(question="Explain quantum computing")
 
 # Scenario 3: Deterministic response
@@ -182,7 +198,8 @@ with udspy.settings.context(temperature=0.0):
     result = predictor(question="What is 2+2?")
 
 # Scenario 4: User-specific API key
-with udspy.settings.context(api_key=user.api_key):
+user_lm = LM(model="gpt-4o-mini", api_key=user.api_key)
+with udspy.settings.context(lm=user_lm):
     result = predictor(question=user.question)
 ```
 

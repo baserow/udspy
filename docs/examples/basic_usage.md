@@ -4,12 +4,14 @@ This guide covers the fundamentals of using udspy.
 
 ## Setup
 
-First, configure the OpenAI client:
+First, configure with an LM instance:
 
 ```python
 import udspy
+from udspy import LM
 
-udspy.settings.configure(api_key="sk-...")
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
+udspy.settings.configure(lm=lm)
 ```
 
 Or use environment variables:
@@ -17,8 +19,18 @@ Or use environment variables:
 ```python
 import os
 import udspy
+from udspy import LM
 
-udspy.settings.configure(api_key=os.getenv("OPENAI_API_KEY"))
+lm = LM(model="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY"))
+udspy.settings.configure(lm=lm)
+```
+
+Or configure from environment variables directly (set `UDSPY_LM_MODEL` and `UDSPY_LM_API_KEY`):
+
+```python
+import udspy
+
+udspy.settings.configure()  # Reads from environment
 ```
 
 ## Simple Question Answering

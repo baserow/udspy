@@ -9,12 +9,11 @@ import asyncio
 from pydantic import Field
 
 from udspy import InputField, OutputField, ReAct, Signature, settings, tool
+from udspy.lm import LM
 from udspy.streaming import OutputStreamChunk, Prediction, ThoughtStreamChunk
 
-settings.configure(
-    model="gpt-oss:120b-cloud",
-    base_url="http://localhost:11434/v1",
-)
+lm = LM(model="gpt-oss:120b-cloud", base_url="http://localhost:11434/v1")
+settings.configure(lm=lm)
 
 
 # Define tools for the agent

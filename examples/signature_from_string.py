@@ -8,9 +8,11 @@ import asyncio
 
 import udspy
 from udspy import Predict, Signature
+from udspy.lm import LM
 
 # Configure API
-udspy.settings.configure(api_key="your-api-key", model="gpt-4o-mini")
+lm = LM(model="gpt-4o-mini", api_key="your-api-key")
+udspy.settings.configure(lm=lm)
 
 
 def basic_example():

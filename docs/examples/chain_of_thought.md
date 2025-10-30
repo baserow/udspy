@@ -28,8 +28,10 @@ print(result.answer)     # "345"
 
 ```python
 import udspy
+from udspy import LM
 
-udspy.settings.configure(api_key="your-key")
+lm = LM(model="gpt-4o-mini", api_key="your-key")
+udspy.settings.configure(lm=lm)
 
 class QA(Signature):
     """Answer questions clearly."""

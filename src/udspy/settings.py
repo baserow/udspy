@@ -120,7 +120,7 @@ class Settings:
         if self._lm is None:
             raise RuntimeError(
                 "LM not configured. Call udspy.settings.configure() first.\n"
-                "Example: udspy.settings.configure(model='gpt-4o', api_key='sk-...')"
+                "Example: udspy.settings.configure(lm=LM(model='gpt-4o', api_key='sk-...'))"
             )
         return self._lm
 

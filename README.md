@@ -80,10 +80,11 @@ uv pip install udspy
 
 ```python
 import udspy
-from udspy import Signature, InputField, OutputField, Predict
+from udspy import Signature, InputField, OutputField, Predict, LM
 
-# Configure OpenAI client
-udspy.settings.configure(api_key="your-api-key", model="gpt-4o-mini")
+# Configure with LM instance
+lm = LM(model="gpt-4o-mini", api_key="your-api-key")
+udspy.settings.configure(lm=lm)
 
 # Define a signature
 class QA(Signature):

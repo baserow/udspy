@@ -1,7 +1,5 @@
 """Tests for the registry-based LM factory."""
 
-import pytest
-
 from udspy.lm import LM
 from udspy.lm.factory import PROVIDER_REGISTRY, _detect_provider
 from udspy.lm.openai import OpenAILM
