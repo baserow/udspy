@@ -52,19 +52,21 @@ def manual_history_management() -> None:
     predictor = Predict(QA)
     history = History()
 
-    # Pre-populate history with context
-    history.add_system_message("You are a helpful coding tutor. Keep answers concise.")
+    # Pre-populate history with previous conversation (user/assistant only)
+    # System prompt will be automatically managed by Predict
     history.add_user_message("I'm learning to code")
     history.add_assistant_message("Great! I'm here to help you learn programming.")
 
     print(f"Starting with pre-populated history: {len(history)} messages\n")
 
     # Now ask questions with this context
+    # System prompt will be automatically prepended at position 0
     print("User: Should I start with Python or JavaScript?")
     result = predictor(question="Should I start with Python or JavaScript?", history=history)
     print(f"Assistant: {result.answer}\n")
 
     print(f"History now has {len(history)} messages")
+    print(f"First message is system prompt: {history.messages[0]['role'] == 'system'}")
 
 
 def branching_conversations() -> None:
@@ -94,6 +96,47 @@ def branching_conversations() -> None:
     print(f"Main history: {len(main_history)} messages")
     print(f"ML branch: {len(ml_history)} messages")
     print(f"NN branch: {len(nn_history)} messages")
+
+
+def automatic_system_prompt_management() -> None:
+    """Demonstrate automatic system prompt management."""
+    print("\n=== Automatic System Prompt Management ===\n")
+
+    predictor = Predict(QA)
+
+    # Scenario 1: Empty history - system prompt added automatically
+    print("Scenario 1: Starting with empty history")
+    history1 = History()
+    print(f"Messages before Predict: {len(history1)}")
+
+    result = predictor(question="What is Python?", history=history1)
+    print(f"Messages after Predict: {len(history1)}")
+    print(f"First message role: {history1.messages[0]['role']}")
+    print(f"First message content preview: {history1.messages[0]['content'][:50]}...\n")
+
+    # Scenario 2: History with only user messages - system prompt prepended
+    print("Scenario 2: Starting with user messages only")
+    history2 = History()
+    history2.add_user_message("Previous question")
+    history2.add_assistant_message("Previous answer")
+    print(f"Messages before Predict: {len(history2)}")
+    print(f"First message role: {history2.messages[0]['role']}")
+
+    result = predictor(question="New question", history=history2)
+    print(f"Messages after Predict: {len(history2)}")
+    print(f"First message role: {history2.messages[0]['role']}")
+    print("System prompt was automatically prepended!\n")
+
+    # Scenario 3: Multiple calls - system prompt stays at position 0
+    print("Scenario 3: Multiple calls maintain system prompt")
+    history3 = History()
+    predictor(question="First question", history=history3)
+    predictor(question="Second question", history=history3)
+    predictor(question="Third question", history=history3)
+
+    print(f"Total messages: {len(history3)}")
+    print(f"First message is always system: {history3.messages[0]['role'] == 'system'}")
+    print("System prompt is automatically maintained at position 0!")
 
 
 def history_with_clearing() -> None:
@@ -126,5 +169,6 @@ if __name__ == "__main__":
     # Run examples
     basic_history_example()
     manual_history_management()
+    automatic_system_prompt_management()
     branching_conversations()
     history_with_clearing()

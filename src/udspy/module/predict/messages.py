@@ -16,8 +16,12 @@ def build_initial_messages(
 ) -> None:
     """Build initial system and user messages from inputs and history.
 
-    Adds system message with formatted instructions (if not already present)
-    and user message with formatted inputs to the history.
+    Always sets the system message as the first message (replacing any existing
+    system message to match the current signature), then adds the user message
+    with formatted inputs at the end.
+
+    This allows users to maintain a history with only user/assistant messages,
+    and the system prompt will be automatically managed based on the signature.
 
     Args:
         adapter: ChatAdapter for formatting messages
@@ -25,9 +29,10 @@ def build_initial_messages(
         inputs: Input values from user
         history: History object to update with messages
     """
-    if not history.messages:
-        history.add_system_message(adapter.format_instructions(signature))
+    # Always set/replace system message at position 0
+    history.set_system_message(adapter.format_instructions(signature))
 
+    # Add user message at the end
     history.add_user_message(adapter.format_inputs(signature, inputs))
 
 

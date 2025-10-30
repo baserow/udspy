@@ -51,6 +51,72 @@ def test_history_add_messages() -> None:
     assert history.messages[2]["content"] == "You are helpful"
 
 
+def test_set_system_message_empty_history() -> None:
+    """Test set_system_message on empty history."""
+    history = History()
+
+    history.set_system_message("You are helpful")
+
+    assert len(history) == 1
+    assert history.messages[0]["role"] == "system"
+    assert history.messages[0]["content"] == "You are helpful"
+
+
+def test_set_system_message_replaces_existing() -> None:
+    """Test set_system_message replaces existing system message at position 0."""
+    history = History()
+    history.set_system_message("First system message")
+    history.add_user_message("Hello")
+
+    # Replace the system message
+    history.set_system_message("Second system message")
+
+    assert len(history) == 2
+    assert history.messages[0]["role"] == "system"
+    assert history.messages[0]["content"] == "Second system message"
+    assert history.messages[1]["role"] == "user"
+    assert history.messages[1]["content"] == "Hello"
+
+
+def test_set_system_message_prepends_to_user_messages() -> None:
+    """Test set_system_message prepends when first message is not system."""
+    history = History()
+    history.add_user_message("Hello")
+    history.add_assistant_message("Hi there!")
+
+    # Should prepend system message
+    history.set_system_message("You are helpful")
+
+    assert len(history) == 3
+    assert history.messages[0]["role"] == "system"
+    assert history.messages[0]["content"] == "You are helpful"
+    assert history.messages[1]["role"] == "user"
+    assert history.messages[1]["content"] == "Hello"
+    assert history.messages[2]["role"] == "assistant"
+    assert history.messages[2]["content"] == "Hi there!"
+
+
+def test_set_system_message_multiple_calls() -> None:
+    """Test multiple calls to set_system_message keep only one at position 0."""
+    history = History()
+    history.add_user_message("Message 1")
+
+    history.set_system_message("System v1")
+    assert len(history) == 2
+    assert history.messages[0]["content"] == "System v1"
+
+    history.add_user_message("Message 2")
+
+    history.set_system_message("System v2")
+    assert len(history) == 3  # Still 3 messages (system + 2 user)
+    assert history.messages[0]["role"] == "system"
+    assert history.messages[0]["content"] == "System v2"
+    assert history.messages[1]["role"] == "user"
+    assert history.messages[1]["content"] == "Message 1"
+    assert history.messages[2]["role"] == "user"
+    assert history.messages[2]["content"] == "Message 2"
+
+
 def test_history_tool_result() -> None:
     """Test adding tool results to history."""
     history = History()
@@ -104,6 +170,34 @@ def test_history_repr() -> None:
     str_repr = str(history)
     assert "History (1 messages)" in str_repr
     assert "[user]" in str_repr
+
+
+def test_set_system_message_with_predict() -> None:
+    """Test that Predict automatically manages system message in history."""
+    from conftest import make_mock_response
+
+    settings.lm.client.chat.completions.create = AsyncMock(
+        return_value=make_mock_response("[[ ## answer ## ]]\nTest answer")
+    )
+
+    predictor = Predict(QA)
+
+    # Create history with only user messages (no system)
+    history = History()
+    history.add_user_message("Previous question")
+    history.add_assistant_message("Previous answer")
+
+    # Call predictor - should automatically set system message at position 0
+    result = predictor(question="New question", history=history)
+
+    # System message should now be at position 0
+    assert len(history) >= 4  # system + previous user + previous assistant + new user
+    assert history.messages[0]["role"] == "system"
+    assert "Answer questions" in history.messages[0]["content"]  # From QA signature
+    assert history.messages[1]["role"] == "user"
+    assert history.messages[1]["content"] == "Previous question"
+    assert history.messages[2]["role"] == "assistant"
+    assert "answer" in result.answer.lower()
 
 
 @pytest.mark.asyncio

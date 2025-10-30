@@ -8,7 +8,13 @@ class History:
 
     History stores messages in OpenAI format and provides methods to add
     user messages, assistant responses, and tool interactions. When passed
-    to Predict, it automatically handles message history.
+    to Predict, it automatically manages the system prompt, ensuring it's
+    always the first message.
+
+    The system prompt is automatically set based on the signature when using
+    Predict, so you typically only need to track user/assistant messages in
+    your History. This makes it easy to maintain conversation context without
+    worrying about system prompt placement.
 
     Example:
         ```python
@@ -22,16 +28,29 @@ class History:
         predictor = Predict(QA)
         history = History()
 
-        # First turn
+        # First turn - system prompt automatically added at position 0
         result = predictor(question="What is Python?", history=history)
         print(result.answer)
 
-        # Second turn - history is automatically maintained
+        # Second turn - system prompt is maintained, new user message added
         result = predictor(question="What are its main features?", history=history)
         print(result.answer)  # Uses context from previous turn
 
-        # Access messages
-        print(history.messages)  # List of all messages
+        # Access messages - system prompt is at position 0
+        print(history.messages[0])  # System prompt
+        print(history.messages[1])  # First user message
+        ```
+
+    You can also manually manage the history with only user/assistant messages:
+        ```python
+        # Pre-populate history with previous conversation
+        history = History()
+        history.add_user_message("What is Python?")
+        history.add_assistant_message("Python is a programming language")
+
+        # System prompt will be prepended automatically when passed to Predict
+        result = predictor(question="What are its features?", history=history)
+        # history.messages[0] is now the system prompt
         ```
 
     Attributes:
@@ -87,6 +106,46 @@ class History:
             content: System message content
         """
         self.add_message("system", content)
+
+    def set_system_message(self, content: str) -> None:
+        """Set or replace the system message at the beginning of history.
+
+        This ensures the system message is always the first message in the
+        conversation history. If a system message already exists at position 0,
+        it will be replaced. Otherwise, the system message will be prepended.
+
+        This is particularly useful when working with the Predict module, which
+        automatically sets the system prompt based on the signature. Users can
+        maintain a history with only user/assistant messages, and the system
+        prompt will be automatically managed.
+
+        Args:
+            content: System message content
+
+        Example:
+            ```python
+            # History with user messages only
+            history = History()
+            history.add_user_message("What is Python?")
+            history.add_assistant_message("Python is a programming language")
+
+            # System message is prepended when passed to Predict
+            # (handled automatically by the module)
+            result = predictor(question="What are its features?", history=history)
+            # history.messages[0] is now the system message
+            ```
+        """
+        message = {"role": "system", "content": content}
+
+        if not self.messages:
+            # Empty history - just add it
+            self.messages.append(message)
+        elif self.messages[0]["role"] == "system":
+            # Replace existing system message
+            self.messages[0] = message
+        else:
+            # Prepend to existing messages
+            self.messages.insert(0, message)
 
     def add_tool_result(self, tool_call_id: str, content: str) -> None:
         """Add a tool result message.
