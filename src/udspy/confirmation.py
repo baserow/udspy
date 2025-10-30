@@ -7,15 +7,26 @@ import json
 import uuid
 from collections.abc import Callable
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, TypedDict
 
 from udspy.utils.async_support import execute_function_async
 
 if TYPE_CHECKING:
     from udspy.tool import ToolCall
 
+# Type-safe status literals
+ConfirmationStatus = Literal["pending", "approved", "rejected", "edited", "feedback"]
+
+
+class ApprovalData(TypedDict, total=False):
+    """Typed structure for approval data in confirmation context."""
+
+    approved: bool
+    data: dict[str, Any] | None
+    status: ConfirmationStatus
+
 # Thread-safe and asyncio task-safe confirmation context
-_confirmation_context: ContextVar[dict[str, Any] | None] = ContextVar(
+_confirmation_context: ContextVar[dict[str, ApprovalData] | None] = ContextVar(
     "confirmation_context", default=None
 )
 
@@ -162,7 +173,7 @@ class ConfirmationRejected(Exception):
         self.tool_call = tool_call
 
 
-def get_confirmation_context() -> dict[str, Any]:
+def get_confirmation_context() -> dict[str, ApprovalData]:
     """Get the current confirmation context.
 
     Returns:
@@ -175,46 +186,46 @@ def get_confirmation_context() -> dict[str, Any]:
 def respond_to_confirmation(
     confirmation_id: str,
     approved: bool = True,
-    data: Any = None,
-    status: str | None = None,
+    data: dict[str, Any] | None = None,
+    status: ConfirmationStatus | None = None,
 ) -> None:
     """Mark an confirmation as approved in the context.
 
     Args:
         confirmation_id: The confirmation ID to approve
         approved: Whether the confirmation is approved
-        data: Optional data associated with the approval (e.g., modified args)
-        status: Optional status string (e.g., "approved", "rejected", "edited", "feedback")
+        data: Optional modified arguments dictionary
+        status: Optional status (must be one of: "approved", "rejected", "edited", "feedback", "pending")
     """
     ctx = _confirmation_context.get()
     if ctx is None:
         ctx = {}
     else:
         ctx = ctx.copy()
-    ctx[confirmation_id] = {
+
+    approval_data: ApprovalData = {
         "approved": approved,
         "data": data,
         "status": status or ("approved" if approved else "rejected"),
     }
+    ctx[confirmation_id] = approval_data
     _confirmation_context.set(ctx)
 
 
-def get_confirmation_status(confirmation_id: str) -> str | None:
+def get_confirmation_status(confirmation_id: str) -> ConfirmationStatus:
     """Get the status of a confirmation.
 
     Args:
         confirmation_id: The confirmation ID to check
 
     Returns:
-        Status string or None if confirmation not found.
-        Possible values: "pending", "approved", "rejected", "edited", "feedback"
+        Status (one of: "pending", "approved", "rejected", "edited", "feedback")
     """
     ctx = _confirmation_context.get()
     if ctx is None or confirmation_id not in ctx:
         return "pending"
-    return ctx[confirmation_id].get(
-        "status", "approved" if ctx[confirmation_id].get("approved") else "rejected"
-    )
+    approval = ctx[confirmation_id]
+    return approval.get("status", "approved" if approval.get("approved") else "rejected")
 
 
 def clear_confirmation(confirmation_id: str) -> None:
@@ -276,12 +287,6 @@ def _handle_confirmation_approval(
 ) -> dict[str, Any]:
     """Check confirmation approval status and handle accordingly.
 
-    This function checks if a confirmation has been approved, rejected, or is pending.
-    Based on the status, it either:
-    - Returns modified kwargs if approved (possibly with user edits)
-    - Raises ConfirmationRejected if user explicitly rejected
-    - Raises ConfirmationRequired if pending approval
-
     Args:
         confirmation_id: The confirmation ID to check
         func_name: Name of the function being called
@@ -298,24 +303,21 @@ def _handle_confirmation_approval(
     from udspy.tool import ToolCall
 
     ctx = _confirmation_context.get()
-    approval = ctx.get(confirmation_id) if ctx is not None else None
+    approval: ApprovalData | None = ctx.get(confirmation_id) if ctx is not None else None
 
     if approval:
         is_approved = approval.get("approved", False)
         status = approval.get("status", "pending")
 
         if is_approved:
-            # Use modified args if provided, otherwise original
             return approval.get("data") or all_kwargs
         elif status == "rejected":
-            # User explicitly rejected
             raise ConfirmationRejected(
                 message=f"User rejected execution of {func_name}",
                 confirmation_id=confirmation_id,
                 tool_call=ToolCall(name=func_name, args=all_kwargs),
             )
 
-    # No approval yet - ask user
     raise ConfirmationRequired(
         question=f"Confirm execution of {func_name} with args: {json.dumps(all_kwargs)}? (yes/no/feedback/edit)",
         confirmation_id=confirmation_id,
@@ -325,10 +327,6 @@ def _handle_confirmation_approval(
 
 async def check_tool_confirmation(tool_name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
     """Check and handle confirmation for a tool execution.
-
-    This is a helper function specifically for tools that require confirmation.
-    It generates a confirmation ID based on the tool name and arguments, checks
-    the confirmation context, and handles approval/rejection/pending states.
 
     Args:
         tool_name: Name of the tool being called
@@ -344,19 +342,15 @@ async def check_tool_confirmation(tool_name: str, kwargs: dict[str, Any]) -> dic
 
     from udspy.tool import ToolCall
 
-    # Generate confirmation ID
     args_str = json.dumps(kwargs, sort_keys=True)
     confirmation_id = hashlib.md5(f"{tool_name}:{args_str}".encode()).hexdigest()
 
-    # Check confirmation status
     ctx = _confirmation_context.get()
-    approval = ctx.get(confirmation_id) if ctx is not None else None
+    approval: ApprovalData | None = ctx.get(confirmation_id) if ctx is not None else None
 
     if approval:
         if approval.get("approved"):
-            # Use modified args if provided, otherwise original
             modified_kwargs = approval.get("data") or kwargs
-            # Clear confirmation after successful approval
             clear_confirmation(confirmation_id)
             return modified_kwargs
         elif approval.get("status") == "rejected":
@@ -366,7 +360,6 @@ async def check_tool_confirmation(tool_name: str, kwargs: dict[str, Any]) -> dic
                 tool_call=ToolCall(name=tool_name, args=kwargs),
             )
 
-    # No approval found - raise confirmation required
     raise ConfirmationRequired(
         question=f"Confirm execution of {tool_name} with args: {json.dumps(kwargs)}? (yes/no/feedback/edit)",
         confirmation_id=confirmation_id,

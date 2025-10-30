@@ -3,8 +3,10 @@
 from udspy.adapter import ChatAdapter
 from udspy.callback import ACTIVE_CALL_ID, BaseCallback, with_callbacks
 from udspy.confirmation import (
+    ApprovalData,
     ConfirmationRejected,
     ConfirmationRequired,
+    ConfirmationStatus,
     ResumeState,
     confirm_first,
     get_confirmation_status,
@@ -62,6 +64,8 @@ __all__ = [
     # Confirmation
     "ConfirmationRequired",
     "ConfirmationRejected",
+    "ConfirmationStatus",
+    "ApprovalData",
     "ResumeState",
     "confirm_first",
     "get_confirmation_status",
