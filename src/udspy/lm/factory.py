@@ -33,43 +33,38 @@ from udspy.lm.openai import OpenAILM
 class ProviderConfig(TypedDict):
     """Configuration for an LM provider."""
 
-    model_prefixes: list[str]  # Prefixes for model detection (e.g., ["groq"])
-    base_url_keywords: list[str]  # Keywords in base_url for detection
     default_base_url: str | None  # Default base URL, or None to use provider default
-    requires_api_key: bool  # Whether API key is required
 
 
 # Provider registry - add new providers here
+# Provider name is used for detection in both model prefix (e.g., "groq/model")
+# and base_url (e.g., "https://api.groq.com")
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
-        "model_prefixes": [],  # No prefix needed, this is the default
-        "base_url_keywords": ["openai"],
         "default_base_url": None,  # Use OpenAI's default
-        "requires_api_key": True,
     },
     "groq": {
-        "model_prefixes": ["groq"],
-        "base_url_keywords": ["groq"],
         "default_base_url": "https://api.groq.com/openai/v1",
-        "requires_api_key": True,
     },
     "bedrock": {
-        "model_prefixes": ["bedrock"],
-        "base_url_keywords": ["bedrock"],
         "default_base_url": None,  # Must be provided by user (region-specific)
-        "requires_api_key": True,
     },
     "ollama": {
-        "model_prefixes": ["ollama"],
-        "base_url_keywords": ["ollama", ":11434"],
         "default_base_url": "http://localhost:11434/v1",
-        "requires_api_key": False,
     },
 }
+
+# Special handling for providers that don't require API keys
+PROVIDERS_WITHOUT_API_KEY = {"ollama"}
 
 
 def _detect_provider(model: str, base_url: str | None) -> str:
     """Detect provider from model string or base_url using registry.
+
+    Provider detection uses the registry keys:
+    - Model prefix: "groq/llama-3" → detects "groq"
+    - Base URL: "https://api.groq.com" → detects "groq"
+    - Special case: ":11434" → detects "ollama" (default Ollama port)
 
     Args:
         model: Model identifier (e.g., "gpt-4o", "groq/llama-3", "ollama/llama2")
@@ -81,15 +76,20 @@ def _detect_provider(model: str, base_url: str | None) -> str:
     # Check model prefix first
     if "/" in model:
         prefix = model.split("/")[0].lower()
-        for provider_name, config in PROVIDER_REGISTRY.items():
-            if prefix in config["model_prefixes"]:
-                return provider_name
+        if prefix in PROVIDER_REGISTRY:
+            return prefix
 
-    # Check base_url keywords
+    # Check base_url for provider name or special markers
     if base_url:
         base_url_lower = base_url.lower()
-        for provider_name, config in PROVIDER_REGISTRY.items():
-            if any(keyword in base_url_lower for keyword in config["base_url_keywords"]):
+
+        # Special case: Ollama's default port
+        if ":11434" in base_url_lower:
+            return "ollama"
+
+        # Check if any provider name appears in base_url
+        for provider_name in PROVIDER_REGISTRY:
+            if provider_name in base_url_lower:
                 return provider_name
 
     # Default to OpenAI
@@ -169,8 +169,8 @@ def LM(
     # Clean model name (remove provider prefix if present)
     clean_model = _clean_model_name(model)
 
-    # Validate API key requirement
-    if config["requires_api_key"] and not api_key:
+    # Validate API key requirement (all except ollama need API keys)
+    if provider not in PROVIDERS_WITHOUT_API_KEY and not api_key:
         raise ValueError(
             f"API key required for {provider}. "
             f"Use provider 'ollama' for local models without API keys."

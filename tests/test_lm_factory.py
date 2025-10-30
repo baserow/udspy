@@ -14,15 +14,10 @@ def test_provider_registry_structure():
     assert "bedrock" in PROVIDER_REGISTRY
     assert "ollama" in PROVIDER_REGISTRY
 
-    # Check that each provider has required fields
-    for provider_name, config in PROVIDER_REGISTRY.items():
-        assert "model_prefixes" in config
-        assert "base_url_keywords" in config
+    # Check that each provider has only default_base_url
+    for _provider_name, config in PROVIDER_REGISTRY.items():
         assert "default_base_url" in config
-        assert "requires_api_key" in config
-        assert isinstance(config["model_prefixes"], list)
-        assert isinstance(config["base_url_keywords"], list)
-        assert isinstance(config["requires_api_key"], bool)
+        assert len(config) == 1  # Only one field
 
 
 def test_detect_provider_from_model_prefix():
