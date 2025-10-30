@@ -124,7 +124,7 @@ def LM(
     provider = _detect_provider(model)
     config = PROVIDER_REGISTRY[provider]
     base_url = base_url or config["default_base_url"]
-    clean_model = _clean_model_name(model)
+    provider_model = _clean_model_name(model)
 
     client_kwargs: dict[str, Any] = {**kwargs}
     client_kwargs["api_key"] = api_key if api_key else "dummy"
@@ -133,7 +133,7 @@ def LM(
         client_kwargs["base_url"] = base_url
 
     client = AsyncOpenAI(**client_kwargs)
-    return OpenAILM(client, default_model=clean_model)
+    return OpenAILM(client, default_model=provider_model)
 
 
 __all__ = ["LM"]

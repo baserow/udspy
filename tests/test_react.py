@@ -481,10 +481,10 @@ async def test_react_resume_pending_tool_call_with_exception() -> None:
         saved_state = e
         respond_to_confirmation(e.confirmation_id, approved=True)
 
-    # Resume - pending_tool_call execution hits exception path (lines 285-287)
+    # Resume - pending_tool_call execution hits exception path
     result = await agent.aresume("yes", saved_state)
 
     # Verify error was caught and logged as observation
     assert "observation_0" in result.trajectory
-    assert "Error executing" in result.trajectory["observation_0"]
+    assert "Traceback 'failing_tool'" in result.trajectory["observation_0"]
     assert "Tool failed" in result.trajectory["observation_0"]

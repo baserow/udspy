@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 import json
 import logging
 import secrets
@@ -298,6 +297,63 @@ class ReAct(Module):
 
         return "\n".join(lines)
 
+    async def _execute_tool_call(
+        self,
+        tool_name: str,
+        tool_args: dict[str, Any],
+        tool_call_id: str,
+        idx: int,
+        trajectory: dict[str, Any],
+        input_args: dict[str, Any],
+    ) -> str:
+        """Execute a single tool call and return observation.
+
+        Args:
+            tool_name: Name of tool to execute
+            tool_args: Arguments for the tool
+            tool_call_id: Unique ID for this tool call
+            idx: Current iteration index
+            trajectory: Current trajectory state
+            input_args: Original input arguments
+
+        Returns:
+            Observation string from tool execution
+
+        Raises:
+            ConfirmationRequired: When human input is needed
+        """
+        logger.debug(f"Tool call - name: {tool_name}, args: {tool_args}, id: {tool_call_id}")
+        tool = None
+        try:
+            tool = self.tools[tool_name]
+            result = await tool.acall(**tool_args)
+
+            if is_module_callback(result):
+                context = ReactContext(module=self, trajectory=trajectory)
+                observation = result(context)
+            else:
+                observation = str(result)
+
+            return f"{tool_call_id}. {observation}"
+        except ConfirmationRequired as e:
+            e.context = {
+                "trajectory": trajectory.copy(),
+                "iteration": idx,
+                "input_args": input_args.copy(),
+            }
+            if e.tool_call and tool_call_id:
+                e.tool_call.call_id = tool_call_id
+            raise
+        except Exception as e:
+            parts = [
+                f"{tool_call_id}.",
+                f"Traceback '{tool_name}': {format_tool_exception(e)}.",
+            ]
+            if tool is not None:
+                parts.append(f"Expected tool args schema: {tool.parameters}.")
+            logger.warning(f"Tool execution failed: {e}")
+            return " ".join(parts)
+
     async def _execute_iteration(
         self,
         idx: int,
@@ -313,8 +369,8 @@ class ReAct(Module):
             idx: Current iteration index
             trajectory: Current trajectory state
             input_args: Original input arguments
+            stream: Whether to stream sub-module execution
             pending_tool_call: Optional pending tool call to execute (for resumption)
-                             Format: {"name": str, "args": dict, "id": str}
 
         Returns:
             should_stop: Whether to stop the ReAct loop
@@ -322,39 +378,19 @@ class ReAct(Module):
         Raises:
             ConfirmationRequired: When human input is needed
         """
-        if pending_tool_call:  # FIXME
+        if pending_tool_call:
             tool_name = pending_tool_call["name"]
             tool_args = pending_tool_call["args"]
-            tool_call_id = pending_tool_call.get("id", "")
+            tool_call_id = pending_tool_call.get("id", f"call_{secrets.token_hex(8)}")
 
             trajectory[f"tool_name_{idx}"] = tool_name
             trajectory[f"tool_args_{idx}"] = tool_args
 
-            try:
-                tool = self.tools[tool_name]
-                if inspect.iscoroutinefunction(tool.func):
-                    observations = await tool.func(**tool_args)
-                elif tool.require_confirmation:
-                    observations = tool.func(**tool_args)
-                else:
-                    import asyncio
+            observation = await self._execute_tool_call(
+                tool_name, tool_args, tool_call_id, idx, trajectory, input_args
+            )
 
-                    loop = asyncio.get_event_loop()
-                    observations = await loop.run_in_executor(None, lambda: tool.func(**tool_args))
-            except ConfirmationRequired as e:
-                e.context = {
-                    "trajectory": trajectory.copy(),
-                    "iteration": idx,
-                    "input_args": input_args.copy(),
-                }
-                if e.tool_call and tool_call_id:
-                    e.tool_call.call_id = tool_call_id
-                raise
-            except Exception as e:
-                observations = f"Error executing {tool_name}: {str(e)}"
-                logger.warning(f"Tool execution failed: {e}")
-
-            trajectory[f"observation_{idx}"] = str(observations)
+            trajectory[f"observation_{idx}"] = observation
             should_stop = tool_name == "finish"
             return should_stop
 
@@ -369,10 +405,7 @@ class ReAct(Module):
         trajectory[f"thought_{idx}"] = thought
         trajectory[f"tool_calls_{idx}"] = []
 
-        # Handle malformed next_tool_calls (should be list, but may be string if JSON parsing failed)
         next_tool_calls = pred.get("next_tool_calls", [])
-        # Some smaller models create an object with an "items" key instead of an array
-        # of tool_calls. Let's handle that too.
         if isinstance(next_tool_calls, dict) and "items" in next_tool_calls:
             next_tool_calls = next_tool_calls["items"]
 
@@ -391,37 +424,10 @@ class ReAct(Module):
 
             trajectory[f"tool_calls_{idx}"].append({"id": tool_call_id, **tool_call})
 
-            logger.debug(f"Tool call - name: {tool_name}, args: {tool_args}, id: {tool_call_id}")
-            tool = None
-            try:
-                tool = self.tools[tool_name]
-                result = await tool.acall(**tool_args)
-
-                if is_module_callback(result):
-                    context = ReactContext(module=self, trajectory=trajectory)
-                    observation = result(context)
-                else:
-                    observation = str(result)
-
-                observations.append(f"{tool_call_id}. {observation}")
-            except ConfirmationRequired as e:
-                e.context = {
-                    "trajectory": trajectory.copy(),
-                    "iteration": idx,
-                    "input_args": input_args.copy(),
-                }
-                if e.tool_call and tool_call_id:
-                    e.tool_call.call_id = tool_call_id
-                raise
-            except Exception as e:
-                parts = [
-                    f"{tool_call_id}.",
-                    f"Traceback '{tool_name}': {format_tool_exception(e)}.",
-                ]
-                if tool is not None:
-                    parts.append(f"Expected tool args schema: {tool.parameters}.")
-                observations.append(" ".join(parts))
-                logger.warning(f"Tool execution failed: {e}")
+            observation = await self._execute_tool_call(
+                tool_name, tool_args, tool_call_id, idx, trajectory, input_args
+            )
+            observations.append(observation)
 
             should_stop = tool_name == "finish"
 

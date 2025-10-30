@@ -35,6 +35,8 @@ def calculator(expression: str = Field(..., description="Math expression to eval
     Returns:
         String with the result
     """
+    
+    print(f"[Calculator Tool] Evaluating expression: {expression}")
     try:
         result = eval(expression, {"__builtins__": {}}, {})
         return f"Result: {result}"
@@ -58,6 +60,8 @@ def load_calculator() -> callable:  # type: ignore[valid-syntax]
         current_tools = [
             t for t in context.module.tools.values() if t.name not in ("finish", "ask_to_user")
         ]
+        
+        print("[Module Callback] Loading calculator tool...")
 
         context.module.init_module(tools=current_tools + [calculator])
 
