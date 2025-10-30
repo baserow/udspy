@@ -219,24 +219,21 @@ The LM abstraction is deeply integrated with udspy's settings system.
 import udspy
 from udspy import LM
 
-# Method 1: Auto-create from parameters
-udspy.settings.configure(model="gpt-4o", api_key="sk-...")
-
-# Method 2: Auto-create from environment variables
+# Method 1: Auto-create from environment variables
 # Set: UDSPY_LM_MODEL=gpt-4o, UDSPY_LM_API_KEY=sk-...
 udspy.settings.configure()
 
-# Method 3: Provide custom LM instance
+# Method 2: Provide LM instance
+lm = LM(model="gpt-4o", api_key="sk-...")
+udspy.settings.configure(lm=lm)
+
+# Method 3: With Groq
 lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
 udspy.settings.configure(lm=lm)
 
 # Method 4: With callbacks and kwargs
-udspy.settings.configure(
-    model="gpt-4o",
-    api_key="sk-...",
-    callbacks=[MyCallback()],
-    temperature=0.7
-)
+lm = LM(model="gpt-4o", api_key="sk-...")
+udspy.settings.configure(lm=lm, callbacks=[MyCallback()], temperature=0.7)
 ```
 
 ### Accessing the LM
@@ -266,19 +263,21 @@ import udspy
 from udspy import LM
 
 # Global settings
-udspy.settings.configure(model="gpt-4o-mini", api_key="global-key")
+global_lm = LM(model="gpt-4o-mini", api_key="global-key")
+udspy.settings.configure(lm=global_lm)
 
-# Temporary override with different model
-with udspy.settings.context(model="gpt-4", api_key="global-key"):
-    result = predictor(question="...")  # Uses gpt-4
+# Temporary override with different LM
+context_lm = LM(model="gpt-4", api_key="tenant-key")
+with udspy.settings.context(lm=context_lm):
+    result = predictor(question="...")  # Uses gpt-4 with tenant-key
 
-# Temporary override with custom LM
+# Temporary override with Groq
 groq_lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
 with udspy.settings.context(lm=groq_lm):
     result = predictor(question="...")  # Uses Groq
 
 # Back to global settings
-result = predictor(question="...")  # Uses gpt-4o-mini
+result = predictor(question="...")  # Uses gpt-4o-mini with global-key
 ```
 
 ### Multi-Tenant Applications

@@ -41,12 +41,11 @@ PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     },
 }
 
-def _detect_provider(model: str, base_url: str | None) -> str:
+def _detect_provider(model: str) -> str:
     """Detect provider from model string or base_url using registry.
 
     Detection strategy:
     - Model prefix: "groq/llama-3" → "groq"
-    - Base URL: "https://api.groq.com" → "groq"
     - Fallback: "openai"
 
     Args:
@@ -60,13 +59,7 @@ def _detect_provider(model: str, base_url: str | None) -> str:
         prefix = model.split("/")[0].lower()
         if prefix in PROVIDER_REGISTRY:
             return prefix
-
-    if base_url:
-        base_url_lower = base_url.lower()
-        for provider_name in PROVIDER_REGISTRY:
-            if provider_name in base_url_lower:
-                return provider_name
-
+  
     return "openai"
 
 
@@ -79,8 +72,9 @@ def _clean_model_name(model: str) -> str:
     Returns:
         Clean model name (e.g., "llama-3-70b")
     """
-    if "/" in model:
-        return model.split("/", 1)[1]
+    prefix, *rest = model.split("/", 1)
+    if prefix in PROVIDER_REGISTRY and rest:
+        return rest[0]
     return model
 
 
@@ -126,7 +120,7 @@ def LM(
         lm = LM(model="ollama/llama2")
         lm = LM(model="llama2", base_url="http://localhost:11434/v1")
     """
-    provider = _detect_provider(model, base_url)
+    provider = _detect_provider(model)
     config = PROVIDER_REGISTRY[provider]
     base_url = base_url or config["default_base_url"]
     clean_model = _clean_model_name(model)

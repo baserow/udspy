@@ -148,10 +148,11 @@ class TestSettingsLMIntegration:
 
     def test_configure_creates_lm(self) -> None:
         """Test that configure() creates an LM instance."""
-        settings.configure(api_key="sk-test", model="gpt-4o")
+        lm = LM(model="gpt-4o", api_key="sk-test")
+        settings.configure(lm=lm)
 
-        lm = settings.lm
-        assert isinstance(lm, OpenAILM)
+        assert settings.lm == lm
+        assert isinstance(settings.lm, OpenAILM)
 
     def test_configure_with_custom_lm(self) -> None:
         """Test configuring with custom LM instance."""
@@ -172,11 +173,13 @@ class TestSettingsLMIntegration:
             _ = settings.lm
 
         # Restore settings
-        settings.configure(api_key="sk-test", model="gpt-4o-mini")
+        lm = LM(model="gpt-4o-mini", api_key="sk-test")
+        settings.configure(lm=lm)
 
     def test_backward_compatibility_aclient_still_works(self) -> None:
         """Test that settings.lm.client still works (backward compatibility)."""
-        settings.configure(api_key="sk-test", model="gpt-4o-mini")
+        lm = LM(model="gpt-4o-mini", api_key="sk-test")
+        settings.configure(lm=lm)
 
         # Should not raise
         aclient = settings.lm.client
@@ -188,8 +191,8 @@ class TestLMContextManager:
 
     def test_context_with_custom_lm(self) -> None:
         """Test context manager with custom LM instance."""
-        settings.configure(api_key="sk-global", model="gpt-4o-mini")
-        global_lm = settings.lm
+        global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+        settings.configure(lm=global_lm)
 
         mock_client = AsyncMock(spec=AsyncOpenAI)
         custom_lm = OpenAILM(client=mock_client, default_model="gpt-4o")
@@ -201,23 +204,24 @@ class TestLMContextManager:
         # Back to global LM
         assert settings.lm == global_lm
 
-    def test_context_with_api_key_creates_lm(self) -> None:
-        """Test that context with api_key creates new client and LM."""
-        settings.configure(api_key="sk-global", model="gpt-4o-mini")
-        global_lm = settings.lm
+    def test_context_with_different_lm(self) -> None:
+        """Test that context with different LM creates new LM."""
+        global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+        settings.configure(lm=global_lm)
 
-        with settings.context(api_key="sk-context", model="gpt-4o"):
-            context_lm = settings.lm
-            assert isinstance(context_lm, OpenAILM)
-            assert context_lm != global_lm
+        context_lm = LM(model="gpt-4o", api_key="sk-context")
+        with settings.context(lm=context_lm):
+            assert settings.lm == context_lm
+            assert isinstance(settings.lm, OpenAILM)
+            assert settings.lm != global_lm
 
         # Back to global LM
         assert settings.lm == global_lm
 
     def test_nested_lm_contexts(self) -> None:
         """Test nested context managers with different LMs."""
-        settings.configure(api_key="sk-global", model="gpt-4o-mini")
-        global_lm = settings.lm
+        global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+        settings.configure(lm=global_lm)
 
         mock_client1 = AsyncMock(spec=AsyncOpenAI)
         lm1 = OpenAILM(client=mock_client1, default_model="gpt-4o")
@@ -239,15 +243,17 @@ class TestLMContextManager:
 
     def test_context_preserves_lm_when_only_changing_other_settings(self) -> None:
         """Test that LM is preserved when context only changes kwargs."""
-        settings.configure(api_key="sk-global", model="gpt-4o-mini")
+        global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+        settings.configure(lm=global_lm)
         original_lm = settings.lm
 
         # Only changing kwargs should keep the same LM
         with settings.context(temperature=0.9):
             assert settings.lm is original_lm
 
-        # Changing model creates a new LM
-        with settings.context(model="gpt-4", api_key="sk-global"):
+        # Providing a new LM creates a new LM
+        new_lm = LM(model="gpt-4", api_key="sk-test")
+        with settings.context(lm=new_lm):
             assert settings.lm is not original_lm
 
         # After all contexts, should be back to original LM

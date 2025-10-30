@@ -14,6 +14,7 @@ from random import randint
 
 import udspy
 from udspy import InputField, OutputField, Predict, Signature
+from udspy.lm import LM
 
 
 class QA(Signature):
@@ -26,7 +27,8 @@ class QA(Signature):
 if __name__ == "__main__":
     # Example 1: OpenAI (default provider)
     print("\n=== OpenAI ===")
-    with udspy.settings.context(model="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY")):
+    openai_lm = LM(model="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY"))
+    with udspy.settings.context(lm=openai_lm):
         predictor = Predict(QA)
         result = predictor(question="What is the capital of France?")
         print(f"Answer: {result.answer}")
@@ -35,7 +37,8 @@ if __name__ == "__main__":
     print("\n=== Groq (with prefix) ===")
     groq_key = os.getenv("GROQ_API_KEY")
     if groq_key:
-        with udspy.settings.context(model="groq/llama-3-70b", api_key=groq_key):
+        groq_lm = LM(model="groq/llama-3-70b", api_key=groq_key)
+        with udspy.settings.context(lm=groq_lm):
             predictor = Predict(QA)
             result = predictor(question="What is 15 * 23?")
             print(f"Answer: {result.answer}")
@@ -45,11 +48,12 @@ if __name__ == "__main__":
     # Example 3: Groq (using explicit base_url)
     print("\n=== Groq (with base_url) ===")
     if groq_key:
-        with udspy.settings.context(
+        groq_lm2 = LM(
             model="llama-3-70b",
             api_key=groq_key,
             base_url="https://api.groq.com/openai/v1",
-        ):
+        )
+        with udspy.settings.context(lm=groq_lm2):
             predictor = Predict(QA)
             result = predictor(question=f"What is {randint(1, 100)} + {randint(1, 100)}?")
             print(f"Answer: {result.answer}")
@@ -59,7 +63,8 @@ if __name__ == "__main__":
     # Example 4: Ollama (local, using model prefix - no API key needed)
     print("\n=== Ollama (with prefix) ===")
     try:
-        with udspy.settings.context(model="ollama/llama2"):
+        ollama_lm = LM(model="ollama/llama2")
+        with udspy.settings.context(lm=ollama_lm):
             predictor = Predict(QA)
             result = predictor(question="What is Python?")
             print(f"Answer: {result.answer}")
@@ -70,7 +75,8 @@ if __name__ == "__main__":
     # Example 5: Ollama (using explicit base_url)
     print("\n=== Ollama (with base_url) ===")
     try:
-        with udspy.settings.context(model="llama2", base_url="http://localhost:11434/v1"):
+        ollama_lm2 = LM(model="llama2", base_url="http://localhost:11434/v1")
+        with udspy.settings.context(lm=ollama_lm2):
             predictor = Predict(QA)
             result = predictor(question="What is TypeScript?")
             print(f"Answer: {result.answer}")

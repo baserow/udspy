@@ -3,11 +3,13 @@
 from openai import AsyncOpenAI
 
 from udspy import settings
+from udspy.lm import LM, OpenAILM
 
 
-def test_configure_with_api_key() -> None:
-    """Test configuring settings with API key."""
-    settings.configure(api_key="sk-test-key", model="gpt-4")
+def test_configure_with_lm() -> None:
+    """Test configuring settings with LM."""
+    lm = LM(model="gpt-4", api_key="sk-test-key")
+    settings.configure(lm=lm)
 
     assert settings.lm.model == "gpt-4"
     assert isinstance(settings.lm.client, AsyncOpenAI)
@@ -15,8 +17,6 @@ def test_configure_with_api_key() -> None:
 
 def test_configure_with_custom_client() -> None:
     """Test configuring with custom async client."""
-    from udspy.lm import OpenAILM
-
     custom_aclient = AsyncOpenAI(api_key="sk-custom")
     custom_lm = OpenAILM(client=custom_aclient, default_model="gpt-4o")
 
@@ -25,13 +25,15 @@ def test_configure_with_custom_client() -> None:
     assert settings.lm.client == custom_aclient
 
 
-def test_context_override_model() -> None:
-    """Test context manager overrides model."""
-    settings.configure(api_key="sk-global", model="gpt-4o-mini")
+def test_context_override_lm() -> None:
+    """Test context manager overrides LM."""
+    global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+    settings.configure(lm=global_lm)
 
     assert settings.lm.model == "gpt-4o-mini"
 
-    with settings.context(model="gpt-4"):
+    context_lm = LM(model="gpt-4", api_key="sk-context")
+    with settings.context(lm=context_lm):
         assert settings.lm.model == "gpt-4"
 
     # Back to global settings
@@ -39,21 +41,24 @@ def test_context_override_model() -> None:
 
 
 def test_context_override_api_key() -> None:
-    """Test context manager creates new client with different API key."""
-    settings.configure(api_key="sk-global", model="gpt-4o-mini")
-    global_aclient = settings.lm.client
+    """Test context manager creates new LM with different API key."""
+    global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+    settings.configure(lm=global_lm)
+    global_client = settings.lm.client
 
-    with settings.context(api_key="sk-context", model="gpt-4o"):
-        context_aclient = settings.lm.client
-        assert context_aclient != global_aclient
+    context_lm = LM(model="gpt-4o", api_key="sk-context")
+    with settings.context(lm=context_lm):
+        context_client = settings.lm.client
+        assert context_client != global_client
 
     # Back to global client
-    assert settings.lm.client == global_aclient
+    assert settings.lm.client == global_client
 
 
 def test_context_override_kwargs() -> None:
     """Test context manager overrides default kwargs."""
-    settings.configure(api_key="sk-test", model="gpt-4o-mini", temperature=0.5)
+    lm = LM(model="gpt-4o-mini", api_key="sk-test")
+    settings.configure(lm=lm, temperature=0.5)
 
     assert settings.default_kwargs["temperature"] == 0.5
 
@@ -69,14 +74,17 @@ def test_context_override_kwargs() -> None:
 
 def test_nested_contexts() -> None:
     """Test nested context managers."""
-    settings.configure(api_key="sk-global", model="gpt-4o-mini")
+    global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+    settings.configure(lm=global_lm)
 
     assert settings.lm.model == "gpt-4o-mini"
 
-    with settings.context(model="gpt-4"):
+    lm1 = LM(model="gpt-4", api_key="sk-test")
+    with settings.context(lm=lm1):
         assert settings.lm.model == "gpt-4"
 
-        with settings.context(model="gpt-4-turbo"):
+        lm2 = LM(model="gpt-4-turbo", api_key="sk-test")
+        with settings.context(lm=lm2):
             assert settings.lm.model == "gpt-4-turbo"
 
         # Back to outer context
@@ -88,9 +96,8 @@ def test_nested_contexts() -> None:
 
 def test_context_with_custom_client() -> None:
     """Test context manager with custom async client."""
-    from udspy.lm import OpenAILM
-
-    settings.configure(api_key="sk-global", model="gpt-4o-mini")
+    global_lm = LM(model="gpt-4o-mini", api_key="sk-global")
+    settings.configure(lm=global_lm)
 
     custom_aclient = AsyncOpenAI(api_key="sk-custom")
     custom_lm = OpenAILM(client=custom_aclient, default_model="gpt-4o")
@@ -104,7 +111,8 @@ def test_context_with_custom_client() -> None:
 
 def test_context_preserves_lm_when_only_changing_other_settings() -> None:
     """Test that LM is preserved when context only changes callbacks/kwargs."""
-    settings.configure(api_key="sk-global", model="gpt-4o-mini")
+    lm = LM(model="gpt-4o-mini", api_key="sk-global")
+    settings.configure(lm=lm)
     original_lm = settings.lm
 
     # Test 1: Only changing callbacks should keep the same LM
@@ -121,8 +129,9 @@ def test_context_preserves_lm_when_only_changing_other_settings() -> None:
         assert settings.lm is original_lm
         assert settings.default_kwargs["temperature"] == 0.9
 
-    # Test 3: Providing model/api_key/base_url creates a new LM
-    with settings.context(model="gpt-4", api_key="sk-test"):
+    # Test 3: Providing a new LM creates a new LM instance
+    new_lm = LM(model="gpt-4", api_key="sk-test")
+    with settings.context(lm=new_lm):
         assert settings.lm is not original_lm
 
     # After all contexts, should be back to original LM

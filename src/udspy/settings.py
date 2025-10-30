@@ -33,34 +33,25 @@ class Settings:
     def configure(
         self,
         lm: BaseLM | None = None,
-        model: str | None = None,
-        api_key: str | None = None,
-        base_url: str | None = None,
         callbacks: list[Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """Configure global language model and defaults.
 
-        If lm is not provided but model is, creates LM from environment variables:
-        - api_key: UDSPY_LM_API_KEY or OPENAI_API_KEY
-        - model: UDSPY_LM_MODEL
-        - base_url: UDSPY_LM_BASE_URL
+        If lm is not provided, creates LM from environment variables:
+        - UDSPY_LM_MODEL (required): Model identifier
+        - UDSPY_LM_API_KEY or OPENAI_API_KEY: API key
+        - UDSPY_LM_BASE_URL: Optional base URL
 
         Args:
-            lm: Language model instance. If not provided, creates from model/api_key/base_url
-            model: Model identifier (e.g., "gpt-4o", "groq/llama-3"). Used if lm not provided
-            api_key: API key. If not provided, reads from UDSPY_LM_API_KEY or OPENAI_API_KEY
-            base_url: Base URL. If not provided, reads from UDSPY_LM_BASE_URL
+            lm: Language model instance. If not provided, creates from environment variables
             callbacks: List of callback handlers for telemetry/monitoring
             **kwargs: Default kwargs for all completions (temperature, etc.)
 
         Examples:
-            # From environment variables (recommended)
+            # From environment variables
             # Set: UDSPY_LM_MODEL=gpt-4o, UDSPY_LM_API_KEY=sk-...
             udspy.settings.configure()
-
-            # From explicit parameters
-            udspy.settings.configure(model="gpt-4o", api_key="sk-...")
 
             # With custom LM instance
             from udspy import LM
@@ -76,33 +67,28 @@ class Settings:
             udspy.settings.configure(lm=lm)
 
             # With callbacks
-            from udspy import BaseCallback
+            from udspy import LM, BaseCallback
 
             class LoggingCallback(BaseCallback):
                 def on_lm_start(self, call_id, instance, inputs):
                     print(f"LLM called: {inputs}")
 
-            udspy.settings.configure(
-                model="gpt-4o",
-                api_key="sk-...",
-                callbacks=[LoggingCallback()]
-            )
+            lm = LM(model="gpt-4o", api_key="sk-...")
+            udspy.settings.configure(lm=lm, callbacks=[LoggingCallback()])
         """
         if lm:
             self._lm = lm
         else:
-            # Create LM from parameters or environment variables
-            if model is None:
-                model = os.getenv("UDSPY_LM_MODEL")
-            if api_key is None:
-                api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY")
-            if base_url is None:
-                base_url = os.getenv("UDSPY_LM_BASE_URL")
+            # Create LM from environment variables
+            model = os.getenv("UDSPY_LM_MODEL")
+            api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY")
+            base_url = os.getenv("UDSPY_LM_BASE_URL")
 
             if not model:
                 raise ValueError(
-                    "No model specified. Either provide lm= or model=, "
-                    "or set UDSPY_LM_MODEL environment variable."
+                    "No LM configured. Either provide lm= parameter or set "
+                    "UDSPY_LM_MODEL environment variable.\n"
+                    "Example: udspy.settings.configure(lm=LM(model='gpt-4o', api_key='sk-...'))"
                 )
 
             # Create LM using factory
@@ -183,9 +169,6 @@ class Settings:
     def context(
         self,
         lm: BaseLM | None = None,
-        model: str | None = None,
-        api_key: str | None = None,
-        base_url: str | None = None,
         callbacks: list[Any] | None = None,
         **kwargs: Any,
     ) -> Iterator[None]:
@@ -195,16 +178,15 @@ class Settings:
         within a specific context. Useful for multi-tenant applications.
 
         Args:
-            lm: Temporary LM instance. If not provided, creates from model/api_key/base_url
-            model: Temporary model identifier
-            api_key: Temporary API key
-            base_url: Temporary base URL
+            lm: Temporary LM instance
             callbacks: Temporary callback handlers
             **kwargs: Temporary kwargs for completions
 
         Examples:
             # Global settings
-            udspy.settings.configure(model="gpt-4o-mini", api_key="global-key")
+            from udspy import LM
+            lm = LM(model="gpt-4o-mini", api_key="global-key")
+            udspy.settings.configure(lm=lm)
 
             class QA(Signature):
                 question: str = InputField()
@@ -213,16 +195,16 @@ class Settings:
             predictor = Predict(QA)
 
             # Temporary override for specific context
-            with udspy.settings.context(model="gpt-4", api_key="tenant-key"):
+            tenant_lm = LM(model="gpt-4", api_key="tenant-key")
+            with udspy.settings.context(lm=tenant_lm):
                 result = predictor(question="...")  # Uses gpt-4 with tenant-key
 
             # Back to global settings
             result = predictor(question="...")  # Uses gpt-4o-mini with global-key
 
-            # With custom LM
-            from udspy import LM
-
-            with udspy.settings.context(lm=LM(model="groq/llama-3-70b", api_key="...")):
+            # With Groq
+            groq_lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
+            with udspy.settings.context(lm=groq_lm):
                 result = predictor(question="...")  # Uses Groq
         """
         # Save current context values
@@ -234,11 +216,6 @@ class Settings:
             # Set context-specific LM
             if lm:
                 self._context_lm.set(lm)
-            elif model or api_key or base_url:
-                # Create temporary LM
-                temp_model = model or os.getenv("UDSPY_LM_MODEL") or "gpt-4o"
-                temp_lm = LM(model=temp_model, api_key=api_key, base_url=base_url)
-                self._context_lm.set(temp_lm)
 
             if callbacks is not None:
                 self._context_callbacks.set(callbacks)

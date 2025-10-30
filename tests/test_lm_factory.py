@@ -22,18 +22,10 @@ def test_provider_registry_structure():
 
 def test_detect_provider_from_model_prefix():
     """Test provider detection from model prefix."""
-    assert _detect_provider("groq/llama-3-70b", None) == "groq"
-    assert _detect_provider("ollama/llama2", None) == "ollama"
-    assert _detect_provider("bedrock/claude-3", None) == "bedrock"
-    assert _detect_provider("gpt-4o", None) == "openai"  # Default
-
-
-def test_detect_provider_from_base_url():
-    """Test provider detection from base_url."""
-    assert _detect_provider("model", "https://api.groq.com") == "groq"
-    assert _detect_provider("model", "https://bedrock.amazonaws.com") == "bedrock"
-    assert _detect_provider("model", "https://api.openai.com/v1") == "openai"
-    assert _detect_provider("model", "http://localhost:11434/v1") == "openai"  # No special case
+    assert _detect_provider("groq/llama-3-70b") == "groq"
+    assert _detect_provider("ollama/llama2") == "ollama"
+    assert _detect_provider("bedrock/claude-3") == "bedrock"
+    assert _detect_provider("gpt-4o") == "openai"  # Default
 
 
 def test_lm_factory_returns_openai_lm():
