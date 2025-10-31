@@ -24,7 +24,8 @@ class Tools(BaseModel):
             # Get raw schema with $defs (if available)
             if tool._raw_schema:
                 tool_args_schema = tool._raw_schema.copy()
-                defs.update(tool_args_schema.pop("$defs", {}))
+                tool_defs = tool_args_schema.pop("$defs", {})
+                defs.update({k: minimize_schema(v)["properties"] for k, v in tool_defs.items()})
                 tool_args_schema = minimize_schema(tool_args_schema.get("properties", {}))
             else:
                 tool_args_schema = {}
@@ -33,7 +34,7 @@ class Tools(BaseModel):
             desc = (tool.description or "").replace("\n", " ").strip()
             desc_part = f", whose description is <desc>{desc}</desc>." if desc else "."
             arg_desc = (
-                f"It takes arguments {tool_args_schema}."
+                f"It takes arguments {json.dumps(tool_args_schema)}."
                 if tool_args_schema
                 else "It takes no arguments."
             )
@@ -49,7 +50,7 @@ class Tools(BaseModel):
             parts.append(fmt_tool)
 
         if defs:
-            parts.insert(0, f"Common tools definitions: {defs}\n")
+            parts.append(f"\n## Tool Definitions ($defs):\n {json.dumps(defs)}\n")
         return "\n".join(parts)
 
 

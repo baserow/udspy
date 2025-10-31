@@ -23,8 +23,9 @@ def test_format_instructions() -> None:
     assert "Answer questions concisely" in instructions
     assert "question" in instructions
     assert "answer" in instructions
-    assert "Question to answer" in instructions
-    assert "Concise answer" in instructions
+    # Field descriptions are no longer in system message (moved to output instructions)
+    assert "Given the input fields" in instructions
+    assert "produce the output fields" in instructions
 
 
 def test_format_inputs() -> None:
@@ -425,7 +426,7 @@ def test_format_field_structure_multiple_complex_types() -> None:
 
 
 def test_format_instructions_includes_field_structure() -> None:
-    """Test that format_instructions includes field descriptions (but not structure)."""
+    """Test that format_instructions includes only task description and field names."""
 
     class MathQA(Signature):
         """Answer math questions."""
@@ -439,9 +440,11 @@ def test_format_instructions_includes_field_structure() -> None:
     # Should include the signature description
     assert "Answer math questions" in instructions
 
-    # Should include field descriptions
-    assert "Math question" in instructions
-    assert "Numeric answer" in instructions
+    # Should include field names in the "Given..." sentence
+    assert "question" in instructions
+    assert "answer" in instructions
+    assert "Given the input fields" in instructions
+    assert "produce the output fields" in instructions
 
     # Should NOT include field structure (that's now in format_output_instructions)
     assert "[[ ## question ## ]]" not in instructions

@@ -8,7 +8,7 @@ import secrets
 from collections.abc import Callable
 from typing import Any, Literal, TypedDict
 
-from pydantic import create_model
+from pydantic import Field, create_model
 
 from udspy.callback import with_callbacks
 from udspy.confirmation import ConfirmationRequired, respond_to_confirmation
@@ -198,12 +198,11 @@ class ReAct(Module):
             ]
         )
 
-        instr.append(Tools(tools=list(self.tools.values())).format() + "\n")
+        instr.append(Tools(tools=list(self.tools.values())).format())
         instr.extend(
             [
-                "When providing `next_tool_calls`, the value inside the field must be in JSON format "
-                "and respect the schema of the tool being called.",
-                "NEVER use native tool calling, return tool calls only via `next_tool_calls` as array in your output.",
+                "If a tool fails multiple times, call `finish` to complete the task explaining the failure in your final answer.",
+                "**CRITICAL: Tool Call Format** You MUST return tool calls in the `next_tool_calls` array field only.",
             ]
         )
 
@@ -215,7 +214,13 @@ class ReAct(Module):
         ToolCallModel = create_model(
             "ToolCall",
             name=(Literal[*self.tools.keys()], ...),
-            args=(dict[str, Any], ...),
+            args=(
+                dict[str, Any],
+                Field(
+                    ...,
+                    description="It must be a JSON object matching the tool's arguments schema",
+                ),
+            ),
         )
 
         react_output_fields: dict[str, type] = {
@@ -486,6 +491,7 @@ class ReAct(Module):
             stream: Passed to sub-modules
             _trajectory: Internal - restored trajectory for resumption (list of completed episodes)
             _pending_episode: Internal - partial episode to complete for resumption
+            history: History object for streaming (not used currently)
             **input_args: Input values matching signature's input fields
 
         Returns:
@@ -526,7 +532,12 @@ class ReAct(Module):
                             if hasattr(extract, field_name):
                                 result_dict[field_name] = getattr(extract, field_name)
 
-                        return Prediction(module=self, is_final=True, trajectory=trajectory, **result_dict)
+                        return Prediction(
+                            module=self,
+                            is_final=True,
+                            trajectory=trajectory,
+                            **result_dict,
+                        )
                 except ValueError as e:
                     logger.warning(f"Agent failed: {e}")
                     error_episode: Episode = {
@@ -567,7 +578,9 @@ class ReAct(Module):
                 if hasattr(extract, field_name):
                     result_dict[field_name] = getattr(extract, field_name)
 
-            prediction = Prediction(module=self, is_final=True, trajectory=trajectory, **result_dict)
+            prediction = Prediction(
+                module=self, is_final=True, trajectory=trajectory, **result_dict
+            )
             return prediction
         finally:
             # Clean up context
@@ -665,7 +678,9 @@ class ReAct(Module):
                     # Non-dict JSON, treat as feedback
                     if saved_state.confirmation_id:
                         respond_to_confirmation(
-                            saved_state.confirmation_id, approved=False, status="feedback"
+                            saved_state.confirmation_id,
+                            approved=False,
+                            status="feedback",
                         )
                     feedback_episode = {
                         "thought": "",

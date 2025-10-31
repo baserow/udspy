@@ -126,28 +126,17 @@ class ChatAdapter:
         """
         parts = []
 
-        # Add main instructions
         instructions = signature.get_instructions()
         if instructions:
             parts.append(instructions)
 
-        # Add input field descriptions
-        input_fields = signature.get_input_fields()
-        if input_fields:
-            parts.append("\n**Inputs:**")
-            for i, (name, field_info) in enumerate(input_fields.items(), start=1):
-                desc = field_info.description or ""
-                parts.append(f"{i}. `{name}`: {desc}")
+        input_fields = [f"`{name}`" for name in signature.get_input_fields().keys()]
+        output_fields = [f"`{name}`" for name in signature.get_output_fields().keys()]
+        parts.append(
+            f"Given the input fields: {', '.join(input_fields)}, produce the output fields: {', '.join(output_fields)}."
+        )
 
-        # Add output field descriptions
-        output_fields = signature.get_output_fields()
-        if output_fields:
-            parts.append("\n**Required Outputs:**")
-            for i, (name, field_info) in enumerate(output_fields.items(), start=1):
-                desc = field_info.description or ""
-                parts.append(f"{i}. `{name}`: {desc}")
-
-        return "\n".join(parts)
+        return "\n".join(parts).strip()
 
     def format_output_instructions(self, signature: type[Signature]) -> str:
         """Format instructions for how to structure output fields.

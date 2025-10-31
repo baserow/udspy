@@ -285,3 +285,132 @@ async def test_tool_error_handling() -> None:
     second_call_messages = messages_log[1]
     tool_message = [m for m in second_call_messages if m["role"] == "tool"][0]
     assert "Error executing tool" in tool_message["content"]
+
+
+def test_parse_and_validate_args_primitives() -> None:
+    """Test parse_and_validate_args with primitive type coercion."""
+
+    @tool(name="TestTool")
+    def test_tool(
+        int_param: int = Field(description="An integer"),
+        float_param: float = Field(description="A float"),
+        str_param: str = Field(description="A string"),
+        bool_param: bool = Field(description="A boolean"),
+    ) -> str:
+        return f"{int_param}-{float_param}-{str_param}-{bool_param}"
+
+    # Raw args from JSON (strings that need coercion)
+    raw_args = {
+        "int_param": "123",
+        "float_param": "45.67",
+        "str_param": "hello",
+        "bool_param": "true",
+    }
+
+    parsed = test_tool.parse_and_validate_args(raw_args)
+
+    # Verify types are coerced correctly
+    assert isinstance(parsed["int_param"], int)
+    assert parsed["int_param"] == 123
+
+    assert isinstance(parsed["float_param"], float)
+    assert parsed["float_param"] == 45.67
+
+    assert isinstance(parsed["str_param"], str)
+    assert parsed["str_param"] == "hello"
+
+    assert isinstance(parsed["bool_param"], bool)
+    assert parsed["bool_param"] is True
+
+
+def test_parse_and_validate_args_pydantic_models() -> None:
+    """Test parse_and_validate_args with Pydantic model arguments."""
+    from pydantic import BaseModel
+
+    class RowModel(BaseModel):
+        name: str
+        value: int
+        active: bool = True
+
+    @tool(name="create_row")
+    def create_row(
+        table_id: int = Field(description="Table ID"),
+        row: RowModel = Field(description="Row data"),
+    ) -> str:
+        return f"Created row {row.name} in table {table_id}"
+
+    # Raw args from JSON
+    raw_args = {
+        "table_id": "888",  # String that should be coerced to int
+        "row": {"name": "Project A", "value": 42},  # Dict that should become RowModel
+    }
+
+    parsed = create_row.parse_and_validate_args(raw_args)
+
+    # Verify table_id is coerced to int
+    assert isinstance(parsed["table_id"], int)
+    assert parsed["table_id"] == 888
+
+    # Verify row is parsed into RowModel instance (not dict!)
+    assert isinstance(parsed["row"], RowModel)
+    assert parsed["row"].name == "Project A"
+    assert parsed["row"].value == 42
+    assert parsed["row"].active is True  # Default value
+
+
+def test_parse_and_validate_args_validation_errors() -> None:
+    """Test parse_and_validate_args raises ValidationError for invalid args."""
+    from pydantic import ValidationError
+
+    @tool(name="strict_tool")
+    def strict_tool(
+        required_int: int = Field(description="Must be an int"),
+    ) -> str:
+        return f"{required_int}"
+
+    # Invalid arg that can't be coerced to int
+    raw_args = {"required_int": "not_a_number"}
+
+    with pytest.raises(ValidationError):
+        strict_tool.parse_and_validate_args(raw_args)
+
+
+def test_parse_and_validate_args_nested_pydantic() -> None:
+    """Test parse_and_validate_args with nested Pydantic models."""
+    from pydantic import BaseModel
+
+    class Address(BaseModel):
+        street: str
+        city: str
+        zip_code: str
+
+    class User(BaseModel):
+        name: str
+        age: int
+        address: Address
+
+    @tool(name="create_user")
+    def create_user(
+        user: User = Field(description="User data"),
+    ) -> str:
+        return f"Created user {user.name}"
+
+    # Raw args with nested dict structure
+    raw_args = {
+        "user": {
+            "name": "John Doe",
+            "age": "30",  # String that should be coerced
+            "address": {"street": "123 Main St", "city": "NYC", "zip_code": "10001"},
+        }
+    }
+
+    parsed = create_user.parse_and_validate_args(raw_args)
+
+    # Verify user is parsed into User instance
+    assert isinstance(parsed["user"], User)
+    assert parsed["user"].name == "John Doe"
+    assert parsed["user"].age == 30  # Coerced to int
+
+    # Verify nested address is also a model instance
+    assert isinstance(parsed["user"].address, Address)
+    assert parsed["user"].address.city == "NYC"

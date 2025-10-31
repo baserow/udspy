@@ -76,16 +76,19 @@ class Tool(BaseModel):
 
     @property
     def _func(self) -> Callable[..., Any]:
-        """Get the function wrapped with confirmation if required."""
+        """Get the function wrapped with argument parsing and confirmation if required."""
         import functools
 
         from udspy.confirmation import check_tool_confirmation
 
         @functools.wraps(self.func)
         async def async_wrapper(**kwargs: Any) -> Any:
+            # Parse and validate arguments to convert JSON dicts to proper types
+            parsed_kwargs = self.parse_and_validate_args(kwargs)
+
             if self.require_confirmation:
-                kwargs = await check_tool_confirmation(self.name or "unknown", kwargs)
-            return await execute_function_async(self.func, kwargs)
+                parsed_kwargs = await check_tool_confirmation(self.name or "unknown", parsed_kwargs)
+            return await execute_function_async(self.func, parsed_kwargs)
 
         return async_wrapper
 
@@ -176,6 +179,80 @@ class Tool(BaseModel):
             fields[param_name] = (param_type, default)
 
         return create_model(f"{self.func.__name__}_args", **fields).model_json_schema()  # type: ignore[call-overload]
+
+    def _get_args_model(self) -> type[BaseModel]:
+        """Get or create the Pydantic model for tool arguments.
+
+        This creates a Pydantic model based on the function's signature,
+        which can be used to parse and validate arguments from JSON.
+
+        Returns:
+            Pydantic model class for the tool's arguments
+        """
+        sig = inspect.signature(self.func)
+        type_hints = get_type_hints(self.func)
+
+        fields = {}
+        for param_name, param in sig.parameters.items():
+            param_type = type_hints.get(param_name, str)
+            default = ... if param.default == inspect.Parameter.empty else param.default
+            fields[param_name] = (param_type, default)
+
+        return create_model(f"{self.func.__name__}_args", **fields)  # type: ignore[call-overload]
+
+    def parse_and_validate_args(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Parse and validate arguments from JSON dict to expected types.
+
+        This method converts raw dict arguments (e.g., from JSON parsing) into
+        the proper types expected by the tool function, including Pydantic models.
+
+        Uses Pydantic validation to handle:
+        - Type coercion for primitives (e.g., "123" -> 123 for int)
+        - Parsing dicts into Pydantic model instances
+        - Validation of all argument types and constraints
+
+        Args:
+            args: Raw arguments dict (e.g., from LLM JSON output)
+
+        Returns:
+            Parsed and validated arguments dict with proper types. Pydantic model
+            parameters will be instances of those models, not dicts.
+
+        Raises:
+            ValidationError: If arguments don't match the expected schema
+
+        Example:
+            ```python
+            @tool(name="create_row")
+            def create_row(table_id: int, row: RowModel) -> str:
+                ...
+
+            # Raw args from LLM JSON
+            raw_args = {"table_id": "123", "row": {"name": "test", "value": 42}}
+
+            # Parse to proper types
+            parsed_args = create_row.parse_and_validate_args(raw_args)
+            # Result: {"table_id": 123, "row": RowModel(name="test", value=42)}
+            ```
+        """
+        # Use Pydantic model to validate and coerce all arguments
+        args_model = self._get_args_model()
+        validated_model = args_model.model_validate(args)
+
+        # Extract the validated values, keeping Pydantic models as instances
+        sig = inspect.signature(self.func)
+        parsed_args: dict[str, Any] = {}
+
+        for param_name in sig.parameters.keys():
+            if not hasattr(validated_model, param_name):
+                continue
+
+            value = getattr(validated_model, param_name)
+
+            # Pydantic models are kept as instances, primitives are coerced
+            parsed_args[param_name] = value
+
+        return parsed_args
 
     def get_output_type_or_schema(self, resolve_defs: bool = True) -> str | JsonSchema:
         """Get output type name or schema.
