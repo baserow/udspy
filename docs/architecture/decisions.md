@@ -4,19 +4,19 @@ This document tracks major architectural decisions made in udspy, presented chro
 
 ## Table of Contents
 
-1. [Initial Project Setup (2025-01-24)](#adr-001-initial-project-setup)
-2. [Context Manager for Settings (2025-01-24)](#adr-002-context-manager-for-settings)
-3. [Chain of Thought Module (2025-01-24)](#adr-003-chain-of-thought-module)
-4. [Human-in-the-Loop with Confirmation System (2025-01-25)](#adr-004-human-in-the-loop-with-confirmation-system)
-5. [ReAct Agent Module (2025-01-25)](#adr-005-react-agent-module)
-6. [Unified Module Execution Pattern (aexecute) (2025-01-25)](#adr-006-unified-module-execution-pattern-aexecute)
-7. [Automatic Retry on Parse Errors (2025-01-29)](#adr-007-automatic-retry-on-parse-errors)
+1. [Initial Project Setup (2025-10-24)](#adr-001-initial-project-setup)
+2. [Context Manager for Settings (2025-10-24)](#adr-002-context-manager-for-settings)
+3. [Chain of Thought Module (2025-10-24)](#adr-003-chain-of-thought-module)
+4. [Human-in-the-Loop with Confirmation System (2025-10-25)](#adr-004-human-in-the-loop-with-confirmation-system)
+5. [ReAct Agent Module (2025-10-25)](#adr-005-react-agent-module)
+6. [Unified Module Execution Pattern (aexecute) (2025-10-25)](#adr-006-unified-module-execution-pattern-aexecute)
+7. [Automatic Retry on Parse Errors (2025-10-29)](#adr-007-automatic-retry-on-parse-errors)
 
 ---
 
 ## ADR-001: Initial Project Setup
 
-**Date**: 2025-01-24
+**Date**: 2025-10-24
 
 **Status**: Accepted
 
@@ -128,7 +128,7 @@ Modules compose via Python class inheritance.
 
 ## ADR-002: Context Manager for Settings
 
-**Date**: 2025-01-24
+**Date**: 2025-10-24
 
 **Status**: Accepted
 
@@ -230,7 +230,7 @@ No migration needed - feature is additive and backwards compatible.
 
 ## ADR-003: Chain of Thought Module
 
-**Date**: 2025-01-24
+**Date**: 2025-10-24
 
 **Status**: Accepted
 
@@ -357,7 +357,7 @@ Feature is additive - no migration needed.
 
 ## ADR-004: Human-in-the-Loop with Confirmation System
 
-**Date**: 2025-01-25
+**Date**: 2025-10-25
 
 **Status**: Accepted
 
@@ -440,7 +440,7 @@ Feature is additive - no migration needed.
 
 ## ADR-005: ReAct Agent Module
 
-**Date**: 2025-01-25
+**Date**: 2025-10-25
 
 **Status**: Accepted
 
@@ -548,7 +548,7 @@ Feature is additive - no migration needed.
 
 ## ADR-006: Unified Module Execution Pattern (aexecute)
 
-**Date**: 2025-01-25
+**Date**: 2025-10-25
 
 **Status**: Accepted
 
@@ -680,7 +680,7 @@ We chose `aexecute()` (without underscore prefix) because:
 
 ## ADR-007: Automatic Retry on Parse Errors
 
-**Date**: 2025-01-29
+**Date**: 2025-10-29
 
 **Status**: Accepted
 

@@ -2,7 +2,7 @@
 
 This document tracks major architectural decisions and changes made to udspy.
 
-## 2025-01-24: Initial Project Setup
+## 2025-10-24: Initial Project Setup
 
 ### Context
 Created a minimal DSPy-inspired library focused on:
@@ -65,7 +65,7 @@ udspy/
 
 ---
 
-## 2025-01-24: Context Manager for Settings
+## 2025-10-24: Context Manager for Settings
 
 ### Context
 Need to support different API keys and models in different contexts (e.g., multi-tenant apps, different users, testing scenarios).
@@ -154,7 +154,7 @@ No migration needed - feature is additive and backwards compatible.
 
 ---
 
-## 2025-01-24: Chain of Thought Module
+## 2025-10-24: Chain of Thought Module
 
 ### Context
 Chain of Thought (CoT) is a proven prompting technique that improves LLM reasoning by explicitly requesting step-by-step thinking. This is one of the most valuable patterns from DSPy.
