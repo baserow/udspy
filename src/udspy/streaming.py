@@ -31,7 +31,7 @@ class StreamEvent:
 
         # In your tool:
         async def my_tool():
-            await emit_event(ToolProgress("search", "Searching...", 0.5))
+            emit_event(ToolProgress("search", "Searching...", 0.5))
         ```
     """
 
@@ -104,7 +104,6 @@ class Prediction(StreamEvent, dict[str, Any]):
 
     Attributes:
         module: The module that produced this prediction
-        is_final: Whether this is the final prediction (vs intermediate from nested module)
         native_tool_calls: Tool calls from native LLM response (if any)
 
     Example:
@@ -121,14 +120,18 @@ class Prediction(StreamEvent, dict[str, Any]):
         self,
         /,
         module: "Module | None" = None,
-        is_final: bool = True,
         native_tool_calls: list["ToolCall"] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.module = module
-        self.is_final = is_final
         self.native_tool_calls = native_tool_calls
+    
+    @property
+    def is_final(self) -> bool:
+        """Whether this is the final prediction (always True)."""
+        
+        return len(self.keys()) and not self.native_tool_calls
 
     def __getattr__(self, name: str) -> Any:
         try:
@@ -140,7 +143,7 @@ class Prediction(StreamEvent, dict[str, Any]):
         self[name] = value
 
 
-async def emit_event(event: StreamEvent) -> None:
+def emit_event(event: StreamEvent) -> None:
     """Emit an event to the active stream.
 
     This can be called from anywhere (tools, callbacks, etc.) to inject
@@ -160,9 +163,9 @@ async def emit_event(event: StreamEvent) -> None:
             message: str
 
         async def my_tool():
-            await emit_event(ToolStatus("Starting search..."))
+            emit_event(ToolStatus("Starting search..."))
             result = await do_search()
-            await emit_event(ToolStatus("Search complete"))
+            emit_event(ToolStatus("Search complete"))
             return result
 
         # In the stream consumer:
@@ -175,7 +178,7 @@ async def emit_event(event: StreamEvent) -> None:
     """
     queue = _stream_queue.get()
     if queue is not None:
-        await queue.put(event)
+        queue.put_nowait(event)
 
 
 __all__ = [

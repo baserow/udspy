@@ -1,6 +1,8 @@
 """Async utility functions."""
 
 import asyncio
+from functools import partial
+import contextvars
 import inspect
 from collections.abc import Callable
 from typing import Any
@@ -65,10 +67,10 @@ async def execute_function_async(func: Callable[..., Any], kwargs: dict[str, Any
     if inspect.iscoroutinefunction(func):
         return await func(**kwargs)
     else:
-        import asyncio
 
+        ctx = contextvars.copy_context()
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: func(**kwargs))
+        return await loop.run_in_executor(None, partial(ctx.run, lambda: func(**kwargs)))
 
 
 __all__ = [
