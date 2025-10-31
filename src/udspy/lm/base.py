@@ -3,7 +3,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, overload
 
 
 class LM(ABC):
@@ -20,23 +20,31 @@ class LM(ABC):
 
     Usage:
         ```python
+        # Simple usage (uses default model)
+        answer = lm("How are you?")
+
         # Async usage
         response = await lm.acomplete(messages, model="gpt-4o")
 
-        # Sync usage
+        # Sync usage with full control
         response = lm.complete(messages, model="gpt-4o")
-
-        # Callable (sync)
-        response = lm(messages, model="gpt-4o")
         ```
     """
+
+    @property
+    def model(self) -> str | None:
+        """Get the default model for this LM instance.
+
+        Implementations should override this to provide their default model.
+        """
+        return None
 
     @abstractmethod
     async def acomplete(
         self,
         messages: list[dict[str, Any]],
         *,
-        model: str,
+        model: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
@@ -46,7 +54,7 @@ class LM(ABC):
         Args:
             messages: List of messages in OpenAI format
                 [{"role": "system", "content": "..."}, ...]
-            model: Model identifier (e.g., "gpt-4o", "claude-3-5-sonnet")
+            model: Model identifier (e.g., "gpt-4o"). If None, uses default model.
             tools: Optional list of tool schemas in OpenAI format
             stream: If True, return an async generator of chunks
             **kwargs: Provider-specific parameters (temperature, max_tokens, etc.)
@@ -64,7 +72,7 @@ class LM(ABC):
         self,
         messages: list[dict[str, Any]],
         *,
-        model: str,
+        model: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
@@ -73,7 +81,7 @@ class LM(ABC):
 
         Args:
             messages: List of messages in OpenAI format
-            model: Model identifier
+            model: Model identifier (defaults to self.model)
             tools: Optional list of tool schemas
             stream: If True, return an async generator (must be consumed with async for)
             **kwargs: Provider-specific parameters
@@ -85,39 +93,85 @@ class LM(ABC):
             self.acomplete(messages, model=model, tools=tools, stream=stream, **kwargs)
         )
 
+    @overload
+    def __call__(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> str: ...
+
+    @overload
     def __call__(
         self,
         messages: list[dict[str, Any]],
         *,
-        model: str,
+        model: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
-    ) -> Any:
-        """Make LM callable - delegates to complete().
+    ) -> Any: ...
+
+    def __call__(
+        self,
+        prompt_or_messages: str | list[dict[str, Any]],
+        *,
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> str | Any:
+        """Make LM callable for convenient usage.
+
+        Supports two modes:
+        1. Simple string prompt: Returns just the text content
+        2. Full messages list: Returns complete response object
 
         Args:
-            messages: List of messages in OpenAI format
-            model: Model identifier
-            tools: Optional list of tool schemas
+            prompt_or_messages: Either a simple string prompt or list of messages
+            model: Model identifier (defaults to self.model)
+            tools: Optional list of tool schemas (ignored for string prompts)
             stream: If True, return an async generator
             **kwargs: Provider-specific parameters
 
         Returns:
-            Completion response object
+            If prompt is a string: Just the text content (str)
+            If messages is a list: Complete response object (Any)
 
-        Example:
+        Examples:
             ```python
-            from udspy import LM
+            # Simple usage - returns text directly
+            answer = lm("How are you?")
+            print(answer)  # "I'm doing well, thanks!"
 
-            lm = LM(model="gpt-4o", api_key="...")
+            # With model override
+            answer = lm("Explain quantum physics", model="gpt-4")
+
+            # Full control - returns response object
             response = lm(
                 messages=[{"role": "user", "content": "Hello"}],
-                model="gpt-4o"
+                model="gpt-4o",
+                tools=[...],
             )
             ```
         """
-        return self.complete(messages, model=model, tools=tools, stream=stream, **kwargs)
+        if isinstance(prompt_or_messages, str):
+            messages = [{"role": "user", "content": prompt_or_messages}]
+            response = self.complete(messages, model=model, **kwargs)
+            if hasattr(response, "choices") and len(response.choices) > 0:
+                message = response.choices[0].message
+                if hasattr(message, "content") and message.content:
+                    return message.content
+            return str(response)
+        else:
+            return self.complete(
+                prompt_or_messages,
+                model=model,
+                tools=tools,
+                stream=stream,
+                **kwargs,
+            )
 
 
 __all__ = ["LM"]

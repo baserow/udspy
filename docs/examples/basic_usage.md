@@ -8,9 +8,11 @@ First, configure with an LM instance:
 
 ```python
 import udspy
-from udspy import LM
+from udspy import OpenAILM
+from openai import AsyncOpenAI
 
-lm = LM(model="gpt-4o-mini", api_key="sk-...")
+client = AsyncOpenAI(api_key="sk-...")
+lm = OpenAILM(client=client, default_model="gpt-4o-mini")
 udspy.settings.configure(lm=lm)
 ```
 
@@ -19,9 +21,11 @@ Or use environment variables:
 ```python
 import os
 import udspy
-from udspy import LM
+from udspy import OpenAILM
+from openai import AsyncOpenAI
 
-lm = LM(model="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY"))
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+lm = OpenAILM(client=client, default_model="gpt-4o-mini")
 udspy.settings.configure(lm=lm)
 ```
 
@@ -33,7 +37,33 @@ import udspy
 udspy.settings.configure()  # Reads from environment
 ```
 
-## Simple Question Answering
+## Direct LM Usage
+
+The simplest way to use udspy is to call the LM directly with a string:
+
+```python
+from udspy import OpenAILM
+from openai import AsyncOpenAI
+
+client = AsyncOpenAI(api_key="sk-...")
+lm = OpenAILM(client=client, default_model="gpt-4o-mini")
+
+# Simple string prompt - returns just the text
+answer = lm("What is the capital of France?")
+print(answer)  # "Paris"
+
+# Override the model
+answer = lm("Explain quantum physics", model="gpt-4")
+print(answer)
+
+# With additional parameters
+answer = lm("Write a haiku about coding", temperature=0.9, max_tokens=100)
+print(answer)
+```
+
+This is perfect for quick queries and prototyping. For more structured outputs, use signatures and modules (see below).
+
+## Simple Question Answering with Signatures
 
 ```python
 from udspy import Signature, InputField, OutputField, Predict

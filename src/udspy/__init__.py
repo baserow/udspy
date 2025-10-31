@@ -13,7 +13,7 @@ from udspy.confirmation import (
     respond_to_confirmation,
 )
 from udspy.history import History
-from udspy.lm import LM
+from udspy.lm import LM, OpenAILM
 from udspy.module import (
     ChainOfThought,
     Module,
@@ -40,6 +40,7 @@ __all__ = [
     "settings",
     # Language Models
     "LM",
+    "OpenAILM",
     # Signatures
     "Signature",
     "InputField",
