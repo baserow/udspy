@@ -71,15 +71,18 @@ def test_module_callback_execution() -> None:
 
 
 def test_react_context() -> None:
-    """Test ReactContext provides trajectory access."""
+    """Test ReactContext provides trajectory and input_args access."""
     agent = ReAct(QA, tools=[])
-    trajectory = {"thought_0": "test thought", "tool_calls_0": []}
+    trajectory = [{"thought": "test thought", "tool_calls": [], "observation": "test obs"}]
+    input_args = {"question": "test question"}
 
-    context = ReactContext(module=agent, trajectory=trajectory)
+    context = ReactContext(module=agent, trajectory=trajectory, input_args=input_args, stream=False)
 
     assert context.module == agent
     assert context.trajectory == trajectory
-    assert context.trajectory["thought_0"] == "test thought"
+    assert context.trajectory[0]["thought"] == "test thought"
+    assert context.input_args == input_args
+    assert context.stream is False
 
 
 def test_predict_context() -> None:
@@ -446,7 +449,9 @@ async def test_chain_of_thought_with_module_callback() -> None:
         ],
     )
 
-    response2 = make_mock_response('[[ ## reasoning ## ]]\nCalculator loaded\n[[ ## answer ## ]]\n4')
+    response2 = make_mock_response(
+        "[[ ## reasoning ## ]]\nCalculator loaded\n[[ ## answer ## ]]\n4"
+    )
 
     call_count = {"count": 0}
 
@@ -530,7 +535,9 @@ async def test_predict_uses_dynamically_loaded_tool() -> None:
                         ChatCompletionMessageToolCall(
                             id="call_2",
                             type="function",
-                            function=Function(name="calculator", arguments='{"expression": "157 * 834"}'),
+                            function=Function(
+                                name="calculator", arguments='{"expression": "157 * 834"}'
+                            ),
                         )
                     ],
                 ),
@@ -623,8 +630,7 @@ async def test_multiple_dynamic_tool_loads() -> None:
         @module_callback
         def callback(context):
             current = [
-                t for t in context.module.tools.values()
-                if t.name not in ("finish", "ask_to_user")
+                t for t in context.module.tools.values() if t.name not in ("finish", "ask_to_user")
             ]
             if calculator not in current:
                 context.module.init_module(tools=current + [calculator])
@@ -637,8 +643,7 @@ async def test_multiple_dynamic_tool_loads() -> None:
         @module_callback
         def callback(context):
             current = [
-                t for t in context.module.tools.values()
-                if t.name not in ("finish", "ask_to_user")
+                t for t in context.module.tools.values() if t.name not in ("finish", "ask_to_user")
             ]
             if formatter not in current:
                 context.module.init_module(tools=current + [formatter])

@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from udspy import History
     from udspy.module.base import Module
     from udspy.module.predict import Predict
-    from udspy.module.react import ReAct
+    from udspy.module.react import Episode, ReAct
 
 
 class ModuleCallback:
@@ -116,25 +116,38 @@ class ModuleContext:
 
 
 class ReactContext(ModuleContext):
-    """Context for ReAct module callbacks.
+    """Context for ReAct module callbacks and confirmations.
 
-    Provides access to both the module and the current trajectory,
-    allowing callbacks to inspect the agent's reasoning history.
+    Provides access to the module, trajectory, and input arguments,
+    allowing callbacks to inspect the agent's reasoning history and
+    providing all necessary state for confirmation resumption.
 
     Attributes:
         module: The ReAct module instance
-        trajectory: Dictionary containing thought_N, tool_calls_N, observation_N entries
+        trajectory: List of completed episodes
+        input_args: Original input arguments to the module
+        stream: Whether streaming is enabled
     """
 
-    def __init__(self, module: "ReAct", trajectory: dict[str, Any]):
+    def __init__(
+        self,
+        module: "ReAct",
+        trajectory: list["Episode"],
+        input_args: dict[str, Any],
+        stream: bool = False,
+    ):
         """Initialize ReAct context.
 
         Args:
             module: The ReAct module instance
-            trajectory: Current trajectory dictionary
+            trajectory: Current trajectory (list of episodes)
+            input_args: Original input arguments
+            stream: Whether streaming is enabled
         """
         super().__init__(module)
         self.trajectory = trajectory
+        self.input_args = input_args
+        self.stream = stream
 
 
 class PredictContext(ModuleContext):
