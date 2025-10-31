@@ -11,6 +11,9 @@ This document tracks major architectural decisions made in udspy, presented chro
 5. [ReAct Agent Module (2025-10-25)](#adr-005-react-agent-module)
 6. [Unified Module Execution Pattern (aexecute) (2025-10-25)](#adr-006-unified-module-execution-pattern-aexecute)
 7. [Automatic Retry on Parse Errors (2025-10-29)](#adr-007-automatic-retry-on-parse-errors)
+8. [Module Callbacks and Dynamic Tool Management (2025-10-31)](#adr-008-module-callbacks-and-dynamic-tool-management)
+9. [History Management with System Prompts (2025-10-31)](#adr-009-history-management-with-system-prompts)
+10. [LM Callable Interface with String Prompts (2025-10-31)](#adr-010-lm-callable-interface-with-string-prompts)
 
 ---
 
@@ -818,6 +821,524 @@ result = predictor(question="...")  # Retry is automatic
 2. **Add retry callback**: Allow users to hook into retry events for logging/metrics
 3. **Smarter retry**: Analyze parse error type and adjust retry strategy (e.g., don't retry on schema validation errors that won't be fixed by retry)
 4. **Retry budget**: Add global retry limit to prevent excessive token usage from many retries
+
+---
+
+## ADR-008: Module Callbacks and Dynamic Tool Management
+
+**Date**: 2025-10-31
+
+**Status**: Accepted
+
+### Context
+
+Agents often need specialized tools that should only be loaded on demand rather than being available from the start. Use cases include:
+- Loading expensive or resource-intensive tools only when needed
+- Progressive tool discovery (agent figures out what tools it needs as it works)
+- Category-based tool loading (math tools, web tools, data tools)
+- Multi-tenant applications with user-specific tool permissions
+- Reducing initial token usage and context size
+
+### Decision
+
+Implement a module callback system where tools can return special callables decorated with `@module_callback` that modify the module's available tools during execution:
+
+```python
+from udspy import ReAct, tool, module_callback
+
+@tool(name="calculator", description="Perform calculations")
+def calculator(expression: str) -> str:
+    return str(eval(expression, {"__builtins__": {}}, {}))
+
+@tool(name="load_calculator", description="Load calculator tool")
+def load_calculator() -> callable:
+    """Load calculator tool dynamically."""
+
+    @module_callback
+    def add_calculator(context):
+        # Get current tools (excluding built-ins)
+        current_tools = [
+            t for t in context.module.tools.values()
+            if t.name not in ("finish", "ask_to_user")
+        ]
+
+        # Add calculator to available tools
+        context.module.init_module(tools=current_tools + [calculator])
+
+        return "Calculator loaded successfully"
+
+    return add_calculator
+
+# Agent starts with only the loader
+agent = ReAct(Question, tools=[load_calculator])
+
+# Agent loads calculator when needed, then uses it
+result = agent(question="What is 157 * 834?")
+```
+
+### Implementation Details
+
+1. **@module_callback Decorator**: Simple marker decorator that adds `__udspy_module_callback__` attribute
+2. **Return Value Detection**: After tool execution, check `is_module_callback(result)`
+3. **Context Objects**: Pass execution context to callbacks:
+   - `ReactContext`: Includes trajectory history
+   - `PredictContext`: Includes conversation history
+   - `ModuleContext`: Base with module reference
+4. **init_module() Pattern**: Unified method to reinitialize tools and regenerate signatures
+5. **Tool Persistence**: Dynamically loaded tools remain available until module execution completes
+
+### Key Features
+
+1. **Decorator-based API**: Clean, explicit marking of module callbacks
+2. **Full module access**: Callbacks can inspect and modify module state
+3. **Works with all modules**: Predict, ChainOfThought, ReAct
+4. **Observation return**: Callbacks return strings that appear in trajectory
+5. **Type-safe**: Context objects provide proper type hints
+
+### Use Cases
+
+1. **On-demand capabilities**: Load expensive tools only when needed
+   ```python
+   agent = ReAct(Task, tools=[load_nlp_tools, load_vision_tools])
+   ```
+
+2. **Progressive discovery**: Agent discovers needed tools as it works
+   ```python
+   agent = ReAct(Task, tools=[load_tools])  # Figures out what's needed
+   ```
+
+3. **Multi-tenant**: Load user-specific tools based on permissions
+   ```python
+   @tool(name="load_user_tools")
+   def load_user_tools(user_id: str) -> callable:
+       @module_callback
+       def add_tools(context):
+           tools = get_tools_for_user(user_id)
+           context.module.init_module(tools=tools)
+           return f"Loaded tools for user {user_id}"
+       return add_tools
+   ```
+
+4. **Category loading**: Load tool groups on demand
+   ```python
+   @tool(name="load_tools")
+   def load_tools(category: str) -> callable:  # "math", "web", "data"
+       @module_callback
+       def add_category_tools(context):
+           tools = get_tools_by_category(category)
+           context.module.init_module(tools=current + tools)
+           return f"Loaded {len(tools)} {category} tools"
+       return add_category_tools
+   ```
+
+### Consequences
+
+**Benefits**:
+- Reduced token usage and context size (only load tools when needed)
+- Adaptive agent behavior (discovers capabilities progressively)
+- Clean API with decorator pattern
+- Full module state access through context
+- Works seamlessly with existing tool system
+- Enables multi-tenant tool isolation
+
+**Trade-offs**:
+- Additional complexity in tool execution logic
+- Must remember to return string from callbacks (for trajectory)
+- Tool persistence requires new instance for fresh state
+- Context objects add small memory overhead
+- Learning curve for callback pattern
+
+### Alternatives Considered
+
+- **Direct module mutation**: Rejected due to lack of encapsulation and thread safety concerns
+- **Event system**: Rejected as too complex and heavyweight for this use case
+- **Plugin architecture**: Rejected as overkill for simple tool management
+- **Configuration-based loading**: Rejected as less flexible than programmatic control
+
+### Migration Guide
+
+Feature is additive - existing code continues to work unchanged.
+
+To use dynamic tools:
+
+1. Define tools that return `@module_callback` decorated functions
+2. Callbacks receive context and call `context.module.init_module(tools=[...])`
+3. Return string observation from callback
+4. Tool persists for remainder of module execution
+
+**Example**:
+```python
+# Before: All tools loaded upfront
+agent = ReAct(Task, tools=[calculator, search, weather, ...])
+
+# After: Load tools on demand
+agent = ReAct(Task, tools=[load_calculator, load_search, load_weather])
+```
+
+### See Also
+
+- [Dynamic Tools Guide](../examples/dynamic_tools.md)
+- [Module Callbacks API](../api/module_callback.md)
+- [Tool Calling Guide](../examples/tool_calling.md)
+
+---
+
+## ADR-009: History Management with System Prompts
+
+**Date**: 2025-10-31
+
+**Status**: Accepted
+
+### Context
+
+Chat histories need special handling for system prompts to ensure they're always positioned first in the message list. Module behavior depends on having system instructions properly placed, and tools may manipulate histories during execution. Without dedicated management, it's easy to accidentally insert system prompts mid-conversation or lose them during history manipulation.
+
+### Decision
+
+Implement `History` class with dedicated `system_prompt` property that ensures system messages always appear first:
+
+```python
+from udspy import History
+
+history = History()
+
+# Add conversation messages
+history.add_message(role="user", content="Hello")
+history.add_message(role="assistant", content="Hi there!")
+
+# System prompt always goes first, even if set later
+history.system_prompt = "You are a helpful assistant"
+
+messages = history.messages
+# [{"role": "system", "content": "You are a helpful assistant"},
+#  {"role": "user", "content": "Hello"},
+#  {"role": "assistant", "content": "Hi there!"}]
+```
+
+### Implementation Details
+
+```python
+class History:
+    def __init__(self, system_prompt: str | None = None):
+        self._messages: list[dict[str, Any]] = []
+        self._system_prompt: str | None = system_prompt
+
+    @property
+    def system_prompt(self) -> str | None:
+        return self._system_prompt
+
+    @system_prompt.setter
+    def system_prompt(self, value: str | None) -> None:
+        self._system_prompt = value
+
+    @property
+    def messages(self) -> list[dict[str, Any]]:
+        """Get all messages with system prompt first (if set)."""
+        if self._system_prompt:
+            return [
+                {"role": "system", "content": self._system_prompt},
+                *self._messages
+            ]
+        return self._messages.copy()
+```
+
+**Key aspects**:
+- System prompt stored separately from regular messages
+- `messages` property dynamically constructs full list
+- No risk of system prompt appearing mid-conversation
+- Simple to update system prompt without rebuilding list
+- Clear ownership (History manages system message)
+
+### Key Features
+
+1. **Dedicated system_prompt property**: Special handling for system messages
+2. **Automatic positioning**: System prompt always first in messages list
+3. **Mutable**: Can update system prompt at any time, position maintained
+4. **Copy support**: `history.copy()` includes system prompt
+5. **Clear separation**: Regular messages in `_messages`, system prompt separate
+
+### Use Cases
+
+1. **Module initialization**: Set system prompt per module type
+   ```python
+   history = History(system_prompt="You are a ReAct agent. Use tools to solve tasks.")
+   ```
+
+2. **Dynamic prompts**: Update based on context or user
+   ```python
+   history.system_prompt = f"You are assisting {user.name}. Use their preferences: {prefs}"
+   ```
+
+3. **Tool manipulation**: Tools can safely update system prompt
+   ```python
+   @tool(name="change_persona")
+   def change_persona(persona: str) -> str:
+       # Tool can access and modify history.system_prompt
+       return f"Changed to {persona} persona"
+   ```
+
+4. **History replay**: Maintain system prompt across sessions
+   ```python
+   saved_history = history.to_dict()  # Save including system prompt
+   loaded_history = History.from_dict(saved_history)  # Restore
+   ```
+
+5. **Multi-turn conversations**: System prompt persists correctly
+   ```python
+   # System prompt set once, remains first through all turns
+   for user_msg in conversation:
+       history.add_message(role="user", content=user_msg)
+       # System prompt still first
+   ```
+
+### Consequences
+
+**Benefits**:
+- System prompt guaranteed to be first (LLM APIs require this)
+- Can update system prompt at any time safely
+- Clean property-based API
+- Prevents common mistakes (system prompt mid-conversation)
+- Supports all history manipulation patterns
+- No manual list management required
+
+**Trade-offs**:
+- Small overhead constructing messages list on each access (negligible)
+- System message can't be treated like regular message (by design)
+- Slight complexity in History implementation vs. simple list
+- Property access pattern may surprise developers expecting plain list
+
+### Alternatives Considered
+
+- **Insert at index 0**: Rejected as error-prone with mutations, easy to forget
+- **Validation on add**: Rejected as too restrictive, doesn't prevent mid-conversation insertion
+- **Separate system field in messages**: Rejected as doesn't integrate with standard message format
+- **Manual management**: Status quo before this ADR, too error-prone
+
+### Migration Guide
+
+Existing code using `History.add_message()` continues to work unchanged.
+
+To use system prompts:
+
+**Create with system prompt**:
+```python
+history = History(system_prompt="You are a helpful assistant")
+```
+
+**Set later**:
+```python
+history = History()
+# ... add messages ...
+history.system_prompt = "You are a math tutor"
+```
+
+**Update dynamically**:
+```python
+history.system_prompt = f"You are assisting {user.name}"
+```
+
+**Always correctly positioned**:
+```python
+messages = history.messages  # System prompt is always first
+```
+
+### See Also
+
+- [History API Reference](../api/history.md)
+- [Module Architecture](modules.md)
+
+---
+
+## ADR-010: LM Callable Interface with String Prompts
+
+**Date**: 2025-10-31
+
+**Status**: Accepted
+
+### Context
+
+Users want the simplest possible interface for quick LLM queries without needing to construct message dictionaries. Common use cases include:
+- Prototyping and experimentation
+- Simple scripts and utilities
+- Interactive sessions (REPL)
+- Learning and onboarding new users
+- Quick one-off queries
+
+The existing API required constructing message lists even for simple prompts:
+```python
+response = lm.complete([{"role": "user", "content": "Hello"}], model="gpt-4o")
+text = response.choices[0].message.content
+```
+
+### Decision
+
+Enhanced LM base class to accept simple string prompts via `__call__()` and return just the text content:
+
+```python
+from udspy import OpenAILM
+from openai import AsyncOpenAI
+
+client = AsyncOpenAI(api_key="sk-...")
+lm = OpenAILM(client=client, default_model="gpt-4o-mini")
+
+# Simple string prompt - returns just text
+answer = lm("What is the capital of France?")
+print(answer)  # "Paris"
+
+# Override model
+answer = lm("Explain quantum physics", model="gpt-4")
+
+# With parameters
+answer = lm("Write a haiku", temperature=0.9, max_tokens=100)
+```
+
+### Implementation Details
+
+```python
+from typing import overload
+
+class LM(ABC):
+    @property
+    def model(self) -> str | None:
+        """Get default model for this LM instance."""
+        return None
+
+    @overload
+    def __call__(self, prompt: str, *, model: str | None = None, **kwargs: Any) -> str: ...
+
+    @overload
+    def __call__(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> Any: ...
+
+    def __call__(
+        self,
+        prompt_or_messages: str | list[dict[str, Any]],
+        *,
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> str | Any:
+        if isinstance(prompt_or_messages, str):
+            messages = [{"role": "user", "content": prompt_or_messages}]
+            response = self.complete(messages, model=model, **kwargs)
+            # Extract just the text content
+            if hasattr(response, "choices") and len(response.choices) > 0:
+                message = response.choices[0].message
+                if hasattr(message, "content") and message.content:
+                    return message.content
+            return str(response)
+        else:
+            return self.complete(prompt_or_messages, model=model, **kwargs)
+```
+
+**Key aspects**:
+1. **Overloaded signatures**: `@overload` provides proper type hints for both modes
+2. **Type-based dispatch**: `isinstance(prompt_or_messages, str)` determines behavior
+3. **Message wrapping**: String prompts wrapped as `[{"role": "user", "content": prompt}]`
+4. **Text extraction**: For strings, extract `response.choices[0].message.content`
+5. **Fallback**: If extraction fails, fall back to `str(response)`
+6. **Optional model**: Made `model` parameter optional everywhere, uses `self.model` as default
+
+### Key Features
+
+1. **Two modes**:
+   - String input → returns text only (str)
+   - Messages list → returns full response object (Any)
+2. **Type-safe**: Proper overloads for IDE autocomplete
+3. **Backward compatible**: Existing message-list usage unchanged
+4. **Optional model**: Falls back to instance's default model
+5. **Passes kwargs**: Temperature, max_tokens, etc. work in both modes
+
+### Use Cases
+
+1. **Prototyping**: Quick tests without boilerplate
+   ```python
+   answer = lm("Is Python interpreted or compiled?")
+   ```
+
+2. **Simple scripts**: One-line LLM queries
+   ```python
+   summary = lm(f"Summarize this in one sentence: {long_text}")
+   ```
+
+3. **Interactive sessions**: REPL-friendly API
+   ```python
+   >>> lm("What's 2+2?")
+   '4'
+   ```
+
+4. **Learning**: Easiest API for newcomers
+   ```python
+   # First udspy program
+   lm = OpenAILM(client, "gpt-4o-mini")
+   print(lm("Hello!"))
+   ```
+
+5. **Utilities**: Helper functions
+   ```python
+   def translate(text: str, target_lang: str) -> str:
+       return lm(f"Translate to {target_lang}: {text}")
+   ```
+
+### Consequences
+
+**Benefits**:
+- Simplest possible API for common case (string prompt)
+- No need to construct message dictionaries
+- Backward compatible with existing code
+- Proper type hints for IDE support (overloads)
+- Falls back gracefully if text extraction fails
+- Model parameter now optional everywhere
+
+**Trade-offs**:
+- Slight complexity in `__call__` implementation (type dispatch)
+- String/list dispatch adds minor overhead (negligible)
+- Text extraction logic specific to OpenAI response format
+- Two different return types require overloads for type safety
+- Can't use tools or streaming with string prompt mode
+
+### Alternatives Considered
+
+- **Separate method** (`lm.ask("prompt")`): Rejected as less convenient, extra method to learn
+- **Always return text**: Rejected as losing access to full response metadata
+- **Factory function**: Rejected as less object-oriented, doesn't fit with LM abstraction
+- **Auto-detect return type**: Rejected as confusing, breaks type safety
+
+### Migration Guide
+
+No migration needed - feature is additive and backward compatible.
+
+**Before (verbose)**:
+```python
+response = lm.complete([{"role": "user", "content": "Hello"}], model="gpt-4o")
+text = response.choices[0].message.content
+```
+
+**After (concise)**:
+```python
+text = lm("Hello", model="gpt-4o")
+```
+
+**Still supported (full control)**:
+```python
+response = lm(
+    messages=[{"role": "user", "content": "Hello"}],
+    model="gpt-4o",
+    tools=[...],
+    stream=True
+)
+```
+
+### See Also
+
+- [Basic Usage Guide](../examples/basic_usage.md)
+- [LM Architecture](lm.md)
 
 ---
 
