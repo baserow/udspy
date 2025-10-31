@@ -113,13 +113,16 @@ class ChatAdapter:
         return "\n\n".join(parts).strip()
 
     def format_instructions(self, signature: type[Signature]) -> str:
-        """Format signature instructions and field descriptions.
+        """Format signature instructions and field descriptions for system message.
+
+        This now only includes the task description and input/output field descriptions,
+        without the output formatting structure (which is moved to the user message).
 
         Args:
             signature: The signature to format
 
         Returns:
-            Formatted instruction string
+            Formatted instruction string for system message
         """
         parts = []
 
@@ -144,15 +147,55 @@ class ChatAdapter:
                 desc = field_info.description or ""
                 parts.append(f"{i}. `{name}`: {desc}")
 
-        input_field_names = ",".join([f"`{name}`" for name in input_fields.keys()])
-        output_field_names = ",".join([f"`{name}`" for name in output_fields.keys()])
+        return "\n".join(parts)
+
+    def format_output_instructions(self, signature: type[Signature]) -> str:
+        """Format instructions for how to structure output fields.
+
+        This generates the part that tells the LLM how to respond with output fields,
+        including field order and type constraints.
+
+        Args:
+            signature: The signature defining expected outputs
+
+        Returns:
+            Formatted output instructions string
+        """
+        output_fields = signature.get_output_fields()
+        if not output_fields:
+            return ""
+
+        parts = []
         parts.append(
-            f"\nGiven the fields {input_field_names}, produce the fields {output_field_names}.\n"
+            f"\n\nRespond with the corresponding output fields, starting with the field "
+            f"`[[ ## {list(output_fields.keys())[0]} ## ]]`"
         )
 
-        parts.append(self.format_field_structure(signature))
+        # Add subsequent fields
+        field_names = list(output_fields.keys())
+        if len(field_names) > 1:
+            for field_name in field_names[1:]:
+                parts.append(f", then `[[ ## {field_name} ## ]]`")
 
-        return "\n".join(parts)
+        parts.append(".")
+
+        # Add type constraints for each field (if any)
+        constraints = []
+        for name, field_info in output_fields.items():
+            type_hint = translate_field_type(name, field_info)
+            # Extract the type constraint if it exists (after the field placeholder)
+            # Format is either "{field}" or "{field}        # note: ..."
+            if "# note:" in type_hint:
+                # Extract everything after and including "# note:"
+                constraint = type_hint.split("# note:", 1)[1].strip()
+                constraints.append(f"`{name}` {constraint}")
+
+        if constraints:
+            parts.append(" The output fields must adhere to the following constraints: ")
+            parts.append("; ".join(constraints))
+            parts.append(".")
+
+        return "".join(parts)
 
     def format_inputs(
         self,
@@ -179,6 +222,29 @@ class ChatAdapter:
 
         return "\n\n".join(parts)
 
+    def format_user_request(
+        self,
+        signature: type[Signature],
+        inputs: dict[str, Any],
+    ) -> str:
+        """Format complete user request with inputs and output instructions.
+
+        This combines the input values with instructions on how to format outputs,
+        creating a complete user message that tells the LLM what data it has and
+        how to respond.
+
+        Args:
+            signature: The signature defining inputs and outputs
+            inputs: Dictionary of input values
+
+        Returns:
+            Formatted user request string combining inputs + output instructions
+        """
+        formatted_inputs = self.format_inputs(signature, inputs)
+        output_instructions = self.format_output_instructions(signature)
+
+        return formatted_inputs + output_instructions
+
     def parse_outputs(
         self,
         signature: type[Signature],
@@ -198,6 +264,15 @@ class ChatAdapter:
         """
         output_fields = signature.get_output_fields()
         outputs: dict[str, Any] = {}
+
+        # If the completion is valid JSON, parse and return it directly
+        try:
+            outputs = json.loads(completion)
+            if isinstance(outputs, dict):
+                return outputs
+            raise ValueError("Parsed JSON is not a dictionary")
+        except json.JSONDecodeError:
+            pass
 
         # Pattern: [[ ## field_name ## ]] followed by content until next marker or end
         # (?:...) = non-capturing group

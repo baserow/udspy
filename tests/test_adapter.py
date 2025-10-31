@@ -425,7 +425,7 @@ def test_format_field_structure_multiple_complex_types() -> None:
 
 
 def test_format_instructions_includes_field_structure() -> None:
-    """Test that format_instructions includes field structure with type hints."""
+    """Test that format_instructions includes field descriptions (but not structure)."""
 
     class MathQA(Signature):
         """Answer math questions."""
@@ -443,8 +443,46 @@ def test_format_instructions_includes_field_structure() -> None:
     assert "Math question" in instructions
     assert "Numeric answer" in instructions
 
-    # Should include field structure with type hints
-    assert "[[ ## question ## ]]" in instructions
-    assert "[[ ## answer ## ]]" in instructions
-    assert "must be a single int value" in instructions
-    assert "[[ ## completed ## ]]" in instructions
+    # Should NOT include field structure (that's now in format_output_instructions)
+    assert "[[ ## question ## ]]" not in instructions
+    assert "[[ ## answer ## ]]" not in instructions
+
+
+def test_format_output_instructions() -> None:
+    """Test that format_output_instructions generates proper output instructions."""
+
+    class MathQA(Signature):
+        """Answer math questions."""
+
+        question: str = InputField(description="Math question")
+        answer: int = OutputField(description="Numeric answer")
+
+    adapter = ChatAdapter()
+    output_instructions = adapter.format_output_instructions(MathQA)
+
+    # Should include instructions to respond with output fields
+    assert "Respond with the corresponding output fields" in output_instructions
+    assert "[[ ## answer ## ]]" in output_instructions
+    assert "must be a single int value" in output_instructions
+
+
+def test_format_user_request() -> None:
+    """Test that format_user_request combines inputs and output instructions."""
+
+    class MathQA(Signature):
+        """Answer math questions."""
+
+        question: str = InputField(description="Math question")
+        answer: int = OutputField(description="Numeric answer")
+
+    adapter = ChatAdapter()
+    user_request = adapter.format_user_request(MathQA, {"question": "What is 2+2?"})
+
+    # Should include formatted input
+    assert "[[ ## question ## ]]" in user_request
+    assert "What is 2+2?" in user_request
+
+    # Should include output instructions
+    assert "Respond with the corresponding output fields" in user_request
+    assert "[[ ## answer ## ]]" in user_request
+    assert "must be a single int value" in user_request

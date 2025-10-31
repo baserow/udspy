@@ -12,7 +12,7 @@ import os
 from openai import AsyncOpenAI
 
 import udspy
-from udspy import ChainOfThought, InputField, OpenAILM, OutputField, ReAct, Signature, tool
+from udspy import InputField, OpenAILM, OutputField, ReAct, Signature, tool
 from udspy.streaming import OutputStreamChunk, Prediction
 
 
@@ -64,7 +64,9 @@ async def main():
         if isinstance(event, OutputStreamChunk):
             # Show which module is streaming
             module_name = event.module.__class__.__name__
-            print(f"[{module_name}] Streaming {event.field_name}: {event.delta}", end="", flush=True)
+            print(
+                f"[{module_name}] Streaming {event.field_name}: {event.delta}", end="", flush=True
+            )
 
         elif isinstance(event, Prediction):
             # Show which module produced the prediction

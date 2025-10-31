@@ -18,7 +18,7 @@ def build_initial_messages(
 
     Always sets the system message as the first message (replacing any existing
     system message to match the current signature), then adds the user message
-    with formatted inputs at the end.
+    with formatted inputs and output instructions at the end.
 
     This allows users to maintain a history with only user/assistant messages,
     and the system prompt will be automatically managed based on the signature.
@@ -30,7 +30,7 @@ def build_initial_messages(
         history: History object to update with messages
     """
     history.set_system_message(adapter.format_instructions(signature))
-    history.add_user_message(adapter.format_inputs(signature, inputs))
+    history.add_user_message(adapter.format_user_request(signature, inputs))
 
 
 def update_history_with_prediction(
