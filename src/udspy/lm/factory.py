@@ -12,6 +12,7 @@ Example:
     lm = LM(model="llama-3-70b", api_key="...", base_url="https://api.groq.com/openai/v1")
 """
 
+import os
 from typing import Any, TypedDict
 
 from openai import AsyncOpenAI
@@ -24,20 +25,25 @@ class ProviderConfig(TypedDict):
     """Configuration for an LM provider."""
 
     default_base_url: str | None
+    api_key: str | None
 
 
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
         "default_base_url": None,
+        "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY"),
     },
     "groq": {
         "default_base_url": "https://api.groq.com/openai/v1",
+        "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("GROQ_API_KEY"),
     },
     "bedrock": {
         "default_base_url": None,  # Region-specific, must be provided by user
+        "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("AWS_BEDROCK_API_KEY"),
     },
     "ollama": {
         "default_base_url": "http://localhost:11434/v1",
+        "api_key": None,  # No API key needed for local Ollama
     },
 }
 
@@ -127,7 +133,7 @@ def LM(
     provider_model = _clean_model_name(model)
 
     client_kwargs: dict[str, Any] = {**kwargs}
-    client_kwargs["api_key"] = api_key if api_key else "dummy"
+    client_kwargs["api_key"] = api_key or config.get("api_key") or "dummy"
 
     if base_url:
         client_kwargs["base_url"] = base_url

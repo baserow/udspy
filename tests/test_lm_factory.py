@@ -15,7 +15,8 @@ def test_provider_registry_structure():
     # Check that each provider has only default_base_url
     for _provider_name, config in PROVIDER_REGISTRY.items():
         assert "default_base_url" in config
-        assert len(config) == 1  # Only one field
+        assert "api_key" in config
+        assert len(config) == 2
 
 
 def test_detect_provider_from_model_prefix():
