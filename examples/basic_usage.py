@@ -7,9 +7,10 @@ Before running, set environment variables:
 
 import os
 
-import udspy
-from udspy import InputField, OutputField, OpenAILM, Predict, Signature
 from openai import AsyncOpenAI
+
+import udspy
+from udspy import InputField, OpenAILM, OutputField, Predict, Signature
 
 if __name__ == "__main__":
     # APPROACH 1: Direct LM usage (simplest)
@@ -23,11 +24,11 @@ if __name__ == "__main__":
     lm = OpenAILM(client=client, default_model=model)
 
     answer = lm("What is the capital of France?")
-    print(f"Q: What is the capital of France?")
+    print("Q: What is the capital of France?")
     print(f"A: {answer}\n")
 
     answer = lm("What is 15 * 23?")
-    print(f"Q: What is 15 * 23?")
+    print("Q: What is 15 * 23?")
     print(f"A: {answer}\n")
 
     # APPROACH 2: Structured signatures (for complex outputs)
@@ -44,5 +45,5 @@ if __name__ == "__main__":
     predictor = Predict(QA)
 
     result = predictor(question="What is the capital of Germany?")
-    print(f"Q: What is the capital of Germany?")
+    print("Q: What is the capital of Germany?")
     print(f"A: {result.answer}\n")

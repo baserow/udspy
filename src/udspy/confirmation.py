@@ -7,7 +7,7 @@ import json
 import uuid
 from collections.abc import Callable
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, Optional, TypedDict, TypeVar
 
 from udspy.utils.async_support import execute_function_async
 
@@ -24,6 +24,7 @@ class ApprovalData(TypedDict, total=False):
     approved: bool
     data: dict[str, Any] | None
     status: ConfirmationStatus
+
 
 # Thread-safe and asyncio task-safe confirmation context
 _confirmation_context: ContextVar[dict[str, ApprovalData] | None] = ContextVar(

@@ -35,7 +35,7 @@ def calculator(expression: str = Field(..., description="Math expression to eval
     Returns:
         String with the result
     """
-    
+
     print(f"[Calculator Tool] Evaluating expression: {expression}")
     try:
         result = eval(expression, {"__builtins__": {}}, {})
@@ -60,7 +60,7 @@ def load_calculator() -> callable:  # type: ignore[valid-syntax]
         current_tools = [
             t for t in context.module.tools.values() if t.name not in ("finish", "ask_to_user")
         ]
-        
+
         print("[Module Callback] Loading calculator tool...")
 
         context.module.init_module(tools=current_tools + [calculator])
@@ -93,9 +93,9 @@ def single_calculation_example() -> None:
 
     result = agent(question=question)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Final Answer: {result.answer}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     print("Tools available after execution:")
     for tool_name in agent.tools:
@@ -121,9 +121,9 @@ def multi_calculation_example() -> None:
 
     result = agent(question=question)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Final Answer: {result.answer}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 def conditional_loading_example() -> None:
@@ -137,9 +137,9 @@ def conditional_loading_example() -> None:
 
     result = agent(question=question)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Final Answer: {result.answer}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     print("Note: Calculator was NOT loaded because it wasn't needed")
 
