@@ -13,6 +13,53 @@ The base module serves several key purposes:
 
 ## Core Methods
 
+### `init_module(tools=None)`
+
+Initialize or reinitialize the module with new tools. This is the key method for dynamic tool management.
+
+**Why it's needed**: When tools are added or removed at runtime, the module needs to reconfigure its internal state. Specifically:
+
+1. **Tool schemas must be regenerated** - The LLM needs updated JSON schemas for the new/different tools
+2. **Signatures must be rebuilt** - Tool descriptions need to be incorporated into the prompt
+3. **Tool dictionary must be updated** - The module needs to know which tools are available for execution
+
+Without `init_module()`, adding a tool dynamically would be incomplete - the module would have the tool function but wouldn't know how to describe it to the LLM or include it in requests.
+
+**Purpose**: Allows modules to rebuild their complete state (tools, schemas, signatures) during execution. This enables dynamic tool loading where tools can modify the available toolset.
+
+**When to use**:
+- Called from module callbacks (decorated with `@module_callback`)
+- When you need to add/remove tools during execution
+- When building adaptive agents that discover needed tools progressively
+
+**Implementation requirements**:
+1. Rebuild the tools dictionary
+2. Regenerate tool schemas (if applicable)
+3. Rebuild signatures with new tool descriptions (if applicable)
+4. Preserve built-in tools (like ReAct's `finish` and `ask_to_user`)
+
+```python
+from udspy import module_callback
+
+@module_callback
+def add_tools(context):
+    # Get current tools (excluding built-ins)
+    current = [
+        t for t in context.module.tools.values()
+        if t.name not in ("finish", "ask_to_user")
+    ]
+
+    # Add new tools
+    new_tools = [calculator, weather_api]
+
+    # Reinitialize module
+    context.module.init_module(tools=current + new_tools)
+
+    return "Added calculator and weather tools"
+```
+
+**See also**: [Dynamic Tool Management](../../examples/dynamic_tools.md) for detailed examples.
+
 ### `aexecute(*, stream: bool = False, **inputs)`
 
 The core execution method that all modules must implement. This is the public API for module execution.

@@ -4,7 +4,7 @@ A minimal DSPy-inspired library with native OpenAI tool calling.
 
 ## Overview
 
-udspy provides a clean, minimal abstraction for building LLM-powered applications with structured inputs and outputs. Inspired by DSPy, it focuses on simplicity and leverages OpenAI's native tool calling capabilities.
+udspy provides a clean, minimal abstraction for building LLM-powered applications with structured inputs and outputs. Heavily inspired by [DSPy](https://github.com/stanfordnlp/dspy), it aims to mimic DSPy's excellent API patterns while avoiding the LiteLLM dependency for resource-constrained environments.
 
 ## Key Features
 
@@ -60,15 +60,21 @@ udspy is designed with these principles:
 4. **Testability**: Make it easy to test LLM-powered code
 5. **Composability**: Build complex behavior from simple, reusable modules
 
-## Comparison with DSPy
+## Relationship with DSPy
 
-| Feature | udspy | DSPy |
-|---------|-------|------|
-| Input/Output Definition | Pydantic models | Custom signatures |
-| Tool Calling | Native OpenAI tools | Custom adapter layer |
-| Streaming | Built-in async support | Complex callback system |
-| Dependencies | 2 (openai, pydantic) | Many |
-| Focus | Minimal, opinionated | Full-featured framework |
+udspy is heavily inspired by [DSPy](https://github.com/stanfordnlp/dspy) and aims to provide a compatible API for common use cases. The main differences are:
+
+| Aspect | udspy | DSPy |
+|--------|-------|------|
+| **Philosophy** | Minimal abstractions for specific use cases | Full-featured framework with optimizers |
+| **Dependencies** | ~10MB (openai, pydantic) | ~200MB (includes LiteLLM, many providers) |
+| **Target** | Resource-constrained environments, Baserow AI | General-purpose LLM applications |
+| **Scope** | Core patterns (Predict, ChainOfThought, ReAct) | Extensive toolkit with teleprompters, optimizers |
+| **Tool Calling** | OpenAI-native function calling | Provider-agnostic adapter layer |
+
+**Use DSPy if you need**: Multiple LLM providers, optimization/teleprompters, research capabilities, full ecosystem.
+
+**Use udspy if you need**: Minimal footprint, OpenAI-focused, simpler deployment, dynamic tool calling, reasoning and good streaming.
 
 ## Next Steps
 

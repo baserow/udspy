@@ -25,45 +25,49 @@ This document tracks major architectural decisions made in udspy, presented chro
 
 ### Context
 
-Created a minimal DSPy-inspired library focused on resource-constrained environments where DSPy's ~200MB memory footprint (due to LiteLLM) is prohibitive.
+Needed a minimal library for LLM-powered applications in resource-constrained environments, specifically for Baserow's AI assistant where ~200MB dependencies are prohibitive.
 
 ### Decision
 
-Build a lightweight alternative with:
-- Native OpenAI tool calling instead of custom adapters
+Build a lightweight library with:
+- Native OpenAI tool calling as the primary approach
 - Minimal dependencies (~10MB: `openai` + `pydantic`)
 - Streaming support for reasoning and output fields
+- Async-first architecture
 - Modern Python tooling (uv, ruff, justfile)
+
+**Note**: Heavily inspired by [DSPy's](https://github.com/stanfordnlp/dspy) excellent abstractions and API patterns.
 
 ### Key Design Decisions
 
 #### 1. Native Tool Calling
 
-Use OpenAI's native function calling API instead of custom adapters and field markers.
+Use OpenAI's native function calling API directly as the primary approach.
 
 **Rationale**:
 - OpenAI's tool calling is optimized and well-tested
-- Reduces complexity and leverages provider's optimizations
-- Better reliability for structured tool invocation
-- Forward compatible with future improvements
+- Reduces complexity - no need for multi-provider adapter layer
+- Forward compatible with future OpenAI improvements
+- Works with any OpenAI-compatible provider (Together, Ollama, etc.)
+- Sufficient for Baserow's AI assistant needs
 
 **Trade-offs**:
-- Couples to OpenAI's API format (but works with any OpenAI-compatible provider)
-- May need adapters for other providers in future
+- Couples to OpenAI's API format (acceptable for our use case)
+- Limited to OpenAI-compatible providers
 
 #### 2. Minimal Dependencies
 
 Only `openai` and `pydantic` in core dependencies.
 
 **Rationale**:
-- Keeps the library lightweight and maintainable (~10MB vs ~200MB)
-- Reduces potential dependency conflicts
+- Keeps the library lightweight (~10MB)
+- Reduces potential dependency conflicts in Baserow
 - Faster installation and lower memory usage
 - Suitable for serverless, edge, and embedded deployments
 
 **Trade-offs**:
-- Can't leverage broader ecosystem for advanced features
-- Users need to install extras for dev tools
+- Limited to OpenAI-compatible providers
+- No multi-provider abstraction layer
 
 #### 3. Pydantic v2
 
@@ -73,7 +77,6 @@ Use Pydantic v2 for all models and validation.
 - Modern, fast, well-maintained
 - Excellent JSON schema generation for tools
 - Built-in validation and type coercion
-- Better performance than v1
 - Great developer experience with IDE support
 
 **Trade-offs**:
@@ -86,8 +89,8 @@ Async-first design using Python's async/await.
 **Rationale**:
 - Python's async is the standard for I/O-bound operations
 - Native support from OpenAI SDK
-- Better composability with other async code
-- Easier to reason about than callbacks
+- Composable with Baserow's async infrastructure
+- First-class support for streaming reasoning and outputs
 
 **Trade-offs**:
 - Requires async runtime (asyncio)
@@ -98,34 +101,33 @@ Async-first design using Python's async/await.
 Modules compose via Python class inheritance.
 
 **Rationale**:
-- Similar to DSPy but simplified
 - Familiar Python patterns (no custom DSL)
 - Good IDE and type checker support
 - Signatures define I/O contracts using Pydantic models
 - Predict is the core primitive for LLM calls
 
 **Trade-offs**:
-- Less "magical" than DSPy's meta-programming
-- Requires more explicit code
+- Requires more explicit code vs meta-programming approaches
+- Less abstraction = more boilerplate for advanced use cases
 
 ### Consequences
 
 **Benefits**:
-- 20x smaller memory footprint (~10MB vs ~200MB)
-- Works in resource-constrained environments
+- Small memory footprint (~10MB)
+- Works in resource-constrained environments (Baserow AI assistant)
 - Simple, maintainable codebase
 - Compatible with any OpenAI-compatible provider
+- Fast installation and startup
 
 **Trade-offs**:
-- Less feature-complete than DSPy
-- Fewer LLM providers supported out-of-the-box
+- Limited to OpenAI-compatible providers
 - No built-in optimizers or teleprompters
+- Fewer abstractions = more manual work for complex scenarios
 
 ### Alternatives Considered
 
-- **Fork DSPy**: Too much baggage and complexity
-- **Use LangChain**: Even larger footprint, different philosophy
-- **Build from scratch**: Chose this - learn from DSPy's excellent patterns
+- **Use existing frameworks**: Larger footprints, more dependencies
+- **Build from scratch**: Chose this - start minimal, add what's needed
 
 ---
 
@@ -326,18 +328,6 @@ Chain of Thought prompting improves performance on:
 - Slightly higher latency
 - Not always needed for simple factual queries
 - Reasoning quality depends on model capability
-
-### Comparison with DSPy
-
-| Aspect | udspy | DSPy |
-|--------|-------|------|
-| API | `ChainOfThought(signature)` | `dspy.ChainOfThought(signature, rationale_field=...)` |
-| Implementation | Dynamic signature creation | Signature.prepend() method |
-| Customization | `reasoning_description` param | Full `rationale_field` control |
-| Complexity | ~45 lines | ~40 lines |
-| Dependencies | Uses `make_signature` | Uses signature mutation |
-
-Both are equally effective; udspy's approach is simpler but less flexible in edge cases.
 
 ### Alternatives Considered
 
@@ -658,16 +648,6 @@ ReAct improves performance on:
 - Slower than single-shot predictions
 - Quality depends on LLM's reasoning ability
 - Can get stuck in loops if not properly configured
-
-### Comparison with DSPy
-
-| Aspect | udspy | DSPy |
-|--------|-------|------|
-| API | `ReAct(signature, tools=[...])` | `dspy.ReAct(signature, tools=[...])` |
-| Human-in-Loop | Built-in with `@confirm_first` | External handling |
-| Streaming | Supported | Limited |
-| Tool Execution | Automatic with error handling | Automatic |
-| Max Iterations | Configurable with `max_iters` | Configurable |
 
 ### Alternatives Considered
 

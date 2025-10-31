@@ -58,6 +58,50 @@ async for event in module.aexecute(stream=True, **inputs):
         print(f"\nFinal: {event}")
 ```
 
+### Dynamic Tool Management
+
+Modules support runtime modification of their toolset via the `init_module()` method. This enables:
+- Loading tools on demand (reduce initial context size)
+- Progressive tool discovery (agent figures out what it needs)
+- Adaptive behavior (add tools based on task complexity)
+
+**Key method**: `init_module(tools=None)`
+
+This method is essential for dynamic tools because when the toolset changes, the module needs to fully reconfigure itself:
+- Regenerate tool schemas (so the LLM knows how to call new tools)
+- Rebuild signatures (so tool descriptions appear in the prompt)
+- Update the tool registry (so the module can execute the tools)
+
+It's typically called from within a module callback:
+
+```python
+from udspy import tool, module_callback, ReAct
+
+@tool(name="load_calculator")
+def load_calculator() -> callable:
+    """Load calculator tool when needed."""
+
+    @module_callback
+    def add_calculator(context):
+        # Get current tools
+        current = list(context.module.tools.values())
+
+        # Add new tool
+        context.module.init_module(tools=current + [calculator])
+
+        return "Calculator loaded"
+
+    return add_calculator
+
+# Agent starts with only the loader
+agent = ReAct(signature, tools=[load_calculator])
+
+# Agent loads calculator when needed
+result = agent(question="What is 157 * 834?")
+```
+
+**See**: [Dynamic Tool Management Guide](../examples/dynamic_tools.md) for detailed examples and patterns.
+
 ## Built-in Modules
 
 udspy provides three core modules:

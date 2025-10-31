@@ -7,7 +7,7 @@ from typing import Any
 
 from udspy.callback import with_callbacks
 from udspy.confirmation import ConfirmationRequired
-from udspy.streaming import Prediction, StreamEvent
+from udspy.streaming import Prediction, StreamEvent, _stream_queue
 from udspy.utils.async_support import ensure_sync_context
 
 
@@ -130,7 +130,6 @@ class Module:
         Yields:
             StreamEvent objects (OutputStreamChunk, Prediction, and custom events)
         """
-        from udspy.streaming import _stream_queue
 
         queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
         token = _stream_queue.set(queue)
