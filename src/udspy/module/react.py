@@ -526,7 +526,7 @@ class ReAct(Module):
                             if hasattr(extract, field_name):
                                 result_dict[field_name] = getattr(extract, field_name)
 
-                        return Prediction(trajectory=trajectory, **result_dict)
+                        return Prediction(module=self, is_final=True, trajectory=trajectory, **result_dict)
                 except ValueError as e:
                     logger.warning(f"Agent failed: {e}")
                     error_episode: Episode = {
@@ -567,7 +567,7 @@ class ReAct(Module):
                 if hasattr(extract, field_name):
                     result_dict[field_name] = getattr(extract, field_name)
 
-            prediction = Prediction(trajectory=trajectory, **result_dict)
+            prediction = Prediction(module=self, is_final=True, trajectory=trajectory, **result_dict)
             return prediction
         finally:
             # Clean up context

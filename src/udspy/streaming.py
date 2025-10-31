@@ -102,23 +102,33 @@ class Prediction(StreamEvent, dict[str, Any]):
     This is both a StreamEvent (can be yielded from astream) and a dict
     (for convenient attribute access to outputs).
 
+    Attributes:
+        module: The module that produced this prediction
+        is_final: Whether this is the final prediction (vs intermediate from nested module)
+        native_tool_calls: Tool calls from native LLM response (if any)
+
     Example:
         ```python
         pred = Prediction(answer="Paris", reasoning="France's capital")
         print(pred.answer)  # "Paris"
         print(pred["answer"])  # "Paris"
+        print(pred.is_final)  # True for top-level result
+        print(pred.module)  # Module instance that produced this
         ```
     """
 
-    def __init__(self, /, native_tool_calls: list["ToolCall"] | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        /,
+        module: "Module | None" = None,
+        is_final: bool = True,
+        native_tool_calls: list["ToolCall"] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
+        self.module = module
+        self.is_final = is_final
         self.native_tool_calls = native_tool_calls
-        # If any outputs are present, without native_tool_calls it's final
-        self._is_final = len(kwargs) > 0 and not native_tool_calls
-
-    def is_final(self) -> bool:
-        """Whether this Prediction is the final output (has some fields and native_tool_calls is empty)."""
-        return self._is_final
 
     def __getattr__(self, name: str) -> Any:
         try:

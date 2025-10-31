@@ -50,16 +50,28 @@ Final result with all output fields:
 
 ```python
 class Prediction(StreamEvent, dict):
+    module: Module | None   # Module that produced this prediction
+    is_final: bool          # True for final result, False for intermediate
     # Dict with all output fields
     # Supports both dict and attribute access
 ```
 
-Example:
+The `module` and `is_final` attributes help distinguish predictions in nested module scenarios:
+
 ```python
 async for event in predictor.astream(question="..."):
     if isinstance(event, Prediction):
+        # Access output fields
         print(f"Answer: {event.answer}")
         print(f"Same: {event['answer']}")
+
+        # Check which module produced this
+        module_name = event.module.__class__.__name__
+        print(f"From: {module_name}")
+
+        # Distinguish final vs intermediate predictions
+        if event.is_final:
+            print("This is the final result!")
 ```
 
 ## Field-Specific Streaming
@@ -166,6 +178,30 @@ async for event in agent.astream(question="..."):
 ```
 
 See `examples/react_streaming.py` for a complete example.
+
+## Nested Modules
+
+When modules compose other modules (e.g., ReAct using ChainOfThought), predictions from both parent and child modules are streamed. Use the `module` and `is_final` attributes to distinguish them:
+
+```python
+from udspy import ReAct, ChainOfThought
+
+agent = ReAct("question -> answer", tools=[calculator])
+
+async for event in agent.astream(question="What is 157 * 234?"):
+    if isinstance(event, Prediction):
+        module_name = event.module.__class__.__name__ if event.module else "Unknown"
+
+        if event.is_final:
+            # This is the final result from the top-level ReAct module
+            print(f"Final answer from {module_name}: {event.answer}")
+        else:
+            # This is an intermediate prediction from a nested module
+            # (e.g., ChainOfThought extraction step)
+            print(f"Intermediate result from {module_name}")
+```
+
+See `examples/stream_with_module_info.py` for a complete example.
 
 ## Implementation Details
 

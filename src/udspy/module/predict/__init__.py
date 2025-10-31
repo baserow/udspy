@@ -297,7 +297,7 @@ class Predict(Module):
 
             await self._aexecute_tool_calls(prediction.native_tool_calls, history)
         else:
-            if prediction is not None and not prediction.is_final():
+            if prediction is not None and not prediction.is_final:
                 raise RuntimeError(f"Max turns ({self.max_turns}) reached without final answer")
 
         if prediction is None:
@@ -569,7 +569,11 @@ class Predict(Module):
         finally:
             self._execute_lm_callbacks("end", call_id, outputs=outputs_dict, exception=exception)
 
-        prediction = Prediction(native_tool_calls=native_tool_calls, **outputs)
+        # Determine if this is the final prediction (no more tool calls needed)
+        is_final = not bool(native_tool_calls)
+        prediction = Prediction(
+            module=self, is_final=is_final, native_tool_calls=native_tool_calls, **outputs
+        )
 
         if should_emit and (queue := _stream_queue.get()) is not None:
             await queue.put(prediction)
@@ -728,7 +732,10 @@ class Predict(Module):
 
             self._check_valid_outputs_or_raise(native_tool_calls, outputs, completion_text)
 
-            prediction = Prediction(native_tool_calls=native_tool_calls, **outputs)
+            is_final = not bool(native_tool_calls)
+            prediction = Prediction(
+                module=self, is_final=is_final, native_tool_calls=native_tool_calls, **outputs
+            )
             if emit_prediction:
                 await queue.put(prediction)
 
