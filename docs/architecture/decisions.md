@@ -360,84 +360,223 @@ Feature is additive - no migration needed.
 
 ## ADR-004: Human-in-the-Loop with Confirmation System
 
-**Date**: 2025-10-25
+**Date**: 2025-10-25 (Updated: 2025-10-31)
 
 **Status**: Accepted
 
 ### Context
 
-Many agent applications require human approval for certain actions (e.g., deleting files, sending emails, making purchases). We needed a clean way to suspend execution, ask for user input, and resume where we left off.
+Many agent applications require human approval for certain actions (e.g., deleting files, sending emails, making purchases). We needed a clean way to suspend execution, ask for user input, and resume where we left off. The system must support:
+- Multiple confirmation rounds (clarifications, edits, iterations)
+- State preservation for resumption
+- Thread-safe concurrent operations
+- Integration with ReAct agent trajectories
 
 ### Decision
 
-Implement an `@confirm_first` decorator that:
-- Suspends function execution before it runs
-- Raises `ConfirmationRequired` exception with context
-- Allows resumption with user approval/rejection/modifications
-- Uses thread-safe `contextvars` for state management
-- Generates stable confirmation IDs based on function + arguments
+Implement exception-based confirmation system with:
+- **Exceptions for control flow**: `ConfirmationRequired`, `ConfirmationRejected`
+- **@confirm_first decorator**: Wraps functions to require confirmation
+- **ResumeState**: Container for resuming execution after confirmation
+- **Type-safe status tracking**: Literal types for compile-time validation
+- **Thread-safe context**: Uses `contextvars` for isolated state
 
 ```python
-from udspy import confirm_first, ConfirmationRequired, respond_to_confirmation
+from udspy import (
+    confirm_first,
+    ConfirmationRequired,
+    ConfirmationRejected,
+    ResumeState,
+    respond_to_confirmation
+)
 
 @confirm_first
 def delete_file(path: str) -> str:
     os.remove(path)
     return f"Deleted {path}"
 
-try:
-    delete_file("/important.txt")
-except ConfirmationRequired as e:
-    # User approves
-    respond_to_confirmation(e.confirmation_id, approved=True)
-    delete_file("/important.txt")  # Now executes
+# Interactive loop pattern
+resume_state = None
+while True:
+    try:
+        result = delete_file("/important.txt", resume_state=resume_state)
+        break
+    except ConfirmationRequired as e:
+        response = input(f"{e.question} (yes/no): ")
+        resume_state = ResumeState(e, response)
+    except ConfirmationRejected as e:
+        print(f"Rejected: {e.message}")
+        break
 ```
 
 ### Implementation Details
 
-1. **Stable Confirmation IDs**: Generated from `function_name:hash(args)` to allow same call to resume
-2. **Context Variables**: Thread-safe and async-safe state storage
-3. **Rejection Support**: `ConfirmationRejected` exception distinguishes "user said no" from "pending"
-4. **Argument Modification**: Users can edit arguments before approval
-5. **Automatic Cleanup: Confirmations are cleared after successful execution
+1. **Stable Confirmation IDs**: Generated from `function_name:hash(args)` for idempotent resumption
+2. **Type-safe Status**: `ConfirmationStatus = Literal["pending", "approved", "rejected", "edited", "feedback"]`
+3. **ApprovalData TypedDict**: Structured approval data with type safety
+4. **ResumeState Container**: Combines exception + user response for clean resumption API
+5. **Context Storage**: Thread-safe `ContextVar[dict[str, ApprovalData]]`
+6. **Tool Integration**: `check_tool_confirmation()` for tool-level confirmations
+7. **Automatic Cleanup**: Confirmations cleared after successful execution
+
+### Key Types
+
+```python
+# Type-safe status
+ConfirmationStatus = Literal["pending", "approved", "rejected", "edited", "feedback"]
+
+# Typed approval data
+class ApprovalData(TypedDict, total=False):
+    approved: bool
+    data: dict[str, Any] | None
+    status: ConfirmationStatus
+
+# Exception classes
+class ConfirmationRequired(Exception):
+    question: str
+    confirmation_id: str
+    tool_call: ToolCall | None
+    context: dict[str, Any]  # Module state for resumption
+
+class ConfirmationRejected(Exception):
+    message: str
+    confirmation_id: str
+    tool_call: ToolCall | None
+
+# Resume state container
+class ResumeState:
+    exception: ConfirmationRequired
+    user_response: str
+    confirmation_id: str  # Property
+    question: str  # Property
+    tool_call: ToolCall | None  # Property
+    context: dict[str, Any]  # Property
+```
+
+### Resumption Patterns
+
+**Pattern 1: Explicit respond_to_confirmation()**
+```python
+try:
+    delete_file("/data")
+except ConfirmationRequired as e:
+    respond_to_confirmation(e.confirmation_id, approved=True)
+    delete_file("/data")  # Resumes
+```
+
+**Pattern 2: ResumeState loop (recommended)**
+```python
+resume_state = None
+while True:
+    try:
+        result = agent(question="Task", resume_state=resume_state)
+        break
+    except ConfirmationRequired as e:
+        response = get_user_input(e.question)
+        resume_state = ResumeState(e, response)
+```
+
+### ReAct Integration
+
+ReAct automatically catches `ConfirmationRequired` and adds execution state:
+
+```python
+try:
+    result = await tool.acall(**tool_args)
+except ConfirmationRequired as e:
+    # ReAct enriches context with trajectory state
+    e.context = {
+        "trajectory": trajectory.copy(),
+        "iteration": idx,
+        "input_args": input_args.copy(),
+    }
+    if e.tool_call and tool_call_id:
+        e.tool_call.call_id = tool_call_id
+    raise  # Re-raise for caller
+```
+
+This enables resuming from exact point in trajectory.
 
 ### Key Features
 
-1. **Decorator-based**: Simple to apply to any function
-2. **Thread-safe**: Works with concurrent requests
-3. **Async-safe**: Works with asyncio tasks
-4. **Resumable**: Same function call can be resumed after approval
-5. **Integrated with Tools**: Works seamlessly with `@tool` decorator
+1. **Exception-based control**: Natural suspension of call stack
+2. **ResumeState container**: Clean API for resumption with user response
+3. **Type-safe**: Literal types and TypedDict for status tracking
+4. **Thread-safe**: `ContextVar` isolation per thread/task
+5. **Async-safe**: Works with asyncio concurrent operations
+6. **Module integration**: Modules can save/restore state in exception context
+7. **Tool confirmations**: `check_tool_confirmation()` for tool-level checks
+8. **Argument editing**: Users can modify arguments before approval
 
 ### Use Cases
 
-1. **Dangerous Operations**: File deletion, system commands
-2. **User Confirmation**: Sending emails, making purchases
-3. **Clarification**: Ask user for additional information
-4. **Argument Editing**: Let user modify parameters before execution
+1. **Dangerous operations**: File deletion, system commands, database changes
+2. **User confirmation**: Sending emails, making purchases, API calls
+3. **Clarification loops**: Ask user for additional information
+4. **Argument editing**: Let user modify parameters before execution
+5. **Multi-step workflows**: Multiple confirmation rounds in agent execution
+6. **Web APIs**: Save state in session, resume later
+7. **Batch processing**: Auto-approve low-risk, human review high-risk
 
 ### Consequences
 
 **Benefits**:
 - Clean separation of business logic from approval logic
-- Works naturally with ReAct agent workflows
+- Works naturally with ReAct agent trajectories
 - Thread-safe and async-safe out of the box
 - Easy to test (deterministic based on confirmation state)
+- Type-safe with Literal types and TypedDict
+- ResumeState provides clean resumption API
+- Supports multiple confirmation rounds
+- State preservation enables complex workflows
 
 **Trade-offs**:
-- Requires exception handling (but this is explicit and clear)
-- Confirmation state needs to be managed (cleared on success)
-- Not suitable for purely synchronous, single-threaded apps (but works fine there too)
+- Requires exception handling (explicit and clear)
+- Confirmation state is per-process (doesn't persist across restarts)
+- Hash-based IDs could collide (extremely rare)
+- Learning curve for exception-based control flow
+- Must manage confirmation rounds to prevent infinite loops
 
 ### Alternatives Considered
 
 - **Callback-based**: More complex, harder to reason about flow
+- **Async/await pattern**: Breaks with mixed sync/async code
+- **Return sentinel values**: Ambiguous, requires checking every return
+- **Async generators with yield**: Breaks module composability
 - **Middleware pattern**: Too heavyweight for this use case
-- **Manual state management**: Error-prone, not thread-safe
+- **Global registry**: Testing difficulties, not thread-safe
+- **Manual state management**: Error-prone, inconsistent
 
 ### Migration Guide
 
 Feature is additive - no migration needed.
+
+**Basic usage**:
+```python
+@confirm_first
+def dangerous_op():
+    ...
+```
+
+**Recommended pattern**:
+```python
+from udspy import ResumeState
+
+resume_state = None
+while True:
+    try:
+        result = agent(question="...", resume_state=resume_state)
+        break
+    except ConfirmationRequired as e:
+        response = input(f"{e.question}: ")
+        resume_state = ResumeState(e, response)
+```
+
+### See Also
+
+- [Confirmation Architecture](confirmation.md) - Detailed architecture and patterns
+- [Confirmation API](../api/confirmation.md) - API documentation
+- [ReAct Module](modules/react.md) - Integration with agents
 
 ---
 
