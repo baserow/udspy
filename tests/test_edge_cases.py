@@ -399,8 +399,10 @@ async def test_invalid_json_in_tool_arguments() -> None:
     # The JSON decode error is logged and next_tool_calls becomes empty list
     assert isinstance(result, Prediction)
     assert "trajectory" in result
-    # Verify the malformed JSON was handled (tool_calls_0 should be empty list)
-    assert result.trajectory.get("tool_calls_0") == []
-    # Agent should have continued to next iteration
-    assert "thought_1" in result.trajectory
-    assert result.trajectory["thought_1"] == "Let me try again"
+    # Verify the malformed JSON was handled (first episode should have empty tool_calls)
+    assert isinstance(result.trajectory, list)
+    assert len(result.trajectory) >= 1
+    assert result.trajectory[0]["tool_calls"] == []
+    # Agent should have continued to next iteration (second episode)
+    assert len(result.trajectory) >= 2
+    assert result.trajectory[1]["thought"] == "Let me try again"

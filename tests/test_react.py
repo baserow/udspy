@@ -144,7 +144,7 @@ async def test_react_tool_confirmation() -> None:
     assert exc_info.value.tool_call.name == "delete_file"
     assert exc_info.value.tool_call.args == {"path": "/tmp/test.txt"}
     assert exc_info.value.context.get("trajectory") is not None
-    assert exc_info.value.context.get("iteration") is not None
+    # No longer storing iteration separately - use len(trajectory)
 
 
 def test_react_forward_sync() -> None:
@@ -266,13 +266,13 @@ async def test_tool_execution_after_confirmation() -> None:
     # Verify tool was actually called
     assert call_count["count"] == 1, "Tool should have been executed after confirmation"
 
-    # Verify trajectory shows execution
-    assert "observation_0" in result.trajectory
-    assert "Deleted /tmp/test.txt" in result.trajectory["observation_0"]
+    # Verify trajectory shows execution (first episode should have delete_file execution)
+    assert len(result.trajectory) >= 1
+    assert "Deleted /tmp/test.txt" in result.trajectory[0]["observation"]
 
-    # Verify we have finish call in trajectory (iteration 1 uses normal execution, so check tool_calls_1)
-    assert "tool_calls_1" in result.trajectory
-    tool_calls_1 = result.trajectory["tool_calls_1"]
+    # Verify we have finish call in trajectory (second episode after confirmation)
+    assert len(result.trajectory) >= 2
+    tool_calls_1 = result.trajectory[1]["tool_calls"]
     assert len(tool_calls_1) > 0
     assert tool_calls_1[0]["name"] == "finish"
 
@@ -333,13 +333,13 @@ async def test_user_feedback_triggers_re_reasoning() -> None:
     # Step 2: User provides feedback (not yes/no)
     result = await agent.aresume("I want to know about Python", saved_state)
 
-    # Verify LLM got the feedback and re-reasoned
-    assert "observation_0" in result.trajectory
-    assert "User feedback: I want to know about Python" in result.trajectory["observation_0"]
+    # Verify LLM got the feedback (first episode is the feedback)
+    assert len(result.trajectory) >= 1
+    assert "User feedback: I want to know about Python" in result.trajectory[0]["observation"]
 
-    # Verify LLM then used search tool (iteration 1 uses normal execution, so check tool_calls_1)
-    assert "tool_calls_1" in result.trajectory
-    tool_calls_1 = result.trajectory["tool_calls_1"]
+    # Verify LLM then used search tool (second episode)
+    assert len(result.trajectory) >= 2
+    tool_calls_1 = result.trajectory[1]["tool_calls"]
     assert len(tool_calls_1) > 0
     assert tool_calls_1[0]["name"] == "search"
     assert tool_calls_1[0]["args"] == {"query": "Python programming"}
@@ -374,7 +374,8 @@ async def test_react_with_string_signature() -> None:
 
     result = await agent.aforward(task="Do something")
 
-    assert isinstance(result.trajectory, dict)
+    # Trajectory is now a list of episodes
+    assert isinstance(result.trajectory, list)
     assert "result" in result
 
 
@@ -423,13 +424,13 @@ async def test_react_resume_with_pending_tool_call() -> None:
         # Approve the confirmation
         respond_to_confirmation(e.confirmation_id, approved=True, status="approved")
 
-    # Resume - this tests the pending_tool_call execution path (lines 265-287)
+    # Resume - this tests the pending_episode execution path
     result = await agent.aresume("yes", saved_state)
 
     assert isinstance(result, dict) or hasattr(result, "answer")
-    # Verify the tool was executed
-    assert "observation_0" in result.trajectory
-    assert "Deleted" in result.trajectory["observation_0"]
+    # Verify the tool was executed (first episode)
+    assert len(result.trajectory) >= 1
+    assert "Deleted" in result.trajectory[0]["observation"]
 
 
 @pytest.mark.asyncio
@@ -481,10 +482,10 @@ async def test_react_resume_pending_tool_call_with_exception() -> None:
         saved_state = e
         respond_to_confirmation(e.confirmation_id, approved=True)
 
-    # Resume - pending_tool_call execution hits exception path
+    # Resume - pending_episode execution hits exception path
     result = await agent.aresume("yes", saved_state)
 
-    # Verify error was caught and logged as observation
-    assert "observation_0" in result.trajectory
-    assert "Traceback 'failing_tool'" in result.trajectory["observation_0"]
-    assert "Tool failed" in result.trajectory["observation_0"]
+    # Verify error was caught and logged as observation (first episode)
+    assert len(result.trajectory) >= 1
+    assert "Traceback 'failing_tool'" in result.trajectory[0]["observation"]
+    assert "Tool failed" in result.trajectory[0]["observation"]
