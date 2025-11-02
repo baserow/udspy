@@ -142,24 +142,22 @@ def test_predict_init_module_clears_tools() -> None:
 
 
 def test_react_init_module_preserves_builtin_tools() -> None:
-    """Test ReAct.init_module() preserves finish and ask_to_user tools."""
+    """Test ReAct.init_module() preserves finish tool."""
 
     @tool(name="custom_tool", description="Custom tool")
     def custom_tool(x: int = Field(...)) -> str:
         return f"custom: {x}"
 
     # Create agent with custom tool
-    agent = ReAct(QA, tools=[custom_tool], enable_ask_to_user=True)
+    agent = ReAct(QA, tools=[custom_tool])
     assert "finish" in agent.tools
-    assert "ask_to_user" in agent.tools
     assert "custom_tool" in agent.tools
 
     # Reinitialize with empty tools - built-ins should remain
     agent.init_module(tools=[])
     assert "finish" in agent.tools
-    assert "ask_to_user" in agent.tools
     assert "custom_tool" not in agent.tools
-    assert len(agent.tools) == 2  # Only finish and ask_to_user
+    assert len(agent.tools) == 1  # Only finish
 
 
 def test_react_init_module_rebuilds_signature() -> None:
@@ -197,7 +195,7 @@ def test_react_init_module_without_ask_to_user() -> None:
         return f"custom: {x}"
 
     # Create agent without ask_to_user
-    agent = ReAct(QA, tools=[custom_tool], enable_ask_to_user=False)
+    agent = ReAct(QA, tools=[custom_tool])
     assert "finish" in agent.tools
     assert "ask_to_user" not in agent.tools
 
@@ -307,11 +305,11 @@ async def test_react_with_module_callback() -> None:
     # Mock LLM responses
     responses = [
         # Load tools
-        '[[ ## next_thought ## ]]\nI need to load weather tools\n[[ ## next_tool_calls ## ]]\n[{"name": "load_tools", "args": {"category": "weather"}}]',
+        '[[ ## next_thought ## ]]\nI need to load weather tools\n[[ ## next_tool_call ## ]]\n{"name": "load_tools", "args": {"category": "weather"}}',
         # Use weather tool
-        '[[ ## next_thought ## ]]\nNow check the weather\n[[ ## next_tool_calls ## ]]\n[{"name": "weather_tool", "args": {"location": "Tokyo"}}]',
+        '[[ ## next_thought ## ]]\nNow check the weather\n[[ ## next_tool_call ## ]]\n{"name": "weather_tool", "args": {"location": "Tokyo"}}',
         # Finish
-        '[[ ## next_thought ## ]]\nI have the answer\n[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]',
+        '[[ ## next_thought ## ]]\nI have the answer\n[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}',
         # Extract answer (ChainOfThought reasoning)
         "[[ ## reasoning ## ]]\nExtracting final answer from trajectory\n[[ ## answer ## ]]\nThe weather in Tokyo is Sunny",
     ]
@@ -385,14 +383,14 @@ def test_react_init_module_updates_tool_call_model() -> None:
 
     # Get the output fields which include the ToolCallModel
     initial_fields = agent.react_signature.get_output_fields()
-    assert "next_tool_calls" in initial_fields
+    assert "next_tool_call" in initial_fields
 
     # Add tool2
     agent.init_module(tools=[tool1, tool2])
 
     # Verify signature was rebuilt
     updated_fields = agent.react_signature.get_output_fields()
-    assert "next_tool_calls" in updated_fields
+    assert "next_tool_call" in updated_fields
 
     # The Literal type should now include tool2
     # (This is implicit in the signature rebuild)
@@ -590,9 +588,9 @@ async def test_react_uses_dynamically_loaded_tool() -> None:
         return callback
 
     responses = [
-        '[[ ## next_thought ## ]]\nI need to load the calculator\n[[ ## next_tool_calls ## ]]\n[{"name": "load_calculator", "args": {}}]',
-        '[[ ## next_thought ## ]]\nNow I can calculate\n[[ ## next_tool_calls ## ]]\n[{"name": "calculator", "args": {"expression": "25 * 4"}}]',
-        '[[ ## next_thought ## ]]\nI have the answer\n[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]',
+        '[[ ## next_thought ## ]]\nI need to load the calculator\n[[ ## next_tool_call ## ]]\n{"name": "load_calculator", "args": {}}',
+        '[[ ## next_thought ## ]]\nNow I can calculate\n[[ ## next_tool_call ## ]]\n{"name": "calculator", "args": {"expression": "25 * 4"}}',
+        '[[ ## next_thought ## ]]\nI have the answer\n[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}',
         "[[ ## reasoning ## ]]\nExtracting answer\n[[ ## answer ## ]]\n100",
     ]
 
@@ -652,11 +650,11 @@ async def test_multiple_dynamic_tool_loads() -> None:
         return callback
 
     responses = [
-        '[[ ## next_thought ## ]]\nLoad calculator\n[[ ## next_tool_calls ## ]]\n[{"name": "load_calculator", "args": {}}]',
-        '[[ ## next_thought ## ]]\nLoad formatter\n[[ ## next_tool_calls ## ]]\n[{"name": "load_formatter", "args": {}}]',
-        '[[ ## next_thought ## ]]\nUse tools\n[[ ## next_tool_calls ## ]]\n[{"name": "calculator", "args": {"expression": "10 + 5"}}]',
-        '[[ ## next_thought ## ]]\nFormat result\n[[ ## next_tool_calls ## ]]\n[{"name": "formatter", "args": {"number": "15"}}]',
-        '[[ ## next_thought ## ]]\nDone\n[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]',
+        '[[ ## next_thought ## ]]\nLoad calculator\n[[ ## next_tool_call ## ]]\n{"name": "load_calculator", "args": {}}',
+        '[[ ## next_thought ## ]]\nLoad formatter\n[[ ## next_tool_call ## ]]\n{"name": "load_formatter", "args": {}}',
+        '[[ ## next_thought ## ]]\nUse tools\n[[ ## next_tool_call ## ]]\n{"name": "calculator", "args": {"expression": "10 + 5"}}',
+        '[[ ## next_thought ## ]]\nFormat result\n[[ ## next_tool_call ## ]]\n{"name": "formatter", "args": {"number": "15"}}',
+        '[[ ## next_thought ## ]]\nDone\n[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}',
         "[[ ## reasoning ## ]]\nCompleted\n[[ ## answer ## ]]\nFormatted: 15",
     ]
 
@@ -690,8 +688,8 @@ async def test_callback_with_invalid_tool_name() -> None:
         return "Valid tool executed"
 
     responses = [
-        '[[ ## next_thought ## ]]\nTry invalid tool\n[[ ## next_tool_calls ## ]]\n[{"name": "nonexistent_tool", "args": {}}]',
-        '[[ ## next_thought ## ]]\nHandle error\n[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]',
+        '[[ ## next_thought ## ]]\nTry invalid tool\n[[ ## next_tool_call ## ]]\n{"name": "nonexistent_tool", "args": {}}',
+        '[[ ## next_thought ## ]]\nHandle error\n[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}',
         "[[ ## reasoning ## ]]\nError handled\n[[ ## answer ## ]]\nTool not found",
     ]
 

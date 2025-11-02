@@ -4,22 +4,22 @@ from __future__ import annotations
 
 import json
 import logging
-import secrets
 from collections.abc import Callable
 from typing import Any, Literal, TypedDict
 
-from pydantic import Field, create_model
+from pydantic import BaseModel, Field, create_model
 
 from udspy.callback import with_callbacks
-from udspy.confirmation import ConfirmationRequired, respond_to_confirmation
-from udspy.decorators import suspendable
+from udspy.confirmation import ConfirmationRequired
+from udspy.history import History
 from udspy.module.base import Module
 from udspy.module.callbacks import ReactContext, is_module_callback
 from udspy.module.chain_of_thought import ChainOfThought
 from udspy.module.predict import Predict
 from udspy.signature import Signature, make_signature
-from udspy.streaming import Prediction
+from udspy.streaming import Prediction, emit_event
 from udspy.tool import Tool, Tools
+from udspy.utils.async_support import execute_function_async
 from udspy.utils.formatting import format_tool_exception
 
 # Rebuild Tools model to resolve forward references
@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 class ToolCallDict(TypedDict):
     """Typed dict for a tool call within an episode."""
 
-    id: str
     name: str
     args: dict[str, Any]
 
@@ -40,7 +39,7 @@ class Episode(TypedDict):
     """Typed dict for a single ReAct episode (thought -> tool calls -> observation)."""
 
     thought: str
-    tool_calls: list[ToolCallDict]
+    tool_call: ToolCallDict | None
     observation: str
 
 
@@ -51,9 +50,7 @@ class ReAct(Module):
     to call a tool or finish the task. Key features:
 
     - Iterative reasoning with tool execution
-    - Built-in ask_to_user tool for clarification
-    - Tool confirmation support for confirmations
-    - State saving/restoration for resumption after confirmation requests
+    - Tool confirmation support for sensitive operations
     - Real-time streaming of reasoning and tool usage
 
     Example (Basic Usage):
@@ -113,7 +110,6 @@ class ReAct(Module):
         tools: list[Callable | Tool],
         *,
         max_iters: int = 10,
-        enable_ask_to_user: bool = False,
     ):
         """Initialize ReAct module.
 
@@ -121,7 +117,6 @@ class ReAct(Module):
             signature: Signature defining inputs and outputs, or signature string
             tools: List of tool functions (decorated with @tool) or Tool objects
             max_iters: Maximum number of reasoning iterations (default: 10)
-            enable_ask_to_user: Whether to enable ask_to_user tool (default: False)
         """
         if isinstance(signature, str):
             signature = Signature.from_string(signature)
@@ -129,7 +124,6 @@ class ReAct(Module):
         self.signature = signature
         self.user_signature = signature
         self.max_iters = max_iters
-        self.enable_ask_to_user = enable_ask_to_user
         self._context: ReactContext | None = None  # Current execution context
 
         self.init_module(tools=tools)
@@ -141,7 +135,7 @@ class ReAct(Module):
         self._add_builtin_tools()
 
     def _add_builtin_tools(self) -> None:
-        """Add built-in tools: finish and ask_to_user (if enabled)."""
+        """Add built-in finish tool."""
         outputs = ", ".join([f"`{k}`" for k in self.signature.get_output_fields().keys()])
 
         def finish_tool() -> str:  # pyright: ignore[reportUnusedParameter]
@@ -153,19 +147,6 @@ class ReAct(Module):
             name="finish",
             description=f"Call this when you have all information needed to produce {outputs}",
         )
-
-        if self.enable_ask_to_user:
-
-            def ask_to_user_impl(question: str) -> str:  # noqa: ARG001
-                """Ask the user for clarification."""
-                return ""
-
-            self.tools["ask_to_user"] = Tool(
-                func=ask_to_user_impl,
-                name="ask_to_user",
-                description="Ask the user for clarification when needed. Use this when you need more information or when the request is ambiguous.",
-                require_confirmation=True,
-            )
 
     def _rebuild_signatures(self) -> None:
         """Rebuild react and extract signatures with current tools.
@@ -191,10 +172,10 @@ class ReAct(Module):
             [
                 f"You are an Agent. In each episode, you will be given the fields {inputs} as input. And you can see your past trajectory so far.",
                 f"Your goal is to use one or more of the supplied tools to collect any necessary information for producing {outputs}.\n",
-                "To do this, you will interleave next_thought, next_tool_calls in each turn, and also when finishing the task.",
+                "To do this, you will interleave next_thought, next_tool_call in each turn, and also when finishing the task.",
                 "After each tool call, you receive a resulting observation, which gets appended to your trajectory.\n",
                 "When writing next_thought, you reason about the current situation and plan for future steps. If no reasoning is needed, you provide an empty string.",
-                "When selecting the next_tool_calls, you may choose one or more of the following tools that will be executed in the same episode:",
+                "When selecting the next_tool_call, you may choose one or more of the following tools that will be executed in the same episode:",
             ]
         )
 
@@ -202,7 +183,8 @@ class ReAct(Module):
         instr.extend(
             [
                 "If a tool fails multiple times, call `finish` to complete the task explaining the failure in your final answer.",
-                "**CRITICAL: Tool Call Format** You MUST return tool calls in the `next_tool_calls` array field only.",
+                "**CRITICAL: Tool Calls**: Only parallelize tool calls when you already have all the arguments needed for each tool. Placeholders are not allowed.",
+                "**CRITICAL: Tool Call Format** You MUST return tool calls in the `next_tool_call` array field only.",
             ]
         )
 
@@ -225,7 +207,7 @@ class ReAct(Module):
 
         react_output_fields: dict[str, type] = {
             "next_thought": str,
-            "next_tool_calls": list[ToolCallModel],  # type: ignore[valid-type]
+            "next_tool_call": ToolCallModel,
         }
 
         return make_signature(
@@ -258,9 +240,8 @@ class ReAct(Module):
     def init_module(self, tools: list[Any] | None = None) -> None:
         """Initialize or reinitialize ReAct with new tools.
 
-        This method rebuilds the tools dictionary and regenerates the react
-        signature with new tool descriptions. Built-in tools (finish and
-        ask_to_user) are automatically preserved.
+        This method rebuilds the tools dictionary and regenerates the react signature
+        with new tool descriptions. Built-in tools are automatically preserved.
 
         Args:
             tools: New tools to initialize with. Can be:
@@ -269,15 +250,14 @@ class ReAct(Module):
                 - None to clear all non-built-in tools
 
         Example:
-            ```python
-            from udspy import module_callback
+            ```python from udspy import module_callback
 
             @module_callback
             def load_specialized_tools(context):
                 # Get current non-built-in tools
                 current_tools = [
                     t for t in context.module.tools.values()
-                    if t.name not in ("finish", "ask_to_user")
+                    if t.name not in builtin_tool_names
                 ]
 
                 # Add new tools
@@ -310,19 +290,12 @@ class ReAct(Module):
         for idx, episode in enumerate(trajectory):
             lines.append(f"\n--- Step {idx + 1} ---")
             lines.append(f"Thought: {episode['thought']}")
-            lines.append("Tool Calls:")
-            for tool_call in episode["tool_calls"]:
-                lines.append(f"  {json.dumps(tool_call)}")
+            lines.append(f"Tool Call: {json.dumps(episode['tool_call'])}")
             lines.append(f"Observation: {episode['observation']}")
 
         return "\n".join(lines)
 
-    async def _execute_tool_call(
-        self,
-        tool_name: str,
-        tool_args: dict[str, Any],
-        tool_call_id: str,
-    ) -> str:
+    async def _execute_tool_call(self, tool_name: str, tool_args: dict[str, Any]) -> str:
         """Execute a single tool call and return observation.
 
         Uses self._context for accessing trajectory, input_args, etc.
@@ -330,7 +303,6 @@ class ReAct(Module):
         Args:
             tool_name: Name of tool to execute
             tool_args: Arguments for the tool
-            tool_call_id: Unique ID for this tool call
 
         Returns:
             Observation string from tool execution
@@ -338,7 +310,7 @@ class ReAct(Module):
         Raises:
             ConfirmationRequired: When human input is needed
         """
-        logger.debug(f"Tool call - name: {tool_name}, args: {tool_args}, id: {tool_call_id}")
+        logger.debug(f"Tool call - name: {tool_name}, args: {tool_args}")
         tool = None
         try:
             tool = self.tools[tool_name]
@@ -348,11 +320,11 @@ class ReAct(Module):
                 # Pass module's context to callback
                 if self._context is None:
                     raise RuntimeError("Module callback called outside execution context")
-                observation = result(self._context)
+                observation = await execute_function_async(result, {"context": self._context})
             else:
                 observation = str(result)
 
-            return f"{tool_call_id}. {observation}"
+            return observation
         except ConfirmationRequired as e:
             # Store context for resumption
             if self._context is not None:
@@ -361,12 +333,9 @@ class ReAct(Module):
                     "input_args": self._context.input_args.copy(),
                     "stream": self._context.stream,
                 }
-            if e.tool_call and tool_call_id:
-                e.tool_call.call_id = tool_call_id
             raise
         except Exception as e:
             parts = [
-                f"{tool_call_id}.",
                 f"Traceback '{tool_name}': {format_tool_exception(e)}.",
             ]
             if tool is not None:
@@ -378,15 +347,13 @@ class ReAct(Module):
         self,
         *,
         stream: bool = False,
-        pending_episode: Episode | None = None,
     ) -> bool:
-        """Execute a single ReAct iteration (create one episode).
-
+        """
+        Execute a single ReAct iteration (create one episode).
         Uses self._context for trajectory and input_args.
 
         Args:
             stream: Whether to stream sub-module execution
-            pending_episode: Optional partial episode to complete (for resumption after confirmation)
 
         Returns:
             should_stop: Whether to stop the ReAct loop
@@ -401,24 +368,6 @@ class ReAct(Module):
         trajectory = self._context.trajectory
         input_args = self._context.input_args
 
-        # If we have a pending episode, complete it by executing remaining tool calls
-        if pending_episode:
-            observations = []
-            should_stop = False
-
-            for tool_call in pending_episode["tool_calls"]:
-                observation = await self._execute_tool_call(
-                    tool_call["name"],
-                    tool_call["args"],
-                    tool_call["id"],
-                )
-                observations.append(observation)
-                should_stop = tool_call["name"] == "finish"
-
-            pending_episode["observation"] = "\n".join(observations)
-            trajectory.append(pending_episode)
-            return should_stop
-
         # Normal flow: get next thought and tool calls from LLM
         formatted_trajectory = self._format_trajectory(trajectory)
         pred = await self.react_module.aexecute(
@@ -428,61 +377,35 @@ class ReAct(Module):
         )
 
         thought = pred.get("next_thought", "").strip()
+        tool_call = pred.get("next_tool_call", None)
+        if not isinstance(tool_call, BaseModel):
+            raise ValueError("No valid tool_call returned from react_module")
 
-        next_tool_calls = pred.get("next_tool_calls", [])
-        if isinstance(next_tool_calls, dict) and "items" in next_tool_calls:
-            next_tool_calls = next_tool_calls["items"]
+        # Access attributes directly (tool_call is a dynamically created BaseModel)
+        tool_name = tool_call.name  # type: ignore[attr-defined]
+        tool_args = tool_call.args  # type: ignore[attr-defined]
 
-        if not isinstance(next_tool_calls, list):
-            episode: Episode = {
-                "thought": thought,
-                "tool_calls": [],
-                "observation": f"Error: Malformed next_tool_calls (expected list, got {type(next_tool_calls).__name__})",
-            }
-            trajectory.append(episode)
-            return False
-
-        # Build tool calls list with IDs
-        tool_calls_with_ids: list[ToolCallDict] = []
-        for tool_call in next_tool_calls:
-            tool_calls_with_ids.append(
-                {
-                    "id": f"call_{secrets.token_hex(8)}",
-                    "name": tool_call["name"],
-                    "args": tool_call["args"],
-                }
-            )
-
-        # Execute all tool calls and collect observations
-        observations = []
-        should_stop = False
-        for tool_call in tool_calls_with_ids:
-            observation = await self._execute_tool_call(
-                tool_call["name"],
-                tool_call["args"],
-                tool_call["id"],
-            )
-            observations.append(observation)
-            should_stop = tool_call["name"] == "finish"
+        observation = await self._execute_tool_call(tool_name, tool_args)
 
         # Create and append completed episode
-        episode = {
+        tool_call_dict: ToolCallDict = {"name": tool_name, "args": tool_args}
+        episode: Episode = {
             "thought": thought,
-            "tool_calls": tool_calls_with_ids,
-            "observation": "\n".join(observations),
+            "tool_call": tool_call_dict,
+            "observation": observation,
         }
         trajectory.append(episode)
 
+        should_stop = tool_name == "finish"
         return should_stop
 
-    @suspendable
     @with_callbacks
     async def aexecute(
         self,
         *,
         stream: bool = False,
         _trajectory: list[Episode] | None = None,
-        _pending_episode: Episode | None = None,
+        history: History | None = None,
         **input_args: Any,
     ) -> Prediction:
         """Execute ReAct loop.
@@ -490,7 +413,6 @@ class ReAct(Module):
         Args:
             stream: Passed to sub-modules
             _trajectory: Internal - restored trajectory for resumption (list of completed episodes)
-            _pending_episode: Internal - partial episode to complete for resumption
             history: History object for streaming (not used currently)
             **input_args: Input values matching signature's input fields
 
@@ -512,41 +434,6 @@ class ReAct(Module):
         )
 
         try:
-            # If we have a pending episode, complete it first
-            if _pending_episode:
-                try:
-                    should_stop = await self._execute_iteration(
-                        stream=stream,
-                        pending_episode=_pending_episode,
-                    )
-                    if should_stop:
-                        formatted_trajectory = self._format_trajectory(trajectory)
-                        extract = await self.extract_module.aexecute(
-                            stream=stream,
-                            **input_args,
-                            trajectory=formatted_trajectory,
-                        )
-
-                        result_dict: dict[str, Any] = {}
-                        for field_name in self.signature.get_output_fields():
-                            if hasattr(extract, field_name):
-                                result_dict[field_name] = getattr(extract, field_name)
-
-                        return Prediction(
-                            module=self,
-                            is_final=True,
-                            trajectory=trajectory,
-                            **result_dict,
-                        )
-                except ValueError as e:
-                    logger.warning(f"Agent failed: {e}")
-                    error_episode: Episode = {
-                        "thought": "",
-                        "tool_calls": [],
-                        "observation": f"Error: {e}",
-                    }
-                    trajectory.append(error_episode)
-
             # Continue with normal iteration loop
             while len(trajectory) < max_iters:
                 try:
@@ -558,9 +445,9 @@ class ReAct(Module):
 
                 except ValueError as e:
                     logger.warning(f"Agent failed to select valid tool: {e}")
-                    error_episode = {
+                    error_episode: Episode = {
                         "thought": "",
-                        "tool_calls": [],
+                        "tool_call": None,
                         "observation": f"Error: {e}",
                     }
                     trajectory.append(error_episode)
@@ -579,132 +466,15 @@ class ReAct(Module):
                     result_dict[field_name] = getattr(extract, field_name)
 
             prediction = Prediction(
-                module=self, is_final=True, trajectory=trajectory, **result_dict
+                module=self,
+                reasoning=extract.reasoning,
+                trajectory=trajectory,
+                **result_dict,
             )
+            if stream:
+                emit_event(prediction)
+
             return prediction
         finally:
             # Clean up context
             self._context = None
-
-    async def aresume(
-        self,
-        user_response: str,
-        saved_state: Any,
-    ) -> Prediction:
-        """Async resume execution after user input.
-
-        This method only resolves the pending tool call based on user response,
-        then delegates to aexecute to continue the normal flow with the stream
-        parameter that was originally passed.
-
-        Args:
-            user_response: The user's response. Can be:
-                - "yes"/"y" to confirm tool execution with original args
-                - "no"/"n" to reject and continue
-                - JSON dict string to execute tool with modified args
-                - Any other text is treated as user feedback for LLM to re-reason
-
-        Returns:
-            Final prediction after resuming
-
-        Raises:
-            ConfirmationRequired: If another human input is needed
-        """
-        trajectory: list[Episode] = saved_state.context.get("trajectory", []).copy()
-        input_args: dict[str, Any] = saved_state.context.get("input_args", {}).copy()
-        stream: bool = saved_state.context.get("stream", False)
-
-        user_response_lower = user_response.lower().strip()
-        pending_episode: Episode | None = None
-
-        if user_response_lower in ("yes", "y"):
-            # Approve and execute with original args
-            if saved_state.confirmation_id:
-                respond_to_confirmation(
-                    saved_state.confirmation_id, approved=True, status="approved"
-                )
-            if saved_state.tool_call:
-                # Create pending episode with the confirmed tool call
-                pending_episode = {
-                    "thought": "",  # No new thought, continuing from confirmation
-                    "tool_calls": [
-                        {
-                            "id": saved_state.tool_call.call_id or f"call_{secrets.token_hex(8)}",
-                            "name": saved_state.tool_call.name,
-                            "args": saved_state.tool_call.args.copy(),
-                        }
-                    ],
-                    "observation": "",  # Will be filled by _execute_iteration
-                }
-        elif user_response_lower in ("no", "n"):
-            # Reject and add feedback episode
-            if saved_state.confirmation_id:
-                respond_to_confirmation(
-                    saved_state.confirmation_id, approved=False, status="rejected"
-                )
-            feedback_episode: Episode = {
-                "thought": "",
-                "tool_calls": [],
-                "observation": "User rejected the operation",
-            }
-            trajectory.append(feedback_episode)
-        else:
-            # Try to parse as JSON for edited args, otherwise treat as feedback
-            try:
-                modified_args = json.loads(user_response)
-                if isinstance(modified_args, dict):
-                    # Execute with modified args
-                    if saved_state.confirmation_id:
-                        respond_to_confirmation(
-                            saved_state.confirmation_id,
-                            approved=True,
-                            data=modified_args,
-                            status="edited",
-                        )
-                    if saved_state.tool_call:
-                        pending_episode = {
-                            "thought": "",
-                            "tool_calls": [
-                                {
-                                    "id": saved_state.tool_call.call_id
-                                    or f"call_{secrets.token_hex(8)}",
-                                    "name": saved_state.tool_call.name,
-                                    "args": modified_args,
-                                }
-                            ],
-                            "observation": "",
-                        }
-                else:
-                    # Non-dict JSON, treat as feedback
-                    if saved_state.confirmation_id:
-                        respond_to_confirmation(
-                            saved_state.confirmation_id,
-                            approved=False,
-                            status="feedback",
-                        )
-                    feedback_episode = {
-                        "thought": "",
-                        "tool_calls": [],
-                        "observation": f"User feedback: {user_response}",
-                    }
-                    trajectory.append(feedback_episode)
-            except json.JSONDecodeError:
-                # Not JSON, treat as natural language feedback
-                if saved_state.confirmation_id:
-                    respond_to_confirmation(
-                        saved_state.confirmation_id, approved=False, status="feedback"
-                    )
-                feedback_episode = {
-                    "thought": "",
-                    "tool_calls": [],
-                    "observation": f"User feedback: {user_response}",
-                }
-                trajectory.append(feedback_episode)
-
-        # Continue execution with prepared state, respecting original stream parameter
-        return await self.aexecute(
-            stream=stream,
-            _trajectory=trajectory,
-            _pending_episode=pending_episode,
-            **input_args,
-        )

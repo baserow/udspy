@@ -46,7 +46,7 @@ async def main():
 
     # Create a ReAct agent with ChainOfThought for extraction
     # ReAct will use Predict internally, and we use ChainOfThought for the extraction step
-    agent = ReAct(QA, tools=[calculator], enable_ask_to_user=False)
+    agent = ReAct(QA, tools=[calculator])
 
     print("=" * 80)
     print("Streaming with Module Information")

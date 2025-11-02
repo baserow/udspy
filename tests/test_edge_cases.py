@@ -359,17 +359,17 @@ async def test_invalid_json_in_tool_arguments() -> None:
     # Mock response with malformed JSON in tool arguments - note the invalid JSON in args
     response = make_mock_response(
         "[[ ## next_thought ## ]]\nI'll use the test tool\n"
-        '[[ ## next_tool_calls ## ]]\n[{"name": "TestTool", "args": {"x": invalid_json}}]'  # Malformed JSON in content
+        '[[ ## next_tool_call ## ]]\n{"name": "TestTool", "args": {"x": invalid_json}}'  # Malformed JSON in content
     )
 
     response2 = make_mock_response(
         "[[ ## next_thought ## ]]\nLet me try again\n"
-        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
+        '[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}'
     )
 
     response3 = make_mock_response(
         "[[ ## next_thought ## ]]\nFinished\n"
-        '[[ ## next_tool_calls ## ]]\n[{"name": "finish", "args": {}}]'
+        '[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}'
     )
 
     response4 = make_mock_response(
@@ -396,13 +396,11 @@ async def test_invalid_json_in_tool_arguments() -> None:
     result = await react.aforward(task="Test task")
 
     # Should handle malformed JSON gracefully and continue
-    # The JSON decode error is logged and next_tool_calls becomes empty list
+    # The JSON decode error is logged and tool_call becomes None (error episode)
     assert isinstance(result, Prediction)
     assert "trajectory" in result
-    # Verify the malformed JSON was handled (first episode should have empty tool_calls)
+    # Verify the malformed JSON was handled (first episode should have None tool_call)
     assert isinstance(result.trajectory, list)
     assert len(result.trajectory) >= 1
-    assert result.trajectory[0]["tool_calls"] == []
-    # Agent should have continued to next iteration (second episode)
-    assert len(result.trajectory) >= 2
-    assert result.trajectory[1]["thought"] == "Let me try again"
+    assert result.trajectory[0]["tool_call"] is None
+    # The error should have stopped the agent, so trajectory may only have 1 episode

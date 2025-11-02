@@ -22,11 +22,13 @@ class Tools(BaseModel):
         defs: dict[str, Any] = {}
         for idx, tool in enumerate(self.tools, start=1):
             # Get raw schema with $defs (if available)
-            if tool._raw_schema:
-                tool_args_schema = tool._raw_schema.copy()
+            if tool._args_schema:
+                tool_args_schema = tool._args_schema.copy()
                 tool_defs = tool_args_schema.pop("$defs", {})
                 defs.update({k: minimize_schema(v)["properties"] for k, v in tool_defs.items()})
-                tool_args_schema = minimize_schema(tool_args_schema.get("properties", {}))
+                tool_args_schema = minimize_schema(
+                    tool_args_schema.get("properties", tool_args_schema)
+                )
             else:
                 tool_args_schema = {}
 
