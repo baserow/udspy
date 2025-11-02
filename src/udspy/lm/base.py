@@ -99,6 +99,8 @@ class LM(ABC):
         prompt: str,
         *,
         model: str | None = None,
+        tools: None = None,
+        stream: bool = False,
         **kwargs: Any,
     ) -> str: ...
 
@@ -113,7 +115,7 @@ class LM(ABC):
         **kwargs: Any,
     ) -> Any: ...
 
-    def __call__(
+    def __call__(  # type: ignore[misc]
         self,
         prompt_or_messages: str | list[dict[str, Any]],
         *,
@@ -157,8 +159,9 @@ class LM(ABC):
             ```
         """
         if isinstance(prompt_or_messages, str):
+            # Ignore tools parameter for string prompts (already enforced by overload)
             messages = [{"role": "user", "content": prompt_or_messages}]
-            response = self.complete(messages, model=model, **kwargs)
+            response = self.complete(messages, model=model, stream=stream, **kwargs)
             if hasattr(response, "choices") and len(response.choices) > 0:
                 message = response.choices[0].message
                 if hasattr(message, "content") and message.content:

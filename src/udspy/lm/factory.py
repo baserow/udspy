@@ -30,7 +30,7 @@ class ProviderConfig(TypedDict):
 
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
-        "default_base_url": None,
+        "default_base_url": os.getenv("UDSPY_LM_BASE_URL") or None,  # Standard OpenAI URL
         "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY"),
     },
     "groq": {
@@ -38,12 +38,14 @@ PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
         "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("GROQ_API_KEY"),
     },
     "bedrock": {
-        "default_base_url": None,  # Region-specific, must be provided by user
+        "default_base_url": os.getenv(
+            "UDSPY_LM_BASE_URL"
+        ),  # Region-specific, must be provided by user
         "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("AWS_BEDROCK_API_KEY"),
     },
     "ollama": {
-        "default_base_url": "http://localhost:11434/v1",
-        "api_key": None,  # No API key needed for local Ollama
+        "default_base_url": os.getenv("UDSPY_LM_BASE_URL") or "http://localhost:11434/v1",
+        "api_key": os.getenv("UDSPY_LM_API_KEY"),  # No API key needed for local Ollama
     },
 }
 
@@ -133,7 +135,13 @@ def LM(
     provider_model = _clean_model_name(model)
 
     client_kwargs: dict[str, Any] = {**kwargs}
-    client_kwargs["api_key"] = api_key or config.get("api_key") or "dummy"
+    resolved_api_key = api_key or config.get("api_key")
+
+    # Ollama doesn't need a real API key, use dummy if not provided
+    if provider == "ollama" and not resolved_api_key:
+        resolved_api_key = "ollama"
+
+    client_kwargs["api_key"] = resolved_api_key or ""
 
     if base_url:
         client_kwargs["base_url"] = base_url

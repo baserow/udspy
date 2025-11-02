@@ -40,7 +40,7 @@ class TestOpenAILM:
         # Verify
         assert response == mock_response
         mock_client.chat.completions.create.assert_called_once_with(
-            model="gpt-4o", messages=messages, stream=False
+            model="gpt-4o", messages=messages, stream=False, max_tokens=8000
         )
 
     @pytest.mark.asyncio
@@ -57,7 +57,7 @@ class TestOpenAILM:
 
         # Should use explicit model, not default
         mock_client.chat.completions.create.assert_called_once_with(
-            model="gpt-4-turbo", messages=messages, stream=False
+            model="gpt-4-turbo", messages=messages, stream=False, max_tokens=8000
         )
 
     @pytest.mark.asyncio
