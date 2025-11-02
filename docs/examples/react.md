@@ -75,7 +75,7 @@ result = agent(task="Find information about React")
 print(result.result)
 ```
 
-## User Clarification with `ask_to_user`
+## User Clarification with user clarification
 
 When the user's request is ambiguous, the agent can ask for clarification:
 
@@ -85,7 +85,7 @@ from udspy import ConfirmationRequired, ResumeState
 agent = ReAct(
     ResearchTask,
     tools=[search],
-    enable_ask_to_user=True  # Enable clarification requests
+    enable_user_clarification=True  # Enable clarification requests
 )
 
 try:
@@ -103,25 +103,25 @@ except ConfirmationRequired as e:
     print(result.answer)
 ```
 
-### Configuring `ask_to_user`
+### Configuring user clarification
 
-The `ask_to_user` tool is enabled by default and can be called by the agent whenever clarification is needed:
+The user clarification tool is enabled by default and can be called by the agent whenever clarification is needed:
 
 ```python
 agent = ReAct(
     ResearchTask,
     tools=[search],
-    enable_ask_to_user=True,  # Default: enabled
+    enable_user_clarification=True,  # Default: enabled
 )
 ```
 
-To disable `ask_to_user` entirely:
+To disable user clarification entirely:
 
 ```python
 agent = ReAct(
     ResearchTask,
     tools=[search],
-    enable_ask_to_user=False  # No clarification requests
+    enable_user_clarification=False  # No clarification requests
 )
 ```
 
@@ -202,7 +202,7 @@ agent = ReAct(
     signature=ResearchTask,       # Task signature
     tools=[search, calculator],   # Available tools
     max_iters=10,                 # Maximum reasoning steps (default: 10)
-    enable_ask_to_user=True       # Enable user clarification (default: True)
+    enable_user_clarification=True       # Enable user clarification (default: True)
 )
 ```
 
@@ -211,7 +211,7 @@ agent = ReAct(
 - **`signature`**: Signature class or string format (`"input -> output"`)
 - **`tools`**: List of tool functions (decorated with `@tool`) or `Tool` objects
 - **`max_iters`**: Maximum number of reasoning iterations before stopping
-- **`enable_ask_to_user`**: Whether to enable the `ask_to_user` tool
+- **`enable_user_clarification`**: Whether to enable the user clarification tool
 
 ## Async Support
 
@@ -226,12 +226,6 @@ async def main():
     # Async forward
     result = await agent.aforward(question="What is Python?")
     print(result.answer)
-
-    # Or use the async resume method
-    try:
-        result = await agent.aforward(question="Tell me about it")
-    except ConfirmationRequired as e:
-        result = await agent.aresume("Python", e)
 
 asyncio.run(main())
 ```
@@ -252,13 +246,13 @@ Signals that the agent has collected enough information to answer:
 
 This is automatically selected by the LLM when it has sufficient information.
 
-### `ask_to_user` (if enabled)
+### user clarification (if enabled)
 
 Requests clarification from the user:
 
 ```python
 # Agent internally calls:
-# Tool: ask_to_user
+# Tool: user_clarification
 # Args: {"question": "What topic would you like to know about?"}
 ```
 
@@ -308,7 +302,7 @@ def api_call(endpoint: str = Field(...)) -> str:
 # Agent will see error in observation and can:
 # 1. Try a different tool
 # 2. Retry with different args
-# 3. Ask user for help (using ask_to_user tool)
+# 3. Ask user for help (using user_clarification tool)
 ```
 
 ### State Management
@@ -429,13 +423,13 @@ Reduce `max_iters` or improve tool descriptions:
 
 ### Agent asks for clarification too often
 
-Disable or restrict `ask_to_user`:
+Disable or restrict user clarification:
 
 ```python
 agent = ReAct(
     signature,
     tools=tools,
-    enable_ask_to_user=False  # Disable entirely
+    enable_user_clarification=False  # Disable entirely
 )
 ```
 
@@ -445,7 +439,7 @@ Or disable it completely if the agent should never ask for clarification:
 agent = ReAct(
     signature,
     tools=tools,
-    enable_ask_to_user=False  # Disable user clarification
+    enable_user_clarification=False  # Disable user clarification
 )
 ```
 
@@ -482,14 +476,17 @@ while True:
 - **Stateless API calls**: Ideal for web APIs and distributed systems
 - **Simpler control flow**: No need to track separate resume calls
 
-### Comparison with `aresume()`
+### Alternative Confirmation Patterns
 
-**Using `aresume()` (explicit):**
+**Using `respond_to_confirmation()` (current approach):**
 ```python
+from udspy import respond_to_confirmation
+
 try:
     result = await agent.aforward(question="Delete files")
 except ConfirmationRequired as e:
-    result = await agent.aresume("yes", e)
+    respond_to_confirmation(e.confirmation_id, approved=True)
+    result = await agent.aforward(question="Delete files")
 ```
 
 **Using loop pattern (uniform):**

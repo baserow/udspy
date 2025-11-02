@@ -280,7 +280,7 @@ def load_calculator() -> callable:
         # Get current tools
         current = [
             t for t in context.module.tools.values()
-            if t.name not in ("finish", "ask_to_user")
+            if t.name not in ("finish", "user_clarification")
         ]
 
         # Add calculator
@@ -409,7 +409,7 @@ def is_module_callback(obj: Any) -> bool: ...
 
 2. **Thread Safety**: Callbacks execute synchronously during tool execution
 
-3. **Built-in Preservation**: ReAct's `finish` and `ask_to_user` tools are automatically preserved
+3. **Built-in Preservation**: ReAct's `finish` and user clarification tools are automatically preserved
 
 4. **Tool Persistence**: Tools added via callbacks remain available for the entire execution
 

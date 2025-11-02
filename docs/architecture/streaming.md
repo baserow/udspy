@@ -113,15 +113,15 @@ from pydantic import Field
 
 @tool(name="search")
 async def search(query: str = Field(...)) -> str:
-    await emit_event(ToolProgress("search", "Starting search...", 0.0))
+    emit_event(ToolProgress("search", "Starting search...", 0.0))
 
     results = await search_api(query)
 
-    await emit_event(ToolProgress("search", "Processing results...", 0.5))
+    emit_event(ToolProgress("search", "Processing results...", 0.5))
 
     processed = process_results(results)
 
-    await emit_event(ToolProgress("search", "Complete!", 1.0))
+    emit_event(ToolProgress("search", "Complete!", 1.0))
 
     return processed
 
@@ -279,13 +279,13 @@ class Progress(StreamEvent):
     percent: float
 
 async def long_running_tool():
-    await emit_event(Progress("Loading data", 0.3))
+    emit_event(Progress("Loading data", 0.3))
     data = load_data()
 
-    await emit_event(Progress("Processing", 0.6))
+    emit_event(Progress("Processing", 0.6))
     result = process(data)
 
-    await emit_event(Progress("Complete", 1.0))
+    emit_event(Progress("Complete", 1.0))
     return result
 ```
 

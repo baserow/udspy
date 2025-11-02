@@ -57,12 +57,12 @@ result = agent(question="What is Python?")
 ReAct automatically provides:
 
 - **finish**: Call when task is complete
-- **ask_to_user**: Ask user for clarification (if enabled)
+- **user_clarification**: Ask user for clarification (if enabled)
 
 ```python
 # The agent automatically has these tools available:
 # - finish(answer: str) - Complete the task
-# - ask_to_user(question: str) - Ask user for help
+# - user_clarification(question: str) - Ask user for help
 ```
 
 ### Trajectory
@@ -97,7 +97,7 @@ result = agent(question="...", max_iters=5)  # Override per call
 ### Disable Ask-to-User
 
 ```python
-agent = ReAct(QA, tools=[search], enable_ask_to_user=False)
+agent = ReAct(QA, tools=[search])
 ```
 
 ## Human-in-the-Loop
@@ -113,6 +113,10 @@ def delete_file(path: str = Field(...)) -> str:
 
 agent = ReAct(QA, tools=[delete_file])
 
+# Note: aresume() is not yet implemented in ReAct
+# Use respond_to_confirmation() instead
+from udspy import respond_to_confirmation
+
 try:
     result = await agent.aforward(question="Delete /tmp/test.txt")
 except ConfirmationRequired as e:
@@ -121,13 +125,11 @@ except ConfirmationRequired as e:
     print(f"Args: {e.tool_call.args}")
 
     # User approves
-    result = await agent.aresume("yes", e)
+    respond_to_confirmation(e.confirmation_id, approved=True)
+    result = await agent.aforward(question="Delete /tmp/test.txt")
 
     # Or user rejects
-    result = await agent.aresume("no", e)
-
-    # Or user modifies arguments
-    result = await agent.aresume('{"path": "/tmp/other.txt"}', e)
+    respond_to_confirmation(e.confirmation_id, approved=False, status="rejected")
 ```
 
 ### Resumption Flow
@@ -275,9 +277,9 @@ This separation ensures:
 - Final outputs are well-formatted
 - Trajectory doesn't pollute final answer
 
-### Why ask_to_user Tool?
+### Why user_clarification Tool?
 
-The built-in `ask_to_user` tool allows agents to:
+The built-in user clarification tool allows agents to:
 - Request clarification when ambiguous
 - Ask for additional information
 - Interact naturally with users

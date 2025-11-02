@@ -299,12 +299,12 @@ class QA(Signature):
 pred = Prediction(answer="Paris", reasoning="France's capital")
 print(pred.answer)  # "Paris"
 print(pred["answer"])  # "Paris"
-print(pred.is_final())  # True if no pending tool calls
+print(pred.is_final)  # True if no pending tool calls
 ```
 
 **Key Properties**:
 - `native_tool_calls` - Pending tool calls (if any)
-- `is_final()` - True if execution is complete
+- `is_final` - True if execution is complete
 - Inherits from `dict` and `StreamEvent`
 
 ---
@@ -371,7 +371,7 @@ class MyModule(Module):
 
         # 2. Optionally emit streaming events
         if self.should_emit_events():
-            await emit_event(OutputStreamChunk(...))
+            emit_event(OutputStreamChunk(...))
 
         # 3. Always return final Prediction
         return Prediction(answer=result)
@@ -381,7 +381,7 @@ class MyModule(Module):
 
 **Event Queue**:
 - `astream()` sets up an `asyncio.Queue` via ContextVar
-- Modules emit events using `await emit_event(event)`
+- Modules emit events using `emit_event(event)`
 - Queue is automatically available to nested modules
 
 **Flow**:
@@ -993,7 +993,7 @@ class ToolProgress(StreamEvent):
     message: str
 
 # Emit from anywhere
-await emit_event(ToolProgress("search", 0.5, "Searching..."))
+emit_event(ToolProgress("search", 0.5, "Searching..."))
 ```
 
 ### Flow
@@ -1126,7 +1126,7 @@ while True:
 ```python
 async for event in agent.astream(question="Delete files"):
     if isinstance(event, Prediction):
-        if not event.is_final():
+        if not event.is_final:
             # Has pending tool calls requiring confirmation
             for tc in event.native_tool_calls:
                 # Show confirmation UI
@@ -1302,7 +1302,7 @@ class MyModule(Module):
 
         # Emit event if streaming
         if stream:
-            await emit_event(OutputStreamChunk(
+            emit_event(OutputStreamChunk(
                 module=self,
                 field_name="answer",
                 delta=final["answer"],
@@ -1356,7 +1356,7 @@ class CustomEvent(StreamEvent):
 
 # Emit from anywhere
 async def my_function():
-    await emit_event(CustomEvent("Processing...", 0.5))
+    emit_event(CustomEvent("Processing...", 0.5))
 ```
 
 ### Adding Custom Tool Logic
@@ -1403,7 +1403,7 @@ def forward(self, **inputs) -> Prediction:
 async def aexecute(self, *, stream: bool = False, **inputs):
     # Check if should stream
     if stream and _stream_queue.get() is not None:
-        await emit_event(chunk)
+        emit_event(chunk)
 
     # Always return final result
     return Prediction(...)

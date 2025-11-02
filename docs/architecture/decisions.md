@@ -978,7 +978,7 @@ def load_calculator() -> callable:
         # Get current tools (excluding built-ins)
         current_tools = [
             t for t in context.module.tools.values()
-            if t.name not in ("finish", "ask_to_user")
+            if t.name not in ("finish", "user_clarification")
         ]
 
         # Add calculator to available tools

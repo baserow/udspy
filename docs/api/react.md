@@ -22,7 +22,6 @@ def __init__(
     tools: list[Callable | Tool],
     *,
     max_iters: int = 10,
-    enable_ask_to_user: bool = True,
 )
 ```
 
@@ -34,8 +33,6 @@ def __init__(
   - Tools can be decorated functions (`@tool`) or `Tool` instances
 - **`max_iters`** (`int`, default: `10`): Maximum number of reasoning iterations
   - Agent will stop after this many steps even if not finished
-- **`enable_ask_to_user`** (`bool`, default: `True`): Whether to enable the `ask_to_user` tool
-  - If `False`, the agent cannot request user clarification
 
 **Example:**
 
@@ -76,7 +73,7 @@ Synchronous forward pass through the ReAct loop.
 **Raises:**
 
 - `ConfirmationRequired`: When user input is needed
-  - Raised when `ask_to_user` is called
+  - Raised when user clarification is called
   - Raised when tool requires confirmation
   - Contains saved state for resumption
 
@@ -118,6 +115,8 @@ asyncio.run(main())
 
 ##### `resume(user_response, saved_state) -> Prediction`
 
+> **⚠️ Not Yet Implemented**: This method is planned but not yet available in ReAct. Use `respond_to_confirmation()` with `forward()` instead.
+
 Resume execution after user provides input (synchronous).
 
 **Parameters:**
@@ -153,6 +152,8 @@ except ConfirmationRequired as e:
 ```
 
 ##### `aresume(user_response, saved_state) -> Prediction`
+
+> **⚠️ Not Yet Implemented**: This method is planned but not yet available in ReAct. Use `respond_to_confirmation()` with `aforward()` instead.
 
 Resume execution after user provides input (async).
 
@@ -194,7 +195,6 @@ tools: dict[str, Tool]
 Dictionary mapping tool names to Tool objects. Includes:
 - User-provided tools
 - Built-in `finish` tool
-- Built-in `ask_to_user` tool (if enabled)
 
 ##### `react_signature`
 
@@ -227,7 +227,7 @@ class ConfirmationRequired(Exception):
 **Note**: This exception has been moved to the `confirmation` module. See the [Confirmation API](confirmation.md) for full documentation.
 
 Exception that pauses ReAct execution and saves state for resumption. This exception can be raised by:
-- The `ask_to_user` tool when the agent needs clarification
+- The user clarification tool when the agent needs clarification
 - Tools with `require_confirmation=True` before execution
 - Custom tools that need human input
 
@@ -374,26 +374,6 @@ Tool that signals task completion.
 
 The agent automatically selects this tool when it has enough information to answer. You don't call it directly.
 
-### `ask_to_user`
-
-Tool for requesting user clarification (if enabled).
-
-**Name:** `ask_to_user`
-
-**Description:** "Ask the user for clarification. ONLY use this when: ..."
-
-**Arguments:**
-- `question` (`str`): The question to ask the user
-
-**Usage:**
-
-The agent can call this whenever it needs clarification or more information from the user.
-
-Raises `ConfirmationRequired` exception.
-
-**Notes:**
-- Can be disabled with `enable_ask_to_user=False`
-
 ---
 
 ## Trajectory Format
@@ -536,7 +516,7 @@ def api_call(endpoint: str = Field(...)) -> str:
 The agent can then:
 1. Try a different tool
 2. Retry with different arguments
-3. Ask the user for help (using the `ask_to_user` tool)
+3. Ask the user for help (using the user clarification tool)
 
 ### Maximum Iterations
 
@@ -560,7 +540,7 @@ from udspy import ReAct, Signature, Tool, Prediction, ConfirmationRequired
 signature: type[Signature] | str
 tools: list[Callable | Tool]
 max_iters: int
-enable_ask_to_user: bool
+enable_user_clarification: bool
 
 # Method types
 def forward(**input_args: Any) -> Prediction: ...

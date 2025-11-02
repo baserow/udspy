@@ -36,7 +36,7 @@ Without `init_module()`, adding a tool dynamically would be incomplete - the mod
 1. Rebuild the tools dictionary
 2. Regenerate tool schemas (if applicable)
 3. Rebuild signatures with new tool descriptions (if applicable)
-4. Preserve built-in tools (like ReAct's `finish` and `ask_to_user`)
+4. Preserve built-in tools (like ReAct's `finish` and user clarification)
 
 ```python
 from udspy import module_callback
@@ -46,7 +46,7 @@ def add_tools(context):
     # Get current tools (excluding built-ins)
     current = [
         t for t in context.module.tools.values()
-        if t.name not in ("finish", "ask_to_user")
+        if t.name not in ("finish", "user_clarification")
     ]
 
     # Add new tools

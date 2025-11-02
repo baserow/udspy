@@ -28,7 +28,7 @@ class ConfirmationRequired(Exception):
 
 **Usage scenarios:**
 - Tools decorated with `@confirm_first` before execution
-- ReAct agent's `ask_to_user` tool for clarification
+- ReAct agent's user clarification tool for clarification
 - Custom code needing human interaction
 
 #### `ConfirmationRejected`

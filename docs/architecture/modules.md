@@ -153,7 +153,7 @@ print(result.answer)     # "36738"
 Agent that reasons and acts with tools. Features:
 - Iterative reasoning and tool usage
 - Human-in-the-loop support
-- Built-in ask_to_user and finish tools
+- Built-in user_clarification and finish tools
 - Full trajectory tracking
 
 **When to use**: For tasks requiring multiple steps, tool usage, or agent-like behavior
