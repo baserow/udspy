@@ -126,12 +126,11 @@ class Prediction(StreamEvent, dict[str, Any]):
         super().__init__(**kwargs)
         self.module = module
         self.native_tool_calls = native_tool_calls
-    
+
     @property
     def is_final(self) -> bool:
-        """Whether this is the final prediction (always True)."""
-        
-        return len(self.keys()) and not self.native_tool_calls
+        """Whether this is the final prediction (no pending tool calls)."""
+        return bool(len(self.keys()) and not self.native_tool_calls)
 
     def __getattr__(self, name: str) -> Any:
         try:

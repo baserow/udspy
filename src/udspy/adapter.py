@@ -229,7 +229,10 @@ class ChatAdapter:
         Returns:
             Formatted user request string combining inputs + output instructions
         """
-        formatted_inputs = self.format_inputs(signature, inputs)
+        try:
+            formatted_inputs = self.format_inputs(signature, inputs)
+        except Exception as e:
+            raise ValueError(f"Failed to format inputs: {e}") from e
         output_instructions = self.format_output_instructions(signature)
 
         return formatted_inputs + output_instructions

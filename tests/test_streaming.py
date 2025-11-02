@@ -172,7 +172,7 @@ async def test_emit_event() -> None:
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
         async def mock_stream():
-            await emit_event(CustomStatus("Processing..."))
+            emit_event(CustomStatus("Processing..."))
             for chunk in chunks:
                 yield chunk
 
@@ -191,3 +191,61 @@ async def test_emit_event() -> None:
     custom_events = [e for e in events_received if isinstance(e, CustomStatus)]
     assert len(custom_events) > 0
     assert custom_events[0].message == "Processing..."
+
+
+@pytest.mark.asyncio
+async def test_sync_tool_can_emit_events() -> None:
+    """Test that synchronous tools can emit events via context propagation.
+
+    This verifies that execute_function_async properly copies the context when
+    running sync functions in the executor, allowing sync tools to emit events
+    that are received by the stream consumer.
+    """
+    import asyncio
+    from dataclasses import dataclass
+
+    from udspy.streaming import _stream_queue, emit_event
+    from udspy.utils.async_support import execute_function_async
+
+    @dataclass
+    class ToolProgress(StreamEvent):
+        message: str
+        step: int
+
+    def sync_function(count: int) -> str:
+        """Synchronous function that emits progress events."""
+        for i in range(count):
+            # This is a sync function emitting events - should work via context propagation
+            emit_event(ToolProgress(f"Step {i + 1}/{count}", i + 1))
+        return f"Completed {count} steps"
+
+    # Set up a stream queue (simulating Module.astream())
+    queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
+    token = _stream_queue.set(queue)
+
+    try:
+        # Call the sync function through execute_function_async (like tools do)
+        result = await execute_function_async(sync_function, {"count": 3})
+
+        # Verify the result
+        assert result == "Completed 3 steps"
+
+        # Collect all events from the queue
+        events_received = []
+        while not queue.empty():
+            event = queue.get_nowait()
+            if event is not None:
+                events_received.append(event)
+
+        # Verify we received progress events from the SYNCHRONOUS function
+        progress_events = [e for e in events_received if isinstance(e, ToolProgress)]
+        assert len(progress_events) == 3, f"Expected 3 progress events, got {len(progress_events)}"
+        assert progress_events[0].message == "Step 1/3"
+        assert progress_events[0].step == 1
+        assert progress_events[1].message == "Step 2/3"
+        assert progress_events[1].step == 2
+        assert progress_events[2].message == "Step 3/3"
+        assert progress_events[2].step == 3
+
+    finally:
+        _stream_queue.reset(token)

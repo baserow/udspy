@@ -1,12 +1,11 @@
 """Global settings and configuration."""
 
-import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
-from udspy.lm import LM, BaseLM
+from udspy.lm import BaseLM
 
 
 class Settings:
@@ -36,11 +35,6 @@ class Settings:
         **kwargs: Any,
     ) -> None:
         """Configure global language model and defaults.
-
-        If lm is not provided, creates LM from environment variables:
-        - UDSPY_LM_MODEL (required): Model identifier
-        - UDSPY_LM_API_KEY or OPENAI_API_KEY: API key
-        - UDSPY_LM_BASE_URL: Optional base URL
 
         Args:
             lm: Language model instance. If not provided, creates from environment variables
@@ -77,19 +71,6 @@ class Settings:
         """
         if lm:
             self._lm = lm
-        else:
-            model = os.getenv("UDSPY_LM_MODEL")
-            api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY")
-            base_url = os.getenv("UDSPY_LM_BASE_URL")
-
-            if not model:
-                raise ValueError(
-                    "No LM configured. Either provide lm= parameter or set "
-                    "UDSPY_LM_MODEL environment variable.\n"
-                    "Example: udspy.settings.configure(lm=LM(model='gpt-4o', api_key='sk-...'))"
-                )
-
-            self._lm = LM(model=model, api_key=api_key, base_url=base_url)
 
         if callbacks is not None:
             self._callbacks = callbacks

@@ -1,10 +1,10 @@
 """Async utility functions."""
 
 import asyncio
-from functools import partial
 import contextvars
 import inspect
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 
@@ -54,7 +54,9 @@ def ensure_sync_context(method_name: str) -> None:
             raise
 
 
-async def execute_function_async(func: Callable[..., Any], kwargs: dict[str, Any]) -> Any:
+async def execute_function_async(
+    func: Callable[..., Any], kwargs: dict[str, Any] | None = None
+) -> Any:
     """Execute a function asynchronously, handling both sync and async functions.
 
     Args:
@@ -64,10 +66,11 @@ async def execute_function_async(func: Callable[..., Any], kwargs: dict[str, Any
     Returns:
         Function result
     """
+
+    kwargs = kwargs or {}
     if inspect.iscoroutinefunction(func):
         return await func(**kwargs)
     else:
-
         ctx = contextvars.copy_context()
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, partial(ctx.run, lambda: func(**kwargs)))

@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-from collections.abc import AsyncGenerator
 from typing import Any
 
 import regex as re
@@ -215,40 +214,6 @@ class Predict(Module):
             await queue.put(final_prediction)
 
         return final_prediction
-
-    async def astream(
-        self,
-        *,
-        resume_state: Any = None,
-        auto_execute_tools: bool = True,
-        history: History | None = None,
-        **inputs: Any,
-    ) -> AsyncGenerator[StreamEvent, None]:
-        """Async streaming method with optional automatic tool execution.
-
-        Sets up streaming queue and yields events. Automatically handles multi-turn
-        conversation when tools are present.
-
-        Supports resuming from a ConfirmationRequired exception by providing
-        resume_state. This enables streaming with confirmation handling.
-
-        Args:
-            resume_state: Optional ResumeState containing exception and user response.
-            auto_execute_tools: If True, automatically execute tools and continue.
-                If False, return Prediction with tool_calls for manual handling.
-            history: Optional History object for multi-turn conversations.
-            **inputs: Input values matching the signature's input fields
-
-        Yields:
-            StreamEvent objects (OutputStreamChunk, Prediction, custom events)
-        """
-        async for event in super().astream(
-            resume_state=resume_state,
-            auto_execute_tools=auto_execute_tools,
-            history=history,
-            **inputs,
-        ):
-            yield event
 
     def _validate_inputs(self, inputs: dict[str, Any]) -> None:
         """Validate that all required inputs are provided."""
@@ -570,10 +535,7 @@ class Predict(Module):
             self._execute_lm_callbacks("end", call_id, outputs=outputs_dict, exception=exception)
 
         # Determine if this is the final prediction (no more tool calls needed)
-        is_final = not bool(native_tool_calls)
-        prediction = Prediction(
-            module=self, is_final=is_final, native_tool_calls=native_tool_calls, **outputs
-        )
+        prediction = Prediction(module=self, native_tool_calls=native_tool_calls, **outputs)
 
         if should_emit and (queue := _stream_queue.get()) is not None:
             await queue.put(prediction)
@@ -732,10 +694,7 @@ class Predict(Module):
 
             self._check_valid_outputs_or_raise(native_tool_calls, outputs, completion_text)
 
-            is_final = not bool(native_tool_calls)
-            prediction = Prediction(
-                module=self, is_final=is_final, native_tool_calls=native_tool_calls, **outputs
-            )
+            prediction = Prediction(module=self, native_tool_calls=native_tool_calls, **outputs)
             if emit_prediction:
                 await queue.put(prediction)
 
@@ -755,7 +714,7 @@ class Predict(Module):
             error_event = type(
                 "StreamError",
                 (StreamEvent,),
-                {"error": str(e), "traceback": traceback.format_exc()},
+                {"error": str(e), "traceback": traceback.format_exc(), "module": self},
             )()
             await queue.put(error_event)
             raise

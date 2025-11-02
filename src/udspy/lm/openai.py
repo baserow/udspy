@@ -60,6 +60,7 @@ class OpenAILM(LM):
             "model": actual_model,
             "messages": messages,
             "stream": stream,
+            "max_tokens": kwargs.pop("max_tokens", 8000),
             **kwargs,
         }
 
