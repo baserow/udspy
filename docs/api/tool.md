@@ -525,7 +525,7 @@ def search(query: str = Field(description="Search query")) -> str:
 
 # DSPy-style access
 print(search.desc)  # Same as search.description: "Search tool"
-print(search.args)  # {"query": "str - Search query"}
+print(search.args)  # Properties dict: {"query": {"type": "string", "description": "Search query", ...}}
 ```
 
 ---
@@ -635,7 +635,7 @@ def load_calculator() -> callable:
         # Get current tools (excluding built-ins)
         current = [
             t for t in context.module.tools.values()
-            if t.name not in ("finish", "ask_to_user")
+            if t.name not in ("finish", "user_clarification")
         ]
 
         # Add calculator
@@ -695,7 +695,7 @@ def load_tools(category: str = Field(...)) -> callable:
 
 - **Must return string**: Module callbacks must return a string (the observation)
 - **Async by default**: Callbacks are called during tool execution
-- **Built-ins preserved**: `finish` and `ask_to_user` are automatically kept
+- **Built-ins preserved**: `finish` and user clarification are automatically kept
 - **Persistence**: Tools remain available for the entire execution
 
 For complete documentation and examples, see:

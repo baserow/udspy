@@ -48,13 +48,14 @@ class Tool(BaseModel):
     require_confirmation: bool = False
 
     # Internal: raw schema with $defs (cached at initialization)
-    _raw_schema: JsonSchema | None = None
+    _args_schema: JsonSchema | None = None
 
     def __init__(
         self,
         func: Callable[..., Any],
         name: str | None = None,
         description: str | None = None,
+        args: dict[str, Any] | None = None,
         require_confirmation: bool = False,
     ):
         """Initialize a Tool.
@@ -63,6 +64,7 @@ class Tool(BaseModel):
             func: The function to wrap
             name: Tool name (defaults to function name)
             description: Tool description (defaults to function docstring)
+            args: Argument schema override (optional)
             require_confirmation: Whether to require user confirmation before execution
         """
         super().__init__(
@@ -71,8 +73,7 @@ class Tool(BaseModel):
             description=description or inspect.getdoc(func) or "",
             require_confirmation=require_confirmation,
         )
-        # Generate and store the raw schema once at initialization
-        self._raw_schema = self._generate_args_schema()
+        self._args_schema = args or self._generate_args_schema()
 
     @property
     def _func(self) -> Callable[..., Any]:
@@ -119,9 +120,9 @@ class Tool(BaseModel):
         Returns:
             Fully resolved JSON schema dictionary with type, properties, and required fields
         """
-        if self._raw_schema is None:
+        if self._args_schema is None:
             return {}
-        return resolve_json_schema_reference(self._raw_schema)
+        return resolve_json_schema_reference(self._args_schema)
 
     @property
     def parameters(self) -> JsonSchema:
@@ -150,15 +151,13 @@ class Tool(BaseModel):
         return self.input_schema
 
     @property
-    def args(self) -> JsonSchema | None:
+    def args(self) -> dict[str, Any] | None:
         """Deprecated: Use .parameters['properties'] instead.
 
-        Returns just the properties section for backward compatibility.
+        Returns just the properties section of the schema for backward compatibility.
         """
         schema = self.input_schema
-        if schema and "properties" in schema:
-            return schema["properties"]
-        return None
+        return schema.get("properties") if schema else None
 
     def _generate_args_schema(self) -> JsonSchema:
         """Generate JSON schema from function signature.
@@ -298,7 +297,9 @@ class Tool(BaseModel):
         desc_part = f", whose description is <desc>{desc}</desc>." if desc else "."
 
         # Get simplified parameter descriptions
-        params = self.parameters.get("properties", {})
+        params = self.parameters
+        if "properties" in params:
+            params = params["properties"]
         arg_desc = f"It takes arguments {params}." if params else "It takes no arguments."
 
         return f"{self.name}{desc_part} {arg_desc}"
