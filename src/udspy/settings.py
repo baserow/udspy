@@ -51,10 +51,6 @@ class Settings:
             lm = LM(model="gpt-4o", api_key="sk-...")
             udspy.settings.configure(lm=lm)
 
-            # With Groq
-            lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
-            udspy.settings.configure(lm=lm)
-
             # With Ollama (local)
             lm = LM(model="ollama/llama2")
             udspy.settings.configure(lm=lm)
@@ -174,10 +170,10 @@ class Settings:
             # Back to global settings
             result = predictor(question="...")  # Uses gpt-4o-mini with global-key
 
-            # With Groq
-            groq_lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
-            with udspy.settings.context(lm=groq_lm):
-                result = predictor(question="...")  # Uses Groq
+            # With Ollama
+            ollama_lm = LM(model="ollama/llama2")
+            with udspy.settings.context(lm=ollama_lm):
+                result = predictor(question="...")  # Uses Ollama
         """
         prev_lm = self._context_lm.get()
         prev_kwargs = self._context_kwargs.get()
