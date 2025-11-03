@@ -165,13 +165,20 @@ class ReAct(Module):
                 f"You are an Agent. In each episode, you will be given the fields {inputs} as input. And you can see your past trajectory so far.",
                 f"Your goal is to use one or more of the supplied tools to collect any necessary information for producing {outputs}.\n",
                 "To do this, you will interleave next_thought, next_tool_name, and next_tool_args in each turn, and also when finishing the task.",
-                "After each tool call, you receive a resulting observation, which gets appended to your trajectory.\n",
+                "After each step, you receive a resulting observation, which gets appended to your trajectory.\n",
                 "When writing next_thought, you may reason about the current situation and plan for future steps.",
                 "When selecting the next_tool_name and its next_tool_args, the tool must be one of:\n",
             ]
         )
 
         instr.append(Tools(tools=list(self.tools.values())).format())
+        instr.extend(
+            [
+                "IMPORTANT: You must respond with a JSON object in your message content containing the fields: "
+                '{"next_thought": "...", "next_tool_name": "...", "next_tool_args": {...}}.',
+                "NEVER use function calling or tool calling syntax - return the JSON as plain text in your response.",
+            ]
+        )
 
         react_input_fields: dict[str, type] = {}
         for name, field_info in self.user_signature.get_input_fields().items():
