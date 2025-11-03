@@ -123,16 +123,12 @@ class ReAct(Module):
     def _init_tools(self) -> None:
         """Initialize tools dictionary with user-provided tools."""
         tool_list = [t if isinstance(t, Tool) else Tool(t) for t in self._tools]
-        self.tools: dict[str, Tool] = {
-            tool.name: tool for tool in tool_list if tool.name
-        }
+        self.tools: dict[str, Tool] = {tool.name: tool for tool in tool_list if tool.name}
         self._add_builtin_tools()
 
     def _add_builtin_tools(self) -> None:
         """Add built-in finish tool."""
-        outputs = ", ".join(
-            [f"`{k}`" for k in self.signature.get_output_fields().keys()]
-        )
+        outputs = ", ".join([f"`{k}`" for k in self.signature.get_output_fields().keys()])
 
         def finish_tool() -> str:  # pyright: ignore[reportUnusedParameter]
             """Finish tool that accepts and ignores any arguments."""
@@ -158,12 +154,8 @@ class ReAct(Module):
 
     def _build_react_signature(self) -> type[Signature]:
         """Build ReAct signature with tool descriptions in instructions."""
-        inputs = ", ".join(
-            [f"`{k}`" for k in self.user_signature.get_input_fields().keys()]
-        )
-        outputs = ", ".join(
-            [f"`{k}`" for k in self.user_signature.get_output_fields().keys()]
-        )
+        inputs = ", ".join([f"`{k}`" for k in self.user_signature.get_input_fields().keys()])
+        outputs = ", ".join([f"`{k}`" for k in self.user_signature.get_output_fields().keys()])
 
         base_instructions = getattr(self.user_signature, "__doc__", "")
         instr = [f"{base_instructions}\n"] if base_instructions else []
@@ -274,9 +266,7 @@ class ReAct(Module):
 
         return "\n".join(lines)
 
-    async def _execute_tool_call(
-        self, tool_name: str, tool_args: dict[str, Any]
-    ) -> str:
+    async def _execute_tool_call(self, tool_name: str, tool_args: dict[str, Any]) -> str:
         """Execute a single tool call and return observation.
 
         Uses self._context for accessing trajectory, input_args, etc.
@@ -300,12 +290,8 @@ class ReAct(Module):
             if is_module_callback(result):
                 # Pass module's context to callback
                 if self._context is None:
-                    raise RuntimeError(
-                        "Module callback called outside execution context"
-                    )
-                observation = await execute_function_async(
-                    result, {"context": self._context}
-                )
+                    raise RuntimeError("Module callback called outside execution context")
+                observation = await execute_function_async(result, {"context": self._context})
             else:
                 observation = str(result)
 

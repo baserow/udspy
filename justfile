@@ -56,8 +56,8 @@ docs-build:
     uv run mkdocs build --strict
 
 # Serve documentation locally
-docs-serve:
-    uv run mkdocs serve
+docs-serve *ARGS:
+    uv run mkdocs serve {{ARGS}}
 
 # Deploy documentation to GitHub Pages
 docs-deploy:

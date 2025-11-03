@@ -250,7 +250,7 @@ class Module:
         """Non-streaming execution."""
         return await self.aexecute(stream=False, **inputs)
 
-    async def astream(self, **inputs) -> AsyncGenerator[StreamEvent, None]:
+    async def astream(self, **inputs) -> AsyncGenerator[StreamEvent]:
         """Streaming execution - sets up queue and yields events."""
 
     def forward(self, **inputs) -> Prediction:

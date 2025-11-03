@@ -7,6 +7,7 @@ like Opik and MLflow work seamlessly.
 
 import asyncio
 import json
+import random
 import time
 from typing import Any
 
@@ -108,7 +109,7 @@ class PerformanceMonitor(BaseCallback):
         start_time = self.start_times.pop(f"module_{call_id}", time.time())
         duration = time.time() - start_time
         self.metrics["total_time"] += duration
-        print(f"⏱️  Module execution took {duration:.2f}s")
+        print(f"⏱️  Module execution took {duration:.3f}s")
 
     def on_lm_start(self, call_id: str, instance: Any, inputs: dict[str, Any]) -> None:
         self.start_times[f"lm_{call_id}"] = time.time()
@@ -119,18 +120,19 @@ class PerformanceMonitor(BaseCallback):
     ) -> None:
         start_time = self.start_times.pop(f"lm_{call_id}", time.time())
         duration = time.time() - start_time
-        print(f"⏱️  LLM call took {duration:.2f}s")
+        print(f"⏱️  LLM call took {duration:.3f}s")
 
     def on_tool_start(self, call_id: str, instance: Any, inputs: dict[str, Any]) -> None:
         self.start_times[f"tool_{call_id}"] = time.time()
         self.metrics["tool_calls"] += 1
+        print("🔧 Tool execution started")
 
     def on_tool_end(
         self, call_id: str, outputs: Any | None, exception: Exception | None = None
     ) -> None:
         start_time = self.start_times.pop(f"tool_{call_id}", time.time())
         duration = time.time() - start_time
-        print(f"⏱️  Tool execution took {duration:.2f}s")
+        print(f"⏱️  Tool execution took {duration:.3f}s")
 
     def report(self):
         """Print performance summary."""
@@ -138,7 +140,7 @@ class PerformanceMonitor(BaseCallback):
         print(f"  Module calls: {self.metrics['module_calls']}")
         print(f"  LLM calls: {self.metrics['lm_calls']}")
         print(f"  Tool calls: {self.metrics['tool_calls']}")
-        print(f"  Total time: {self.metrics['total_time']:.2f}s")
+        print(f"  Total time: {self.metrics['total_time']:.3f}s")
 
 
 def example_performance_monitoring():
@@ -150,7 +152,9 @@ def example_performance_monitoring():
     @tool(name="search", description="Search for information")
     def search(query: str = Field(description="Search query")) -> str:
         """Mock search tool."""
-        time.sleep(0.5)  # Simulate API call
+        sleep_time = random.uniform(0.01, 0.1)
+        print(f"🔍 Searching for '{query}' (simulated {sleep_time:.2f}s delay)")
+        time.sleep(sleep_time)  # Simulate API call
         return f"Results for: {query}"
 
     class Research(Signature):
