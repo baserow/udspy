@@ -33,7 +33,7 @@ from udspy.signature import InputField, OutputField, Signature, make_signature
 from udspy.streaming import OutputStreamChunk, StreamEvent, emit_event
 from udspy.tool import Tool, ToolCall, ToolCalls, Tools, tool
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 __all__ = [
     # Settings
