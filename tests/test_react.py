@@ -38,22 +38,20 @@ class QA(Signature):
 @pytest.mark.asyncio
 async def test_react_basic_execution() -> None:
     """Test basic ReAct execution with a simple tool."""
-    # Mock LLM responses for ReAct loop (using next_thought/next_tool_call format)
+    # Mock LLM responses for ReAct loop (using next_thought/next_tool_name/next_tool_args format)
     # First call: agent decides to call search tool
     react_response = make_mock_response(
-        "[[ ## next_thought ## ]]\nI should search for information about Python\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "search", "args": {"query": "Python programming language"}}'
+        '{"next_thought": "I should search for information about Python", "next_tool_name": "search", "next_tool_args": {"query": "Python programming language"}}'
     )
 
     # Second call: agent decides to finish
     react_finish_response = make_mock_response(
-        "[[ ## next_thought ## ]]\nI have the information I need\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}'
+        '{"next_thought": "I have the information I need", "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
     # Extract call: final answer extraction
     extract_response = make_mock_response(
-        "[[ ## reasoning ## ]]\nBased on the search results\n[[ ## answer ## ]]\nPython is a programming language"
+        '{"reasoning": "Based on the search results", "answer": "Python is a programming language"}'
     )
 
     call_count = 0
@@ -88,13 +86,10 @@ async def test_react_basic_execution() -> None:
 async def test_react_string_signature() -> None:
     """Test ReAct with string signature format."""
     react_response = make_mock_response(
-        "[[ ## next_thought ## ]]\nFinish\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}'
+        '{"next_thought": "Finish", "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
-    extract_response = make_mock_response(
-        "[[ ## reasoning ## ]]\nCompleted\n[[ ## result ## ]]\nDone"
-    )
+    extract_response = make_mock_response('{"reasoning": "Completed", "result": "Done"}')
 
     call_count = 0
 
@@ -121,8 +116,7 @@ async def test_react_string_signature() -> None:
 async def test_react_tool_confirmation() -> None:
     """Test ReAct with tool requiring confirmation."""
     react_response = make_mock_response(
-        "[[ ## next_thought ## ]]\nDelete the file\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "delete_file", "args": {"path": "/tmp/test.txt"}}'
+        '{"next_thought": "Delete the file", "next_tool_name": "delete_file", "next_tool_args": {"path": "/tmp/test.txt"}}'
     )
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
@@ -150,13 +144,10 @@ async def test_react_tool_confirmation() -> None:
 def test_react_forward_sync() -> None:
     """Test sync forward() method."""
     react_response = make_mock_response(
-        "[[ ## next_thought ## ]]\nFinish\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}'
+        '{"next_thought": "Finish", "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
-    extract_response = make_mock_response(
-        "[[ ## reasoning ## ]]\nCompleted\n[[ ## answer ## ]]\nTest answer"
-    )
+    extract_response = make_mock_response('{"reasoning": "Completed", "answer": "Test answer"}')
 
     call_count = 0
 
@@ -198,13 +189,10 @@ async def test_react_with_string_signature() -> None:
     """Test ReAct with string signature format."""
 
     finish_response = make_mock_response(
-        "[[ ## next_thought ## ]]\nReasoning\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}'
+        '{"next_thought": "Reasoning", "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
-    extract_response = make_mock_response(
-        "[[ ## reasoning ## ]]\nCompleted\n[[ ## result ## ]]\nTask completed"
-    )
+    extract_response = make_mock_response('{"reasoning": "Completed", "result": "Task completed"}')
 
     call_count = {"count": 0}
 

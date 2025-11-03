@@ -242,7 +242,7 @@ async def test_predict_with_module_callback() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content="[[ ## answer ## ]]\\nLoading tools",
+                    content='{"answer": "Loading tools"}',
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_123",
@@ -257,7 +257,7 @@ async def test_predict_with_module_callback() -> None:
     )
 
     # Mock second response with final answer
-    response2 = make_mock_response("[[ ## answer ## ]]\\nTools loaded successfully")
+    response2 = make_mock_response('{"answer": "Tools loaded successfully"}')
 
     call_count = {"count": 0}
 
@@ -305,13 +305,13 @@ async def test_react_with_module_callback() -> None:
     # Mock LLM responses
     responses = [
         # Load tools
-        '[[ ## next_thought ## ]]\nI need to load weather tools\n[[ ## next_tool_call ## ]]\n{"name": "load_tools", "args": {"category": "weather"}}',
+        '{"next_thought": "I need to load weather tools", "next_tool_name": "load_tools", "next_tool_args": {"category": "weather"}}',
         # Use weather tool
-        '[[ ## next_thought ## ]]\nNow check the weather\n[[ ## next_tool_call ## ]]\n{"name": "weather_tool", "args": {"location": "Tokyo"}}',
+        '{"next_thought": "Now check the weather", "next_tool_name": "weather_tool", "next_tool_args": {"location": "Tokyo"}}',
         # Finish
-        '[[ ## next_thought ## ]]\nI have the answer\n[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}',
+        '{"next_thought": "I have the answer", "next_tool_name": "finish", "next_tool_args": {}}',
         # Extract answer (ChainOfThought reasoning)
-        "[[ ## reasoning ## ]]\nExtracting final answer from trajectory\n[[ ## answer ## ]]\nThe weather in Tokyo is Sunny",
+        '{"reasoning": "Extracting final answer from trajectory", "answer": "The weather in Tokyo is Sunny"}',
     ]
 
     call_count = {"count": 0}
@@ -381,16 +381,18 @@ def test_react_init_module_updates_tool_call_model() -> None:
 
     agent = ReAct(QA, tools=[tool1])
 
-    # Get the output fields which include the ToolCallModel
+    # Get the output fields which include the tool call fields
     initial_fields = agent.react_signature.get_output_fields()
-    assert "next_tool_call" in initial_fields
+    assert "next_tool_name" in initial_fields
+    assert "next_tool_args" in initial_fields
 
     # Add tool2
     agent.init_module(tools=[tool1, tool2])
 
     # Verify signature was rebuilt
     updated_fields = agent.react_signature.get_output_fields()
-    assert "next_tool_call" in updated_fields
+    assert "next_tool_name" in updated_fields
+    assert "next_tool_args" in updated_fields
 
     # The Literal type should now include tool2
     # (This is implicit in the signature rebuild)
@@ -447,9 +449,7 @@ async def test_chain_of_thought_with_module_callback() -> None:
         ],
     )
 
-    response2 = make_mock_response(
-        "[[ ## reasoning ## ]]\nCalculator loaded\n[[ ## answer ## ]]\n4"
-    )
+    response2 = make_mock_response('{"reasoning": "Calculator loaded", "answer": "4"}')
 
     call_count = {"count": 0}
 
@@ -544,7 +544,7 @@ async def test_predict_uses_dynamically_loaded_tool() -> None:
         ],
     )
 
-    response3 = make_mock_response("[[ ## answer ## ]]\n130938")
+    response3 = make_mock_response('{"answer": "130938"}')
 
     call_count = {"count": 0}
 
@@ -588,10 +588,10 @@ async def test_react_uses_dynamically_loaded_tool() -> None:
         return callback
 
     responses = [
-        '[[ ## next_thought ## ]]\nI need to load the calculator\n[[ ## next_tool_call ## ]]\n{"name": "load_calculator", "args": {}}',
-        '[[ ## next_thought ## ]]\nNow I can calculate\n[[ ## next_tool_call ## ]]\n{"name": "calculator", "args": {"expression": "25 * 4"}}',
-        '[[ ## next_thought ## ]]\nI have the answer\n[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}',
-        "[[ ## reasoning ## ]]\nExtracting answer\n[[ ## answer ## ]]\n100",
+        '{"next_thought": "I need to load the calculator", "next_tool_name": "load_calculator", "next_tool_args": {}}',
+        '{"next_thought": "Now I can calculate", "next_tool_name": "calculator", "next_tool_args": {"expression": "25 * 4"}}',
+        '{"next_thought": "I have the answer", "next_tool_name": "finish", "next_tool_args": {}}',
+        '{"reasoning": "Extracting answer", "answer": "100"}',
     ]
 
     call_count = {"count": 0}
@@ -650,12 +650,12 @@ async def test_multiple_dynamic_tool_loads() -> None:
         return callback
 
     responses = [
-        '[[ ## next_thought ## ]]\nLoad calculator\n[[ ## next_tool_call ## ]]\n{"name": "load_calculator", "args": {}}',
-        '[[ ## next_thought ## ]]\nLoad formatter\n[[ ## next_tool_call ## ]]\n{"name": "load_formatter", "args": {}}',
-        '[[ ## next_thought ## ]]\nUse tools\n[[ ## next_tool_call ## ]]\n{"name": "calculator", "args": {"expression": "10 + 5"}}',
-        '[[ ## next_thought ## ]]\nFormat result\n[[ ## next_tool_call ## ]]\n{"name": "formatter", "args": {"number": "15"}}',
-        '[[ ## next_thought ## ]]\nDone\n[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}',
-        "[[ ## reasoning ## ]]\nCompleted\n[[ ## answer ## ]]\nFormatted: 15",
+        '{"next_thought": "Load calculator", "next_tool_name": "load_calculator", "next_tool_args": {}}',
+        '{"next_thought": "Load formatter", "next_tool_name": "load_formatter", "next_tool_args": {}}',
+        '{"next_thought": "Use tools", "next_tool_name": "calculator", "next_tool_args": {"expression": "10 + 5"}}',
+        '{"next_thought": "Format result", "next_tool_name": "formatter", "next_tool_args": {"number": "15"}}',
+        '{"next_thought": "Done", "next_tool_name": "finish", "next_tool_args": {}}',
+        '{"reasoning": "Completed", "answer": "Formatted: 15"}',
     ]
 
     call_count = {"count": 0}
@@ -688,9 +688,9 @@ async def test_callback_with_invalid_tool_name() -> None:
         return "Valid tool executed"
 
     responses = [
-        '[[ ## next_thought ## ]]\nTry invalid tool\n[[ ## next_tool_call ## ]]\n{"name": "nonexistent_tool", "args": {}}',
-        '[[ ## next_thought ## ]]\nHandle error\n[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}',
-        "[[ ## reasoning ## ]]\nError handled\n[[ ## answer ## ]]\nTool not found",
+        '{"next_thought": "Try invalid tool", "next_tool_name": "nonexistent_tool", "next_tool_args": {}}',
+        '{"next_thought": "Handle error", "next_tool_name": "finish", "next_tool_args": {}}',
+        '{"reasoning": "Error handled", "answer": "Tool not found"}',
     ]
 
     call_count = {"count": 0}

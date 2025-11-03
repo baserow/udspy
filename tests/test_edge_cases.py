@@ -1,6 +1,7 @@
 """Tests for edge cases and error handling."""
 
 import asyncio
+import re
 from unittest.mock import AsyncMock
 
 import pytest
@@ -44,7 +45,7 @@ async def test_max_turns_reached_error() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content="[[ ## answer ## ]]\nPlaceholder",  # Add content to avoid AdapterParseError
+                    content='{"answer": "Placeholder"}',  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_1",
@@ -94,7 +95,7 @@ async def test_tool_not_found_error() -> None:
         ],
     )
 
-    response2 = make_mock_response("[[ ## answer ## ]]\nI encountered an error.")
+    response2 = make_mock_response('{"answer": "I encountered an error."}')
 
     mock_aclient = settings.lm.client
     call_count = 0
@@ -148,7 +149,7 @@ async def test_tool_execution_exception() -> None:
         ],
     )
 
-    response2 = make_mock_response("[[ ## answer ## ]]\nThe tool failed.")
+    response2 = make_mock_response('{"answer": "The tool failed."}')
 
     mock_aclient = settings.lm.client
     call_count = 0
@@ -184,7 +185,7 @@ async def test_history_update_with_tools() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content="[[ ## answer ## ]]\nCalculating",  # Add content to avoid AdapterParseError
+                    content='{"answer": "Calculating"}',  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_1",
@@ -198,7 +199,7 @@ async def test_history_update_with_tools() -> None:
         ],
     )
 
-    response2 = make_mock_response("[[ ## answer ## ]]\n8")
+    response2 = make_mock_response('{"answer": "8"}')
 
     mock_aclient = settings.lm.client
     call_count = 0
@@ -313,7 +314,7 @@ async def test_no_tools_available_but_tool_calls_present() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content="[[ ## answer ## ]]\nNo tool available",  # Add content to avoid AdapterParseError
+                    content='{"answer": "No tool available"}',  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_1",
@@ -331,13 +332,34 @@ async def test_no_tools_available_but_tool_calls_present() -> None:
     mock_aclient.chat.completions.create = AsyncMock(return_value=response)
 
     # Create predictor with no tools but auto_execute_tools=True
-    predictor = Predict(QA)
+    predictor = Predict(QA, max_turns=1)
+    history = History()
 
-    # Should break out of loop since tool_callables is empty
-    result = await predictor.aforward(auto_execute_tools=True, question="Test")
+    # Expect RuntimeError due to no tools available
+    with pytest.raises(RuntimeError, match=re.escape("Max turns (1) reached without final answer")):
+        await predictor.aforward(auto_execute_tools=True, question="Test", history=history)
 
-    assert isinstance(result, Prediction)
-    assert "native_tool_calls" in result
+    tool_results = [msg for msg in history.messages if msg["role"] == "tool"]
+    assert len(tool_results) == 1
+    assert (
+        tool_results[0]["content"]
+        == "Error: Tool `SomeTool` not found. No tools are currently available."
+    )
+
+    # Now try with a wrong tool name but with a tool available
+    predictor_with_tool = Predict(QA, tools=[calculator], max_turns=1)
+    history_with_tool = History()
+    with pytest.raises(RuntimeError, match=re.escape("Max turns (1) reached without final answer")):
+        await predictor_with_tool.aforward(
+            auto_execute_tools=True, question="Test", history=history_with_tool
+        )
+
+    tool_results_with_tool = [msg for msg in history_with_tool.messages if msg["role"] == "tool"]
+    assert len(tool_results_with_tool) == 1
+    assert (
+        tool_results_with_tool[0]["content"]
+        == "Error: Tool `SomeTool` not found. Available tools are: `Calculator`."
+    )
 
 
 @pytest.mark.asyncio
@@ -358,23 +380,19 @@ async def test_invalid_json_in_tool_arguments() -> None:
 
     # Mock response with malformed JSON in tool arguments - note the invalid JSON in args
     response = make_mock_response(
-        "[[ ## next_thought ## ]]\nI'll use the test tool\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "TestTool", "args": {"x": invalid_json}}'  # Malformed JSON in content
+        '{"next_thought": "I\'ll use the test tool", '
+        '"next_tool_name": "TestTool", "next_tool_args": {"x": invalid_json}}'  # Malformed JSON in content
     )
 
     response2 = make_mock_response(
-        "[[ ## next_thought ## ]]\nLet me try again\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}'
+        '{"next_thought": "Let me try again", "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
     response3 = make_mock_response(
-        "[[ ## next_thought ## ]]\nFinished\n"
-        '[[ ## next_tool_call ## ]]\n{"name": "finish", "args": {}}'
+        '{"next_thought": "Finished", "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
-    response4 = make_mock_response(
-        "[[ ## reasoning ## ]]\nCompleted\n[[ ## result ## ]]\nCompleted"
-    )
+    response4 = make_mock_response('{"reasoning": "Completed", "result": "Completed"}')
 
     mock_aclient = settings.lm.client
     call_count = 0
@@ -395,12 +413,13 @@ async def test_invalid_json_in_tool_arguments() -> None:
     react = ReAct(SimpleTask, tools=[test_tool], max_iters=5)
     result = await react.aforward(task="Test task")
 
-    # Should handle malformed JSON gracefully and continue
-    # The JSON decode error is logged and tool_call becomes None (error episode)
+    # Should handle malformed JSON by retrying with valid JSON
+    # The malformed JSON triggers AdapterParseError which causes retry
+    # Eventually succeeds with valid JSON from subsequent responses
     assert isinstance(result, Prediction)
     assert "trajectory" in result
-    # Verify the malformed JSON was handled (first episode should have None tool_call)
+    # Verify we got a valid result after retries
     assert isinstance(result.trajectory, list)
     assert len(result.trajectory) >= 1
-    assert result.trajectory[0]["tool_call"] is None
-    # The error should have stopped the agent, so trajectory may only have 1 episode
+    # First successful episode should have a valid tool_name (after retries)
+    assert result.trajectory[0]["tool_name"] is not None

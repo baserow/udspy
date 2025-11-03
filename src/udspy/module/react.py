@@ -7,8 +7,6 @@ import logging
 from collections.abc import Callable
 from typing import Any, Literal, TypedDict
 
-from pydantic import BaseModel, Field, create_model
-
 from udspy.callback import with_callbacks
 from udspy.confirmation import ConfirmationRequired
 from udspy.history import History
@@ -28,18 +26,12 @@ Tools.model_rebuild()
 logger = logging.getLogger(__name__)
 
 
-class ToolCallDict(TypedDict):
-    """Typed dict for a tool call within an episode."""
-
-    name: str
-    args: dict[str, Any]
-
-
 class Episode(TypedDict):
     """Typed dict for a single ReAct episode (thought -> tool calls -> observation)."""
 
     thought: str
-    tool_call: ToolCallDict | None
+    tool_name: str | None
+    tool_args: dict[str, Any] | None
     observation: str
 
 
@@ -131,12 +123,16 @@ class ReAct(Module):
     def _init_tools(self) -> None:
         """Initialize tools dictionary with user-provided tools."""
         tool_list = [t if isinstance(t, Tool) else Tool(t) for t in self._tools]
-        self.tools: dict[str, Tool] = {tool.name: tool for tool in tool_list if tool.name}
+        self.tools: dict[str, Tool] = {
+            tool.name: tool for tool in tool_list if tool.name
+        }
         self._add_builtin_tools()
 
     def _add_builtin_tools(self) -> None:
         """Add built-in finish tool."""
-        outputs = ", ".join([f"`{k}`" for k in self.signature.get_output_fields().keys()])
+        outputs = ", ".join(
+            [f"`{k}`" for k in self.signature.get_output_fields().keys()]
+        )
 
         def finish_tool() -> str:  # pyright: ignore[reportUnusedParameter]
             """Finish tool that accepts and ignores any arguments."""
@@ -162,8 +158,12 @@ class ReAct(Module):
 
     def _build_react_signature(self) -> type[Signature]:
         """Build ReAct signature with tool descriptions in instructions."""
-        inputs = ", ".join([f"`{k}`" for k in self.user_signature.get_input_fields().keys()])
-        outputs = ", ".join([f"`{k}`" for k in self.user_signature.get_output_fields().keys()])
+        inputs = ", ".join(
+            [f"`{k}`" for k in self.user_signature.get_input_fields().keys()]
+        )
+        outputs = ", ".join(
+            [f"`{k}`" for k in self.user_signature.get_output_fields().keys()]
+        )
 
         base_instructions = getattr(self.user_signature, "__doc__", "")
         instr = [f"{base_instructions}\n"] if base_instructions else []
@@ -172,42 +172,24 @@ class ReAct(Module):
             [
                 f"You are an Agent. In each episode, you will be given the fields {inputs} as input. And you can see your past trajectory so far.",
                 f"Your goal is to use one or more of the supplied tools to collect any necessary information for producing {outputs}.\n",
-                "To do this, you will interleave next_thought, next_tool_call in each turn, and also when finishing the task.",
+                "To do this, you will interleave next_thought, next_tool_name, and next_tool_args in each turn, and also when finishing the task.",
                 "After each tool call, you receive a resulting observation, which gets appended to your trajectory.\n",
-                "When writing next_thought, you reason about the current situation and plan for future steps. If no reasoning is needed, you provide an empty string.",
-                "When selecting the next_tool_call, you may choose one or more of the following tools that will be executed in the same episode:",
+                "When writing next_thought, you may reason about the current situation and plan for future steps.",
+                "When selecting the next_tool_name and its next_tool_args, the tool must be one of:\n",
             ]
         )
 
         instr.append(Tools(tools=list(self.tools.values())).format())
-        instr.extend(
-            [
-                "If a tool fails multiple times, call `finish` to complete the task explaining the failure in your final answer.",
-                "**CRITICAL: Tool Calls**: Only parallelize tool calls when you already have all the arguments needed for each tool. Placeholders are not allowed.",
-                "**CRITICAL: Tool Call Format** You MUST return tool calls in the `next_tool_call` array field only.",
-            ]
-        )
 
         react_input_fields: dict[str, type] = {}
         for name, field_info in self.user_signature.get_input_fields().items():
             react_input_fields[name] = field_info.annotation or str
         react_input_fields["trajectory"] = str
 
-        ToolCallModel = create_model(
-            "ToolCall",
-            name=(Literal[*self.tools.keys()], ...),
-            args=(
-                dict[str, Any],
-                Field(
-                    ...,
-                    description="It must be a JSON object matching the tool's arguments schema",
-                ),
-            ),
-        )
-
         react_output_fields: dict[str, type] = {
             "next_thought": str,
-            "next_tool_call": ToolCallModel,
+            "next_tool_name": Literal[*self.tools.keys()],  # type: ignore[dict-item]
+            "next_tool_args": dict[str, Any],
         }
 
         return make_signature(
@@ -287,15 +269,14 @@ class ReAct(Module):
             return "No actions taken yet."
 
         lines = []
-        for idx, episode in enumerate(trajectory):
-            lines.append(f"\n--- Step {idx + 1} ---")
-            lines.append(f"Thought: {episode['thought']}")
-            lines.append(f"Tool Call: {json.dumps(episode['tool_call'])}")
-            lines.append(f"Observation: {episode['observation']}")
+        for step, episode in enumerate(trajectory, start=1):
+            lines.append(json.dumps({"step": step, **episode}))
 
         return "\n".join(lines)
 
-    async def _execute_tool_call(self, tool_name: str, tool_args: dict[str, Any]) -> str:
+    async def _execute_tool_call(
+        self, tool_name: str, tool_args: dict[str, Any]
+    ) -> str:
         """Execute a single tool call and return observation.
 
         Uses self._context for accessing trajectory, input_args, etc.
@@ -319,8 +300,12 @@ class ReAct(Module):
             if is_module_callback(result):
                 # Pass module's context to callback
                 if self._context is None:
-                    raise RuntimeError("Module callback called outside execution context")
-                observation = await execute_function_async(result, {"context": self._context})
+                    raise RuntimeError(
+                        "Module callback called outside execution context"
+                    )
+                observation = await execute_function_async(
+                    result, {"context": self._context}
+                )
             else:
                 observation = str(result)
 
@@ -377,21 +362,21 @@ class ReAct(Module):
         )
 
         thought = pred.get("next_thought", "").strip()
-        tool_call = pred.get("next_tool_call", None)
-        if not isinstance(tool_call, BaseModel):
-            raise ValueError("No valid tool_call returned from react_module")
+        tool_name = pred.get("next_tool_name", None)
+        if tool_name not in self.tools:
+            raise ValueError(
+                "Invalid tool name selected by agent. Available tools: , ".join(
+                    f"`{name}`" for name in self.tools.keys()
+                )
+            )
 
-        # Access attributes directly (tool_call is a dynamically created BaseModel)
-        tool_name = tool_call.name  # type: ignore[attr-defined]
-        tool_args = tool_call.args  # type: ignore[attr-defined]
-
+        tool_args = pred.get("next_tool_args", None)
         observation = await self._execute_tool_call(tool_name, tool_args)
 
-        # Create and append completed episode
-        tool_call_dict: ToolCallDict = {"name": tool_name, "args": tool_args}
         episode: Episode = {
             "thought": thought,
-            "tool_call": tool_call_dict,
+            "tool_name": tool_name,
+            "tool_args": tool_args,
             "observation": observation,
         }
         trajectory.append(episode)
@@ -437,9 +422,7 @@ class ReAct(Module):
             # Continue with normal iteration loop
             while len(trajectory) < max_iters:
                 try:
-                    should_stop = await self._execute_iteration(
-                        stream=stream,
-                    )
+                    should_stop = await self._execute_iteration(stream=stream)
                     if should_stop:
                         break
 
@@ -447,7 +430,8 @@ class ReAct(Module):
                     logger.warning(f"Agent failed to select valid tool: {e}")
                     error_episode: Episode = {
                         "thought": "",
-                        "tool_call": None,
+                        "tool_name": None,
+                        "tool_args": None,
                         "observation": f"Error: {e}",
                     }
                     trajectory.append(error_episode)
@@ -459,21 +443,19 @@ class ReAct(Module):
                 **input_args,
                 trajectory=formatted_trajectory,
             )
-
-            result_dict = {}
-            for field_name in self.signature.get_output_fields():
-                if hasattr(extract, field_name):
-                    result_dict[field_name] = getattr(extract, field_name)
+            result_dict = {
+                key: value
+                for key, value in extract.items()
+                if key in self.signature.get_output_fields()
+            }
 
             prediction = Prediction(
-                module=self,
-                reasoning=extract.reasoning,
-                trajectory=trajectory,
                 **result_dict,
+                reasoning=extract["reasoning"],
+                trajectory=trajectory,
+                module=self,
             )
-            if stream:
-                emit_event(prediction)
-
+            emit_event(prediction)
             return prediction
         finally:
             # Clean up context
