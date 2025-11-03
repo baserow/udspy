@@ -22,7 +22,7 @@ class QA(Signature):
 async def test_predict_astream() -> None:
     """Test async streaming with Predict.astream()."""
 
-    # Create mock streaming response
+    # Create mock streaming response (JSON format)
     chunks = [
         ChatCompletionChunk(
             id="test",
@@ -32,7 +32,7 @@ async def test_predict_astream() -> None:
             choices=[
                 Choice(
                     index=0,
-                    delta=ChoiceDelta(content="[[ ## answer ## ]]", role="assistant"),
+                    delta=ChoiceDelta(content='{"answer": "', role="assistant"),
                     finish_reason=None,
                 )
             ],
@@ -58,7 +58,7 @@ async def test_predict_astream() -> None:
             choices=[
                 Choice(
                     index=0,
-                    delta=ChoiceDelta(content="", role=None),
+                    delta=ChoiceDelta(content='"}', role=None),
                     finish_reason="stop",
                 )
             ],
@@ -98,7 +98,7 @@ async def test_predict_aforward() -> None:
     from udspy import settings
 
     mock_async_client = settings.lm.client
-    mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
+    mock_response = make_mock_response('{"answer": "Paris"}')
     mock_async_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     predictor = Predict(QA)
@@ -114,7 +114,7 @@ def test_predict_forward_sync() -> None:
     from udspy import settings
 
     mock_async_client = settings.lm.client
-    mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
+    mock_response = make_mock_response('{"answer": "Paris"}')
     mock_async_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     predictor = Predict(QA)
@@ -161,7 +161,7 @@ async def test_emit_event() -> None:
             choices=[
                 Choice(
                     index=0,
-                    delta=ChoiceDelta(content="[[ ## answer ## ]]Paris", role="assistant"),
+                    delta=ChoiceDelta(content='{"answer": "Paris"}', role="assistant"),
                     finish_reason=None,
                 )
             ],
@@ -191,6 +191,189 @@ async def test_emit_event() -> None:
     custom_events = [e for e in events_received if isinstance(e, CustomStatus)]
     assert len(custom_events) > 0
     assert custom_events[0].message == "Processing..."
+
+
+@pytest.mark.asyncio
+async def test_output_stream_chunk_completion_lifecycle() -> None:
+    """Test that OutputStreamChunks are emitted with is_complete=False, then is_complete=True exactly once per field.
+
+    This test verifies:
+    1. Multiple incomplete chunks (is_complete=False) are emitted as content streams in
+    2. Exactly one complete chunk (is_complete=True) is emitted per field when streaming finishes
+    3. For multiple fields, each gets its own complete chunk
+    """
+
+    class MultiFieldSignature(Signature):
+        """Multi-field output signature."""
+
+        question: str = InputField()
+        reasoning: str = OutputField()
+        answer: str = OutputField()
+
+    # Create mock streaming response with incremental JSON for multiple fields
+    chunks = [
+        # Start of JSON object
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content='{"reasoning": "Let me', role="assistant"),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Continue reasoning field
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content=" think", role=None),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # More reasoning
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content=' step by step"', role=None),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Start answer field
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content=', "answer": "The', role=None),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Continue answer
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content=" answer is", role=None),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Finish answer
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o-mini",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content=' 42"}', role=None),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+    from udspy import settings
+
+    async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
+        async def mock_stream():
+            for chunk in chunks:
+                yield chunk
+
+        return mock_stream()
+
+    mock_async_client = settings.lm.client
+    mock_async_client.chat.completions.create = mock_create
+
+    predictor = Predict(MultiFieldSignature)
+    events_received = []
+
+    async for event in predictor.astream(question="What is the meaning of life?"):
+        events_received.append(event)
+
+    # Separate events by type
+    output_chunks = [e for e in events_received if isinstance(e, OutputStreamChunk)]
+    prediction = [e for e in events_received if isinstance(e, Prediction)]
+
+    # Should have received OutputStreamChunks
+    assert len(output_chunks) > 0, "Should have received OutputStreamChunks"
+
+    # Should have exactly one final Prediction
+    assert len(prediction) == 1, "Should have exactly one Prediction"
+
+    # Group chunks by field
+    chunks_by_field = {}
+    for chunk in output_chunks:
+        if chunk.field_name not in chunks_by_field:
+            chunks_by_field[chunk.field_name] = []
+        chunks_by_field[chunk.field_name].append(chunk)
+
+    # Verify both fields received chunks
+    assert "reasoning" in chunks_by_field, "Should have chunks for 'reasoning' field"
+    assert "answer" in chunks_by_field, "Should have chunks for 'answer' field"
+
+    # For each field, verify the lifecycle
+    for field_name, field_chunks in chunks_by_field.items():
+        # Should have at least one chunk
+        assert len(field_chunks) > 0, f"Field {field_name} should have at least one chunk"
+
+        # All chunks except the last should have is_complete=False
+        incomplete_chunks = [c for c in field_chunks if not c.is_complete]
+        complete_chunks = [c for c in field_chunks if c.is_complete]
+
+        # Should have at least one incomplete chunk (streaming in progress)
+        assert len(incomplete_chunks) >= 1, (
+            f"Field {field_name} should have incomplete chunks while streaming"
+        )
+
+        # Should have exactly one complete chunk
+        assert len(complete_chunks) == 1, (
+            f"Field {field_name} should have exactly one complete chunk"
+        )
+
+        # The complete chunk should be the last one
+        assert field_chunks[-1].is_complete, f"Field {field_name}: last chunk should be complete"
+
+        # All incomplete chunks should come before the complete chunk
+        for i, chunk in enumerate(field_chunks[:-1]):
+            assert not chunk.is_complete, f"Field {field_name}: chunk {i} should be incomplete"
+
+        # Verify content accumulation
+        # The complete chunk should have the full content
+        complete_chunk = complete_chunks[0]
+        if field_name == "reasoning":
+            assert complete_chunk.content == "Let me think step by step", (
+                f"Field {field_name} complete content mismatch"
+            )
+        elif field_name == "answer":
+            assert complete_chunk.content == "The answer is 42", (
+                f"Field {field_name} complete content mismatch"
+            )
 
 
 @pytest.mark.asyncio

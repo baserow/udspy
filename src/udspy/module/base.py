@@ -7,8 +7,9 @@ from typing import Any
 
 from udspy.callback import with_callbacks
 from udspy.confirmation import ConfirmationRequired
+from udspy.history import History
 from udspy.streaming import Prediction, StreamEvent, _stream_queue
-from udspy.utils.async_support import ensure_sync_context
+from udspy.utils.async_support import ensure_sync_context, run_async_with_context
 
 
 class Module:
@@ -39,7 +40,9 @@ class Module:
     """
 
     @with_callbacks
-    async def aexecute(self, *, stream: bool = False, **inputs: Any) -> Prediction:
+    async def aexecute(
+        self, *, stream: bool = False, history: History | None = None, **inputs: Any
+    ) -> Prediction:
         """Core execution method. Must be implemented by subclasses.
 
         This is the single implementation point for both streaming and non-streaming
@@ -49,6 +52,7 @@ class Module:
         Args:
             stream: If True, request streaming from LLM provider. If False, use
                 non-streaming API calls.
+            history: Optional History object for maintaining conversation state
             **inputs: Input values for the module
 
         Returns:
@@ -63,7 +67,9 @@ class Module:
         Raises:
             NotImplementedError: If not implemented by subclass
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement aexecute() method")
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement aexecute() method"
+        )
 
     @abstractmethod
     def init_module(self, tools: list[Callable[..., Any]] | None = None) -> None:
@@ -109,10 +115,12 @@ class Module:
             decorated with @module_callback. The callback receives a context
             object with access to the module instance.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement init_module() method")
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement init_module() method"
+        )
 
     async def astream(
-        self, *, resume_state: Any = None, **inputs: Any
+        self, *, resume_state: Any = None, history: History | None = None, **inputs: Any
     ) -> AsyncGenerator[StreamEvent, None]:
         """Async streaming method. Sets up queue and yields events.
 
@@ -125,6 +133,7 @@ class Module:
         Args:
             resume_state: Optional ResumeState containing exception and user response.
                 Can also be a raw ConfirmationRequired exception (will use "yes" as response).
+            history: Optional History object for maintaining conversation state.
             **inputs: Input values for the module
 
         Yields:
@@ -136,30 +145,32 @@ class Module:
 
         try:
             task = asyncio.create_task(
-                self.aexecute(stream=True, resume_state=resume_state, **inputs)
+                self.aexecute(
+                    stream=True, resume_state=resume_state, history=history, **inputs
+                )
             )
 
             while True:
+                # Prioritize consuming events - check queue FIRST
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=0.01)
+                    yield event
+                    continue  # Skip task.done() check, keep consuming
+                except TimeoutError:
+                    pass  # Queue empty, proceed to check task status
+
+                # Only check task completion when queue is idle
                 if task.done():
                     try:
                         await task
                     except Exception:
                         raise
 
+                    # Drain any remaining events
                     while not queue.empty():
                         event = queue.get_nowait()
-                        if event is not None:
-                            yield event
+                        yield event
                     break
-
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=0.1)
-                except TimeoutError:
-                    continue
-
-                if event is None:
-                    break
-                yield event
 
         finally:
             try:
@@ -167,7 +178,9 @@ class Module:
             except (ValueError, LookupError):
                 pass
 
-    async def aforward(self, *, resume_state: Any = None, **inputs: Any) -> Prediction:
+    async def aforward(
+        self, *, resume_state: Any = None, history: History | None = None, **inputs: Any
+    ) -> Prediction:
         """Async non-streaming method. Returns final result directly.
 
         This method calls aexecute() with streaming disabled. If called from
@@ -180,6 +193,7 @@ class Module:
         Args:
             resume_state: Optional ResumeState containing exception and user response.
                 Can also be a raw ConfirmationRequired exception (will use "yes" as response).
+            history: Optional History object for maintaining conversation state.
             **inputs: Input values for the module
 
         Returns:
@@ -204,9 +218,13 @@ class Module:
                     resume_state = ResumeState(e, user_response)
             ```
         """
-        return await self.aexecute(stream=False, resume_state=resume_state, **inputs)
+        return await self.aexecute(
+            stream=False, resume_state=resume_state, history=history, **inputs
+        )
 
-    def forward(self, *, resume_state: Any = None, **inputs: Any) -> Prediction:
+    def forward(
+        self, *, resume_state: Any = None, history: History | None = None, **inputs: Any
+    ) -> Prediction:
         """Sync non-streaming method. Wraps aforward() with async_to_sync.
 
         This provides sync compatibility for scripts and notebooks. Cannot be
@@ -218,6 +236,7 @@ class Module:
         Args:
             resume_state: Optional ResumeState containing exception and user response.
                 Can also be a raw ConfirmationRequired exception (will use "yes" as response).
+            history: Optional History object for maintaining conversation state.
             **inputs: Input values for the module (includes both input fields
                 and any module-specific parameters like auto_execute_tools)
 
@@ -247,9 +266,14 @@ class Module:
             ```
         """
         ensure_sync_context(f"{self.__class__.__name__}.forward")
-        return asyncio.run(self.aforward(resume_state=resume_state, **inputs))
 
-    def __call__(self, *, resume_state: Any = None, **inputs: Any) -> Prediction:
+        return run_async_with_context(
+            self.aforward(resume_state=resume_state, history=history, **inputs)
+        )
+
+    def __call__(
+        self, *, resume_state: Any = None, history: History | None = None, **inputs: Any
+    ) -> Prediction:
         """Sync convenience method. Calls forward().
 
         Supports resuming from a ConfirmationRequired exception by providing
@@ -258,6 +282,7 @@ class Module:
         Args:
             resume_state: Optional ResumeState containing exception and user response.
                 Can also be a raw ConfirmationRequired exception (will use "yes" as response).
+            history: Optional History object for maintaining conversation state.
             **inputs: Input values for the module
 
         Returns:
@@ -282,7 +307,7 @@ class Module:
                     resume_state = ResumeState(e, user_response)
             ```
         """
-        return self.forward(resume_state=resume_state, **inputs)
+        return self.forward(resume_state=resume_state, history=history, **inputs)
 
     async def asuspend(self, exception: ConfirmationRequired) -> Any:
         """Async suspend execution and save state.
@@ -311,7 +336,7 @@ class Module:
             Saved state (can be any type, will be passed to resume)
         """
         ensure_sync_context(f"{self.__class__.__name__}.suspend")
-        return asyncio.run(self.asuspend(exception))
+        return run_async_with_context(self.asuspend(exception))
 
     async def aresume(self, user_response: str, saved_state: Any) -> Prediction:
         """Async resume execution after user input.
@@ -333,7 +358,9 @@ class Module:
         Raises:
             NotImplementedError: If not implemented by subclass
         """
-        raise NotImplementedError(f"{self.__class__.__name__} must implement aresume() method")
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement aresume() method"
+        )
 
     def resume(self, user_response: str, saved_state: Any) -> Prediction:
         """Sync resume execution after user input.
@@ -348,4 +375,12 @@ class Module:
             Final Prediction object
         """
         ensure_sync_context(f"{self.__class__.__name__}.resume")
-        return asyncio.run(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
+        return run_async_with_context(self.aresume(user_response, saved_state))
