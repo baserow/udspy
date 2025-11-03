@@ -2,8 +2,14 @@
 
 from typing import Any
 
-from openai import AsyncOpenAI, AsyncStream
+from openai import APIError, AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from udspy.callback import with_callbacks
 from udspy.lm.base import LM
@@ -41,6 +47,11 @@ class OpenAILM(LM):
         return self.default_model
 
     @with_callbacks
+    @retry(
+        retry=retry_if_exception_type(APIError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=0.2, max=3),
+    )
     async def acomplete(
         self,
         messages: list[dict[str, Any]],
