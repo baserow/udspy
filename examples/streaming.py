@@ -10,7 +10,12 @@ import asyncio
 import udspy
 
 # Configure from environment variables
-udspy.settings.configure()
+udspy.settings.configure(
+    lm=udspy.LM(
+        model="gpt-oss:120b-cloud",
+        base_url="http://localhost:11434/v1",
+    )
+)
 
 
 # Define a signature with reasoning
@@ -30,10 +35,8 @@ async def main():
 
     async for item in predictor.astream(question="What is the sum of the first 10 prime numbers?"):
         if isinstance(item, udspy.OutputStreamChunk):
-            if not item.is_complete and item.content:
-                # Print only the new content (delta)
-                if item.delta:
-                    print(f"{item.delta}", end="", flush=True)
+            if item.delta:
+                print(f"{item.delta}", end="", flush=True)
 
             if item.is_complete:
                 print(f"\n--- {item.field_name} complete ---\n")

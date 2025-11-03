@@ -1300,15 +1300,14 @@ class MyModule(Module):
         # Custom post-processing
         final = self.postprocess(result)
 
-        # Emit event if streaming
-        if stream:
-            emit_event(OutputStreamChunk(
-                module=self,
-                field_name="answer",
-                delta=final["answer"],
-                content=final["answer"],
-                is_complete=True
-            ))
+        # Anything listening to stream gets this chunk
+        emit_event(OutputStreamChunk(
+            module=self,
+            field_name="answer",
+            delta=final["answer"],
+            content=final["answer"],
+            is_complete=True
+        ))
 
         # Return final prediction
         return Prediction(**final)
@@ -1402,8 +1401,7 @@ def forward(self, **inputs) -> Prediction:
 ```python
 async def aexecute(self, *, stream: bool = False, **inputs):
     # Check if should stream
-    if stream and _stream_queue.get() is not None:
-        emit_event(chunk)
+    emit_event(chunk)
 
     # Always return final result
     return Prediction(...)

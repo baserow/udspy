@@ -7,13 +7,14 @@ This example demonstrates:
 """
 
 import asyncio
+import math
 import os
 
 from openai import AsyncOpenAI
 
 import udspy
 from udspy import InputField, OpenAILM, OutputField, ReAct, Signature, tool
-from udspy.streaming import OutputStreamChunk, Prediction
+from udspy.streaming import Prediction
 
 
 class QA(Signature):
@@ -28,7 +29,7 @@ def calculator(expression: str) -> str:
     """Simple calculator that evaluates math expressions."""
     try:
         # Safe evaluation - only allows basic math
-        result = eval(expression, {"__builtins__": {}}, {})
+        result = eval(expression, {"__builtins__": {"sqrt": math.sqrt}}, {})
         return f"Result: {result}"
     except Exception as e:
         return f"Error: {e}"
@@ -53,7 +54,7 @@ async def main():
     print("=" * 80)
     print()
 
-    question = "What is 157 * 234?"
+    question = "What is sqrt(42)?"
 
     print(f"Question: {question}\n")
     print("Streaming events:")
@@ -61,14 +62,7 @@ async def main():
 
     # Stream and distinguish predictions from different modules
     async for event in agent.astream(question=question):
-        if isinstance(event, OutputStreamChunk):
-            # Show which module is streaming
-            module_name = event.module.__class__.__name__
-            print(
-                f"[{module_name}] Streaming {event.field_name}: {event.delta}", end="", flush=True
-            )
-
-        elif isinstance(event, Prediction):
+        if isinstance(event, Prediction):
             # Show which module produced the prediction
             module_name = event.module.__class__.__name__ if event.module else "Unknown"
             is_final = "FINAL" if event.is_final else "intermediate"
@@ -81,7 +75,7 @@ async def main():
                     print(f"  {key}: {value}")
 
             # Only process the final prediction
-            if event.is_final:
+            if event.is_final and event.module is agent:
                 print("\n" + "=" * 80)
                 print("FINAL ANSWER:")
                 print(f"  {event.answer}")
