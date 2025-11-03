@@ -6,7 +6,6 @@ from typing import Any, get_type_hints
 
 from pydantic import BaseModel, create_model
 
-from udspy.callback import with_callbacks
 from udspy.utils.async_support import execute_function_async
 from udspy.utils.schema import resolve_json_schema_reference
 
@@ -77,23 +76,29 @@ class Tool(BaseModel):
 
     @property
     def _func(self) -> Callable[..., Any]:
-        """Get the function wrapped with argument parsing and confirmation if required."""
-        import functools
+        """Get the function wrapped with argument parsing, confirmation, and callbacks."""
+        import types
 
+        from udspy.callback import with_callbacks
         from udspy.confirmation import check_tool_confirmation
 
-        @functools.wraps(self.func)
-        async def async_wrapper(**kwargs: Any) -> Any:
+        # Create an async method that will be bound to self
+        @with_callbacks
+        async def async_wrapper(instance: "Tool", **kwargs: Any) -> Any:
             # Parse and validate arguments to convert JSON dicts to proper types
-            parsed_kwargs = self.parse_and_validate_args(kwargs)
+            parsed_kwargs = instance.parse_and_validate_args(kwargs)
 
-            if self.require_confirmation:
-                parsed_kwargs = await check_tool_confirmation(self.name or "unknown", parsed_kwargs)
-            return await execute_function_async(self.func, parsed_kwargs)
+            if instance.require_confirmation:
+                parsed_kwargs = await check_tool_confirmation(
+                    instance.name or "unknown", parsed_kwargs
+                )
 
-        return async_wrapper
+            return await execute_function_async(instance.func, parsed_kwargs)
 
-    @with_callbacks
+        # Bind the method to this instance so with_callbacks receives 'self'
+        # This makes async_wrapper(self, **kwargs) work like a bound method
+        return types.MethodType(async_wrapper, self)
+
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Call the wrapped function."""
         import asyncio
@@ -105,7 +110,6 @@ class Tool(BaseModel):
         except RuntimeError:
             return asyncio.run(coro)
 
-    @with_callbacks
     async def acall(self, **kwargs: Any) -> Any:
         """Async call the wrapped function."""
         return await self._func(**kwargs)
