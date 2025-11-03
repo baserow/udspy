@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import Any, overload
 
+from udspy.callback import with_callbacks
+
 
 class LM(ABC):
     """Abstract base class for language model providers.
@@ -65,6 +67,10 @@ class LM(ABC):
 
         Raises:
             LMError: On API errors, rate limits, etc.
+
+        Note:
+            Implementations should add @with_callbacks decorator to enable
+            automatic callback invocation.
         """
         pass
 
@@ -94,6 +100,90 @@ class LM(ABC):
         )
 
     @overload
+    async def acall(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        tools: None = None,
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> str: ...
+
+    @overload
+    async def acall(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> Any: ...
+
+    @with_callbacks
+    async def acall(
+        self,
+        prompt_or_messages: str | list[dict[str, Any]],
+        *,
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> str | Any:
+        """Async version of __call__ with callback support.
+
+        Supports two modes:
+        1. Simple string prompt: Returns just the text content
+        2. Full messages list: Returns complete response object
+
+        Args:
+            prompt_or_messages: Either a simple string prompt or list of messages
+            model: Model identifier (defaults to self.model)
+            tools: Optional list of tool schemas (ignored for string prompts)
+            stream: If True, return an async generator
+            **kwargs: Provider-specific parameters
+
+        Returns:
+            If prompt is a string: Just the text content (str)
+            If messages is a list: Complete response object (Any)
+
+        Examples:
+            ```python
+            # Simple usage - returns text directly
+            answer = await lm.acall("How are you?")
+            print(answer)  # "I'm doing well, thanks!"
+
+            # With model override
+            answer = await lm.acall("Explain quantum physics", model="gpt-4")
+
+            # Full control - returns response object
+            response = await lm.acall(
+                messages=[{"role": "user", "content": "Hello"}],
+                model="gpt-4o",
+                tools=[...],
+            )
+            ```
+        """
+        if isinstance(prompt_or_messages, str):
+            # Ignore tools parameter for string prompts (already enforced by overload)
+            messages = [{"role": "user", "content": prompt_or_messages}]
+            response = await self.acomplete(messages, model=model, stream=stream, **kwargs)
+            if hasattr(response, "choices") and len(response.choices) > 0:
+                message = response.choices[0].message
+                if hasattr(message, "content") and message.content:
+                    return message.content
+            return str(response)
+        else:
+            return await self.acomplete(
+                prompt_or_messages,
+                model=model,
+                tools=tools,
+                stream=stream,
+                **kwargs,
+            )
+
+    @overload
     def __call__(
         self,
         prompt: str,
@@ -115,7 +205,8 @@ class LM(ABC):
         **kwargs: Any,
     ) -> Any: ...
 
-    def __call__(  # type: ignore[misc]
+    @with_callbacks
+    def __call__(
         self,
         prompt_or_messages: str | list[dict[str, Any]],
         *,
@@ -124,7 +215,7 @@ class LM(ABC):
         stream: bool = False,
         **kwargs: Any,
     ) -> str | Any:
-        """Make LM callable for convenient usage.
+        """Make LM callable for convenient usage with callback support.
 
         Supports two modes:
         1. Simple string prompt: Returns just the text content

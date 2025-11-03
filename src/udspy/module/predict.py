@@ -34,64 +34,6 @@ from udspy.tool import Tool, ToolCall
 logger = logging.getLogger(__name__)
 
 
-def with_lm_callbacks(func: Any) -> Any:
-    """Decorator that wraps async methods to automatically handle LM callbacks.
-
-    This decorator:
-    1. Generates a unique call_id
-    2. Calls on_lm_start callbacks before method execution
-    3. Calls on_lm_end callbacks after method completion (with outputs or exception)
-
-    The decorated method must be an instance method of a class that implements
-    _execute_lm_callbacks(stage, call_id, inputs=None, outputs=None, exception=None).
-
-    The method should return a Prediction object.
-
-    This decorator can be stacked with other decorators like @retry.
-    """
-    import functools
-    import uuid
-
-    @functools.wraps(func)
-    async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        call_id = str(uuid.uuid4())
-
-        # Extract completion_kwargs for callbacks
-        # Method signature is: (self, completion_kwargs: dict)
-        # completion_kwargs is either first positional arg or in kwargs
-        if args:
-            inputs = args[0] if isinstance(args[0], dict) else {}
-        else:
-            inputs = kwargs.get("completion_kwargs", {})
-
-        # Execute on_lm_start callbacks
-        self._execute_lm_callbacks("start", call_id, inputs=inputs)
-
-        exception = None
-        outputs_dict = None
-
-        try:
-            # Execute the method and get the result (Prediction)
-            result = await func(self, *args, **kwargs)
-
-            # Extract outputs dict from Prediction
-            outputs_dict = {
-                "prediction": (
-                    result.model_dump() if hasattr(result, "model_dump") else str(result)
-                )
-            }
-
-            return result
-        except Exception as e:
-            exception = e
-            raise
-        finally:
-            # Execute on_lm_end callbacks
-            self._execute_lm_callbacks("end", call_id, outputs=outputs_dict, exception=exception)
-
-    return wrapper
-
-
 class Predict(Module):
     """Module for making LLM predictions based on a signature.
 
@@ -430,43 +372,6 @@ class Predict(Module):
             if tool_call.function and tool_call.function.arguments:
                 tool_calls[idx]["function"]["arguments"] += tool_call.function.arguments
 
-    def _execute_lm_callbacks(
-        self,
-        stage: str,
-        call_id: str,
-        inputs: dict | None = None,
-        outputs: dict | None = None,
-        exception: Exception | None = None,
-    ) -> None:
-        """Execute LM callbacks for start/end events.
-
-        Args:
-            stage: "start" or "end"
-            call_id: Unique call identifier
-            inputs: Input parameters for LM call (for start)
-            outputs: Output from LM call (for end)
-            exception: Exception if LM call failed (for end)
-        """
-        from udspy.callback import BaseCallback
-
-        global_callbacks = settings.get("callbacks", [])
-        instance_callbacks = getattr(self, "callbacks", [])
-        callbacks = global_callbacks + instance_callbacks
-
-        for callback in callbacks:
-            if not isinstance(callback, BaseCallback):
-                continue
-
-            try:
-                if stage == "start" and inputs is not None:
-                    callback.on_lm_start(call_id=call_id, instance=self, inputs=inputs)
-                elif stage == "end":
-                    callback.on_lm_end(call_id=call_id, outputs=outputs, exception=exception)
-            except Exception as e:
-                logger.warning(
-                    f"Error in callback {callback.__class__.__name__}.on_lm_{stage}: {e}"
-                )
-
     def _check_valid_outputs_or_raise(
         self,
         native_tool_calls: list[ToolCall],
@@ -489,7 +394,6 @@ class Predict(Module):
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=0.1, max=3),
     )
-    @with_lm_callbacks
     async def _aforward(self, completion_kwargs: dict[str, Any]) -> Prediction:
         """Process non-streaming LLM call with automatic retry on parse errors.
 

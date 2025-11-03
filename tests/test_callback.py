@@ -90,7 +90,7 @@ async def test_lm_callbacks():
 
     assert len(lm_starts) >= 1
     assert len(lm_ends) >= 1
-    assert lm_starts[0][2] == "Predict"  # instance type
+    assert lm_starts[0][2] == "OpenAILM"  # instance type
 
 
 @pytest.mark.asyncio

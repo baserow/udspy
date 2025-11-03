@@ -67,9 +67,7 @@ class Module:
         Raises:
             NotImplementedError: If not implemented by subclass
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement aexecute() method"
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} must implement aexecute() method")
 
     @abstractmethod
     def init_module(self, tools: list[Callable[..., Any]] | None = None) -> None:
@@ -115,13 +113,11 @@ class Module:
             decorated with @module_callback. The callback receives a context
             object with access to the module instance.
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement init_module() method"
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} must implement init_module() method")
 
     async def astream(
         self, *, resume_state: Any = None, history: History | None = None, **inputs: Any
-    ) -> AsyncGenerator[StreamEvent, None]:
+    ) -> AsyncGenerator[StreamEvent]:
         """Async streaming method. Sets up queue and yields events.
 
         This method sets up the stream queue context, calls aexecute() with
@@ -140,14 +136,12 @@ class Module:
             StreamEvent objects (OutputStreamChunk, Prediction, and custom events)
         """
 
-        queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
+        queue: asyncio.Queue[StreamEvent] = asyncio.Queue()
         token = _stream_queue.set(queue)
 
         try:
             task = asyncio.create_task(
-                self.aexecute(
-                    stream=True, resume_state=resume_state, history=history, **inputs
-                )
+                self.aexecute(stream=True, resume_state=resume_state, history=history, **inputs)
             )
 
             while True:
@@ -358,9 +352,7 @@ class Module:
         Raises:
             NotImplementedError: If not implemented by subclass
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement aresume() method"
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} must implement aresume() method")
 
     def resume(self, user_response: str, saved_state: Any) -> Prediction:
         """Sync resume execution after user input.
@@ -375,12 +367,4 @@ class Module:
             Final Prediction object
         """
         ensure_sync_context(f"{self.__class__.__name__}.resume")
-        return run_async_with_context(self.aresume(user_response, saved_state))
-        return run_async_with_context(self.aresume(user_response, saved_state))
-        return run_async_with_context(self.aresume(user_response, saved_state))
-        return run_async_with_context(self.aresume(user_response, saved_state))
-        return run_async_with_context(self.aresume(user_response, saved_state))
-        return run_async_with_context(self.aresume(user_response, saved_state))
-        return run_async_with_context(self.aresume(user_response, saved_state))
-        return run_async_with_context(self.aresume(user_response, saved_state))
         return run_async_with_context(self.aresume(user_response, saved_state))

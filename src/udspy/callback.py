@@ -261,15 +261,17 @@ def with_callbacks(fn: Callable) -> Callable:
 def _get_on_start_handler(callback: BaseCallback, instance: Any, fn: Callable) -> Callable:
     """Get the appropriate on_start handler based on instance type."""
     # Import here to avoid circular imports
+    from udspy.lm.base import LM
     from udspy.module.base import Module
     from udspy.tool import Tool
+
+    # Check LM first (most specific)
+    if isinstance(instance, LM):
+        return callback.on_lm_start
 
     if isinstance(instance, Tool):
         return callback.on_tool_start
 
-    # For modules, check if it's an LLM-related method
-    # In udspy, we don't have a separate LM class, so we'll use on_module_start
-    # But we can add on_lm_start for Predict module when calling OpenAI
     if isinstance(instance, Module):
         return callback.on_module_start
 
@@ -280,8 +282,13 @@ def _get_on_start_handler(callback: BaseCallback, instance: Any, fn: Callable) -
 def _get_on_end_handler(callback: BaseCallback, instance: Any, fn: Callable) -> Callable:
     """Get the appropriate on_end handler based on instance type."""
     # Import here to avoid circular imports
+    from udspy.lm.base import LM
     from udspy.module.base import Module
     from udspy.tool import Tool
+
+    # Check LM first (most specific)
+    if isinstance(instance, LM):
+        return callback.on_lm_end
 
     if isinstance(instance, Tool):
         return callback.on_tool_end

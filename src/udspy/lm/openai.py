@@ -5,6 +5,7 @@ from typing import Any
 from openai import AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
+from udspy.callback import with_callbacks
 from udspy.lm.base import LM
 
 
@@ -39,6 +40,7 @@ class OpenAILM(LM):
         """Get the default model."""
         return self.default_model
 
+    @with_callbacks
     async def acomplete(
         self,
         messages: list[dict[str, Any]],
