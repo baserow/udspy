@@ -9,8 +9,9 @@ The LM abstraction consists of:
 1. **`LM()` factory function** - Creates provider-specific LM instances with auto-detection
 2. **Provider registry** - Maps provider names to configuration (base URLs, etc.)
 3. **`BaseLM` abstract class** - Interface all providers must implement
-4. **`OpenAILM` implementation** - Works with all OpenAI-compatible APIs
-5. **Settings integration** - Seamless configuration and context management
+4. **`OpenAILM` implementation** - Native OpenAI support
+5. **`GroqLM` implementation** - Native Groq support using the groq library
+6. **Settings integration** - Seamless configuration and context management
 
 ## Quick Start
 
@@ -73,12 +74,12 @@ The factory auto-detects the provider from:
 
 ### Supported Providers
 
-| Provider | Prefix | Default Base URL | API Key Required |
-|----------|--------|-----------------|-----------------|
-| OpenAI | None (default) | (OpenAI default) | Yes |
-| Groq | `groq/` | `https://api.groq.com/openai/v1` | Yes |
-| AWS Bedrock | `bedrock/` | (region-specific) | Yes |
-| Ollama | `ollama/` | `http://localhost:11434/v1` | No |
+| Provider | Prefix | Implementation | API Key Required |
+|----------|--------|----------------|-----------------|
+| OpenAI | None (default) | Native via `openai` library | Yes |
+| Groq | `groq/` | Native via `groq` library | Yes |
+| AWS Bedrock | `bedrock/` | OpenAI-compatible endpoint | Yes |
+| Ollama | `ollama/` | OpenAI-compatible endpoint | No |
 
 ### Provider Examples
 
@@ -91,11 +92,11 @@ lm = LM(model="gpt-4o-mini", api_key="sk-...")
 # Groq with prefix
 lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
 
-# Groq with explicit base_url
+# Groq without prefix (if you prefer)
 lm = LM(
-    model="llama-3-70b",
+    model="llama-3.1-70b-versatile",
     api_key="gsk-...",
-    base_url="https://api.groq.com/openai/v1"
+    base_url="groq"  # Uses GroqLM provider
 )
 
 # Ollama (local)
@@ -114,21 +115,25 @@ lm = LM(
 
 ## Provider Registry
 
-The provider registry maps provider names to default configuration:
+The provider registry maps provider names to default configuration and implementation classes:
 
 ```python
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
         "default_base_url": None,  # Uses OpenAI's default
+        "base_class": OpenAILM,
     },
     "groq": {
-        "default_base_url": "https://api.groq.com/openai/v1",
+        "default_base_url": None,  # Uses Groq's default
+        "base_class": GroqLM,
     },
     "bedrock": {
         "default_base_url": None,  # Region-specific, must be provided
+        "base_class": OpenAILM,  # Uses OpenAI-compatible endpoint
     },
     "ollama": {
         "default_base_url": "http://localhost:11434/v1",
+        "base_class": OpenAILM,  # Uses OpenAI-compatible endpoint
     },
 }
 ```
@@ -182,15 +187,13 @@ class BaseLM(ABC):
 
 ## OpenAILM Implementation
 
-`OpenAILM` provides the implementation for all OpenAI-compatible APIs:
+`OpenAILM` provides the native OpenAI implementation:
 
 ```python
-from openai import AsyncOpenAI
 from udspy.lm import OpenAILM
 
 # Create directly
-client = AsyncOpenAI(api_key="sk-...")
-lm = OpenAILM(client, default_model="gpt-4o")
+lm = OpenAILM(api_key="sk-...", default_model="gpt-4o")
 
 # Access the model
 print(lm.model)  # "gpt-4o"
@@ -203,11 +206,43 @@ response = await lm.acomplete(
 ```
 
 **Key features:**
-- Wraps AsyncOpenAI client
+- Uses the official `openai` library
 - Supports default model (optional override per call)
 - Passes through all OpenAI parameters
 - Handles both streaming and non-streaming
-- Works with any OpenAI-compatible API
+
+## GroqLM Implementation
+
+`GroqLM` provides native Groq support using the official `groq` library:
+
+```python
+from udspy.lm import GroqLM
+
+# Create directly
+lm = GroqLM(api_key="gsk-...", default_model="llama-3.1-70b-versatile")
+
+# Access the model
+print(lm.model)  # "llama-3.1-70b-versatile"
+
+# Use directly
+response = await lm.acomplete(
+    messages=[{"role": "user", "content": "Hello"}],
+    temperature=0.7
+)
+```
+
+**Key features:**
+- Uses the official `groq` library
+- Supports default model (optional override per call)
+- Full support for Groq's fast inference
+- Native tool calling support
+- Handles both streaming and non-streaming
+
+**Popular Groq models:**
+- `llama-3.1-70b-versatile` - Best overall performance
+- `llama-3.1-8b-instant` - Fast responses
+- `mixtral-8x7b-32768` - Large context window
+- `gemma2-9b-it` - Efficient instruction following
 
 ## Settings Integration
 
