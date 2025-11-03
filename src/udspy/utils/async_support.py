@@ -76,7 +76,44 @@ async def execute_function_async(
         return await loop.run_in_executor(None, partial(ctx.run, lambda: func(**kwargs)))
 
 
+def run_async_with_context(coro: Any) -> Any:
+    """Run an async coroutine with the current context preserved.
+
+    This is useful when you need to use asyncio.run() but want to preserve
+    contextvars (like settings._context_lm) from the calling context.
+
+    Args:
+        coro: The coroutine to run
+
+    Returns:
+        The result of the coroutine
+
+    Example:
+        ```python
+        import contextvars
+
+        # Define a context variable
+        my_var = contextvars.ContextVar("my_var", default=None)
+        my_var.set("important_value")
+
+        # This preserves the context:
+        result = run_async_with_context(some_async_func())
+        # Inside some_async_func(), my_var.get() returns "important_value"
+        ```
+
+    Note:
+        This is the opposite of execute_function_async():
+        - execute_function_async: calls sync from async, preserving context
+        - run_async_with_context: calls async from sync, preserving context
+
+        Both use the same pattern: copy_context() + ctx.run()
+    """
+    ctx = contextvars.copy_context()
+    return ctx.run(asyncio.run, coro)
+
+
 __all__ = [
     "ensure_sync_context",
     "execute_function_async",
+    "run_async_with_context",
 ]
