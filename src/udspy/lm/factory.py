@@ -15,37 +15,38 @@ Example:
 import os
 from typing import Any, TypedDict
 
-from openai import AsyncOpenAI
-
 from udspy.lm.base import LM as BaseLM
+from udspy.lm.groq import GroqLM
 from udspy.lm.openai import OpenAILM
 
 
-class ProviderConfig(TypedDict):
+class ProviderConfig(TypedDict, total=False):
     """Configuration for an LM provider."""
 
     default_base_url: str | None
     api_key: str | None
+    base_class: type[BaseLM]
 
 
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
-        "default_base_url": os.getenv("UDSPY_LM_BASE_URL") or None,  # Standard OpenAI URL
-        "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY"),
+        "default_base_url": os.getenv("UDSPY_LM_BASE_URL"),
+        "api_key": os.getenv("OPENAI_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
     },
     "groq": {
-        "default_base_url": "https://api.groq.com/openai/v1",
-        "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("GROQ_API_KEY"),
+        "default_base_url": os.getenv("UDSPY_LM_BASE_URL"),
+        "api_key": os.getenv("GROQ_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
+        "base_class": GroqLM,
     },
     "bedrock": {
         "default_base_url": os.getenv(
             "UDSPY_LM_BASE_URL"
         ),  # Region-specific, must be provided by user
-        "api_key": os.getenv("UDSPY_LM_API_KEY") or os.getenv("AWS_BEDROCK_API_KEY"),
+        "api_key": os.getenv("AWS_BEDROCK_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
     },
     "ollama": {
         "default_base_url": os.getenv("UDSPY_LM_BASE_URL") or "http://localhost:11434/v1",
-        "api_key": os.getenv("UDSPY_LM_API_KEY"),  # No API key needed for local Ollama
+        "api_key": os.getenv("UDSPY_LM_API_KEY"),
     },
 }
 
@@ -131,23 +132,15 @@ def LM(
     """
     provider = _detect_provider(model)
     config = PROVIDER_REGISTRY[provider]
-    base_url = base_url or config["default_base_url"]
-    provider_model = _clean_model_name(model)
 
-    client_kwargs: dict[str, Any] = {**kwargs}
-    resolved_api_key = api_key or config.get("api_key")
+    client_kwargs: dict[str, Any] = {
+        **kwargs,
+        "base_url": base_url or config["default_base_url"] or None,
+        "api_key": api_key or config["api_key"] or "",
+    }
 
-    # Ollama doesn't need a real API key, use dummy if not provided
-    if provider == "ollama" and not resolved_api_key:
-        resolved_api_key = "ollama"
-
-    client_kwargs["api_key"] = resolved_api_key or ""
-
-    if base_url:
-        client_kwargs["base_url"] = base_url
-
-    client = AsyncOpenAI(**client_kwargs)
-    return OpenAILM(client, default_model=provider_model)
+    ClientClass = config.get("base_class", OpenAILM)
+    return ClientClass(**client_kwargs, default_model=_clean_model_name(model))  # type: ignore[call-arg]
 
 
 __all__ = ["LM"]

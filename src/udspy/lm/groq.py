@@ -1,17 +1,17 @@
-"""OpenAI language model implementation."""
+"""Groq language model implementation using the official groq library."""
 
 from typing import Any
 
-from openai import AsyncOpenAI, AsyncStream
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from groq import AsyncGroq, AsyncStream
+from groq.types.chat import ChatCompletion, ChatCompletionChunk
 
 from udspy.lm.base import LM
 
 
-class OpenAILM(LM):
-    """OpenAI language model implementation.
+class GroqLM(LM):
+    """Groq language model implementation.
 
-    Wraps AsyncOpenAI client to provide the LM interface.
+    Uses the official groq library to interact with Groq's API.
     """
 
     def __init__(
@@ -19,18 +19,18 @@ class OpenAILM(LM):
         api_key: str = "",
         base_url: str | None = None,
         default_model: str | None = None,
-        client: AsyncOpenAI | None = None,
+        client: AsyncGroq | None = None,
     ):
-        """Initialize OpenAI LM.
+        """Initialize Groq LM.
 
         Args:
-            api_key: OpenAI API key
-            base_url: Optional base URL for API
+            api_key: Groq API key (starts with 'gsk_')
+            base_url: Optional custom base URL for Groq API
             default_model: Default model to use if not specified in acomplete()
-            client: Optional AsyncOpenAI client (for testing)
+            client: Optional AsyncGroq client (for testing)
         """
         self.client = (
-            client if client is not None else AsyncOpenAI(api_key=api_key, base_url=base_url)
+            client if client is not None else AsyncGroq(api_key=api_key, base_url=base_url)
         )
         self.default_model = default_model
 
@@ -48,14 +48,16 @@ class OpenAILM(LM):
         stream: bool = False,
         **kwargs: Any,
     ) -> ChatCompletion | AsyncStream[ChatCompletionChunk]:
-        """Generate completion using OpenAI API.
+        """Generate completion using Groq API.
 
         Args:
             messages: List of messages in OpenAI format
             model: Model to use (overrides default_model)
+                Popular models: llama-3.1-70b-versatile, llama-3.1-8b-instant,
+                mixtral-8x7b-32768, gemma2-9b-it
             tools: Optional list of tool schemas
             stream: If True, return streaming response
-            **kwargs: Additional OpenAI parameters (temperature, max_tokens, etc.)
+            **kwargs: Additional Groq parameters (temperature, max_tokens, etc.)
 
         Returns:
             ChatCompletion or AsyncStream[ChatCompletionChunk]
@@ -78,10 +80,10 @@ class OpenAILM(LM):
         if tools:
             completion_kwargs["tools"] = tools
 
-        # Call OpenAI API
+        # Call Groq API
         response = await self.client.chat.completions.create(**completion_kwargs)
 
         return response
 
 
-__all__ = ["OpenAILM"]
+__all__ = ["GroqLM"]
