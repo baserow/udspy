@@ -1,7 +1,8 @@
 """Language model abstraction layer."""
 
-from udspy.lm.base import LM as BaseLM
-from udspy.lm.factory import LM
-from udspy.lm.openai import OpenAILM
+from .base import LM as BaseLM
+from .factory import LM
+from .openai import OpenAILM
+from .types import ChatCompletion, ChatCompletionChunk
 
-__all__ = ["LM", "BaseLM", "OpenAILM"]
+__all__ = ["LM", "BaseLM", "OpenAILM", "ChatCompletionChunk", "ChatCompletion"]

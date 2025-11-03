@@ -4,17 +4,12 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from groq import AsyncGroq
-from groq.types.chat import ChatCompletion as GroqChatCompletion
-from groq.types.chat import ChatCompletionMessage as GroqChatCompletionMessage
-from groq.types.chat.chat_completion import Choice as GroqChoice
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
 from udspy import settings
 from udspy.lm import LM, BaseLM, OpenAILM
-from udspy.lm.groq import GroqLM
 
 
 class TestOpenAILM:
@@ -134,137 +129,6 @@ class TestOpenAILM:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         lm = OpenAILM(client=mock_client, default_model="gpt-4o")
-
-        messages = [{"role": "user", "content": "Hi"}]
-        await lm.acomplete(
-            messages, temperature=0.7, max_tokens=100, top_p=0.9, custom_param="value"
-        )
-
-        # Verify all kwargs were passed
-        call_kwargs = mock_client.chat.completions.create.call_args[1]
-        assert call_kwargs["temperature"] == 0.7
-        assert call_kwargs["max_tokens"] == 100
-        assert call_kwargs["top_p"] == 0.9
-        assert call_kwargs["custom_param"] == "value"
-
-
-class TestGroqLM:
-    """Tests for GroqLM implementation."""
-
-    @pytest.mark.asyncio
-    async def test_acomplete_basic(self) -> None:
-        """Test basic completion call."""
-        # Create mock client
-        mock_client = AsyncMock(spec=AsyncGroq)
-        mock_response = MagicMock(spec=GroqChatCompletion)
-        mock_response.choices = [
-            GroqChoice(
-                index=0,
-                message=GroqChatCompletionMessage(role="assistant", content="Hello!"),
-                finish_reason="stop",
-            )
-        ]
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-        # Create LM instance
-        lm = GroqLM(client=mock_client, default_model="llama-3.1-70b-versatile")
-
-        # Call acomplete
-        messages = [{"role": "user", "content": "Hi"}]
-        response = await lm.acomplete(messages)
-
-        # Verify
-        assert response == mock_response
-        mock_client.chat.completions.create.assert_called_once_with(
-            model="llama-3.1-70b-versatile", messages=messages, stream=False, max_tokens=8000
-        )
-
-    @pytest.mark.asyncio
-    async def test_acomplete_with_model_override(self) -> None:
-        """Test that explicit model parameter overrides default."""
-        mock_client = AsyncMock(spec=AsyncGroq)
-        mock_response = MagicMock(spec=GroqChatCompletion)
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-        lm = GroqLM(client=mock_client, default_model="llama-3.1-70b-versatile")
-
-        messages = [{"role": "user", "content": "Hi"}]
-        await lm.acomplete(messages, model="llama-3.1-8b-instant")
-
-        # Should use explicit model, not default
-        mock_client.chat.completions.create.assert_called_once_with(
-            model="llama-3.1-8b-instant", messages=messages, stream=False, max_tokens=8000
-        )
-
-    @pytest.mark.asyncio
-    async def test_acomplete_no_model_raises_error(self) -> None:
-        """Test that missing model raises ValueError."""
-        mock_client = AsyncMock(spec=AsyncGroq)
-        lm = GroqLM(client=mock_client)  # No default_model
-
-        messages = [{"role": "user", "content": "Hi"}]
-
-        with pytest.raises(ValueError, match="No model specified"):
-            await lm.acomplete(messages)
-
-    @pytest.mark.asyncio
-    async def test_acomplete_with_tools(self) -> None:
-        """Test completion with tool schemas."""
-        mock_client = AsyncMock(spec=AsyncGroq)
-        mock_response = MagicMock(spec=GroqChatCompletion)
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-        lm = GroqLM(client=mock_client, default_model="llama-3.1-70b-versatile")
-
-        messages = [{"role": "user", "content": "Calculate 2+2"}]
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "add",
-                    "description": "Add two numbers",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "a": {"type": "number"},
-                            "b": {"type": "number"},
-                        },
-                    },
-                },
-            }
-        ]
-
-        await lm.acomplete(messages, tools=tools)
-
-        # Verify tools were passed
-        call_kwargs = mock_client.chat.completions.create.call_args[1]
-        assert call_kwargs["tools"] == tools
-
-    @pytest.mark.asyncio
-    async def test_acomplete_with_stream(self) -> None:
-        """Test streaming completion."""
-        mock_client = AsyncMock(spec=AsyncGroq)
-        mock_stream = AsyncMock()
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_stream)
-
-        lm = GroqLM(client=mock_client, default_model="llama-3.1-70b-versatile")
-
-        messages = [{"role": "user", "content": "Hi"}]
-        response = await lm.acomplete(messages, stream=True)
-
-        # Verify stream parameter was passed
-        assert response == mock_stream
-        call_kwargs = mock_client.chat.completions.create.call_args[1]
-        assert call_kwargs["stream"] is True
-
-    @pytest.mark.asyncio
-    async def test_acomplete_with_extra_kwargs(self) -> None:
-        """Test that extra kwargs are passed through."""
-        mock_client = AsyncMock(spec=AsyncGroq)
-        mock_response = MagicMock(spec=GroqChatCompletion)
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-        lm = GroqLM(client=mock_client, default_model="llama-3.1-70b-versatile")
 
         messages = [{"role": "user", "content": "Hi"}]
         await lm.acomplete(

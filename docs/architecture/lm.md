@@ -9,9 +9,8 @@ The LM abstraction consists of:
 1. **`LM()` factory function** - Creates provider-specific LM instances with auto-detection
 2. **Provider registry** - Maps provider names to configuration (base URLs, etc.)
 3. **`BaseLM` abstract class** - Interface all providers must implement
-4. **`OpenAILM` implementation** - Native OpenAI support
-5. **`GroqLM` implementation** - Native Groq support using the groq library
-6. **Settings integration** - Seamless configuration and context management
+4. **`OpenAILM` implementation** - Native OpenAI support and OpenAI-compatible providers
+5. **Settings integration** - Seamless configuration and context management
 
 ## Quick Start
 
@@ -77,7 +76,7 @@ The factory auto-detects the provider from:
 | Provider | Prefix | Implementation | API Key Required |
 |----------|--------|----------------|-----------------|
 | OpenAI | None (default) | Native via `openai` library | Yes |
-| Groq | `groq/` | Native via `groq` library | Yes |
+| Groq | `groq/` | OpenAI-compatible endpoint | Yes |
 | AWS Bedrock | `bedrock/` | OpenAI-compatible endpoint | Yes |
 | Ollama | `ollama/` | OpenAI-compatible endpoint | No |
 
@@ -92,11 +91,11 @@ lm = LM(model="gpt-4o-mini", api_key="sk-...")
 # Groq with prefix
 lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
 
-# Groq without prefix (if you prefer)
+# Groq without prefix (explicit base_url)
 lm = LM(
     model="llama-3.1-70b-versatile",
     api_key="gsk-...",
-    base_url="groq"  # Uses GroqLM provider
+    base_url="https://api.groq.com/openai/v1"
 )
 
 # Ollama (local)
@@ -121,21 +120,22 @@ The provider registry maps provider names to default configuration and implement
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
         "default_base_url": None,  # Uses OpenAI's default
-        "base_class": OpenAILM,
+        "api_key": os.getenv("OPENAI_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
     },
     "groq": {
-        "default_base_url": None,  # Uses Groq's default
-        "base_class": GroqLM,
+        "default_base_url": "https://api.groq.com/openai/v1",
+        "api_key": os.getenv("GROQ_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
     },
     "bedrock": {
         "default_base_url": None,  # Region-specific, must be provided
-        "base_class": OpenAILM,  # Uses OpenAI-compatible endpoint
+        "api_key": os.getenv("AWS_BEDROCK_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
     },
     "ollama": {
         "default_base_url": "http://localhost:11434/v1",
-        "base_class": OpenAILM,  # Uses OpenAI-compatible endpoint
+        "api_key": os.getenv("UDSPY_LM_API_KEY"),
     },
 }
+# Note: All providers use OpenAILM implementation (OpenAI-compatible APIs)
 ```
 
 ### Adding Custom Providers
@@ -210,39 +210,7 @@ response = await lm.acomplete(
 - Supports default model (optional override per call)
 - Passes through all OpenAI parameters
 - Handles both streaming and non-streaming
-
-## GroqLM Implementation
-
-`GroqLM` provides native Groq support using the official `groq` library:
-
-```python
-from udspy.lm import GroqLM
-
-# Create directly
-lm = GroqLM(api_key="gsk-...", default_model="llama-3.1-70b-versatile")
-
-# Access the model
-print(lm.model)  # "llama-3.1-70b-versatile"
-
-# Use directly
-response = await lm.acomplete(
-    messages=[{"role": "user", "content": "Hello"}],
-    temperature=0.7
-)
-```
-
-**Key features:**
-- Uses the official `groq` library
-- Supports default model (optional override per call)
-- Full support for Groq's fast inference
-- Native tool calling support
-- Handles both streaming and non-streaming
-
-**Popular Groq models:**
-- `llama-3.1-70b-versatile` - Best overall performance
-- `llama-3.1-8b-instant` - Fast responses
-- `mixtral-8x7b-32768` - Large context window
-- `gemma2-9b-it` - Efficient instruction following
+- Used for all OpenAI-compatible providers (Groq, Bedrock, Ollama, etc.)
 
 ## Settings Integration
 

@@ -7,16 +7,14 @@ All supported providers use OpenAI-compatible APIs.
 
 Example:
     lm = LM(model="gpt-4o", api_key="sk-...")
-    lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
     lm = LM(model="ollama/llama2")
-    lm = LM(model="llama-3-70b", api_key="...", base_url="https://api.groq.com/openai/v1")
+    lm = LM(model="bedrock/anthropic.claude-3", api_key="...", base_url="https://...")
 """
 
 import os
 from typing import Any, TypedDict
 
 from udspy.lm.base import LM as BaseLM
-from udspy.lm.groq import GroqLM
 from udspy.lm.openai import OpenAILM
 
 
@@ -34,15 +32,14 @@ PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
         "api_key": os.getenv("OPENAI_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
     },
     "groq": {
-        "default_base_url": os.getenv("UDSPY_LM_BASE_URL"),
+        "default_base_url": os.getenv("UDSPY_LM_BASE_URL") or "https://api.groq.com/openai/v1",
         "api_key": os.getenv("GROQ_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
-        "base_class": GroqLM,
     },
     "bedrock": {
         "default_base_url": os.getenv(
             "UDSPY_LM_BASE_URL"
         ),  # Region-specific, must be provided by user
-        "api_key": os.getenv("AWS_BEDROCK_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
+        "api_key": os.getenv("AWS_BEARER_TOKEN_BEDROCK") or os.getenv("UDSPY_LM_API_KEY"),
     },
     "ollama": {
         "default_base_url": os.getenv("UDSPY_LM_BASE_URL") or "http://localhost:11434/v1",
@@ -56,11 +53,12 @@ def _detect_provider(model: str) -> str:
 
     Detection strategy:
     - Model prefix: "groq/llama-3" → "groq"
+    - Model prefix: "ollama/llama2" → "ollama"
+    - Model prefix: "bedrock/claude-3" → "bedrock"
     - Fallback: "openai"
 
     Args:
-        model: Model identifier (e.g., "gpt-4o", "groq/llama-3", "ollama/llama2")
-        base_url: Optional base URL for API
+        model: Model identifier (e.g., "gpt-4o", "ollama/llama2", "bedrock/claude-3")
 
     Returns:
         Provider name from registry
@@ -77,10 +75,10 @@ def _clean_model_name(model: str) -> str:
     """Remove provider prefix from model name if present.
 
     Args:
-        model: Model string (e.g., "groq/llama-3-70b")
+        model: Model string (e.g., "ollama/llama2")
 
     Returns:
-        Clean model name (e.g., "llama-3-70b")
+        Clean model name (e.g., "llama2")
     """
     prefix, *rest = model.split("/", 1)
     if prefix in PROVIDER_REGISTRY and rest:
@@ -103,7 +101,6 @@ def LM(
     Args:
         model: Model identifier. Can include provider prefix:
             - "gpt-4o" (OpenAI)
-            - "groq/llama-3-70b" (Groq)
             - "bedrock/anthropic.claude-3" (AWS Bedrock)
             - "ollama/llama2" (Ollama)
         api_key: API key for the provider (not needed for Ollama)
@@ -119,10 +116,8 @@ def LM(
     Examples:
         lm = LM(model="gpt-4o", api_key="sk-...")
 
-        lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
-
         lm = LM(
-            model="anthropic.claude-3",
+            model="bedrock/anthropic.claude-3",
             api_key="aws-key",
             base_url="https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1"
         )

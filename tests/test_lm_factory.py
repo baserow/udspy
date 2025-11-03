@@ -2,7 +2,6 @@
 
 from udspy.lm import LM
 from udspy.lm.factory import PROVIDER_REGISTRY, _detect_provider
-from udspy.lm.groq import GroqLM
 from udspy.lm.openai import OpenAILM
 
 
@@ -34,8 +33,9 @@ def test_lm_factory_returns_correct_lm_class():
     lm = LM(model="gpt-4o", api_key="sk-test")
     assert isinstance(lm, OpenAILM)
 
+    # Groq uses OpenAI-compatible API
     lm = LM(model="groq/llama-3-70b", api_key="gsk-test")
-    assert isinstance(lm, GroqLM)
+    assert isinstance(lm, OpenAILM)
 
     lm = LM(model="ollama/llama2")  # No API key needed
     assert isinstance(lm, OpenAILM)
@@ -43,11 +43,12 @@ def test_lm_factory_returns_correct_lm_class():
 
 def test_lm_factory_default_base_urls():
     """Test that providers get correct default base URLs."""
-    # Groq uses native client with default base URL
+    # Groq uses OpenAI-compatible API with custom base URL
     lm = LM(model="groq/llama-3-70b", api_key="gsk-test")
-    assert isinstance(lm, GroqLM)
-    # Groq's native client uses default base URL when not specified
+    assert isinstance(lm, OpenAILM)
+    # Groq uses api.groq.com base URL
     assert lm.client.base_url is not None
+    assert "groq" in str(lm.client.base_url)
 
     # Ollama should get localhost default
     lm = LM(model="ollama/llama2")
@@ -71,8 +72,9 @@ def test_lm_factory_custom_base_url_override():
 
 def test_lm_factory_cleans_model_prefix():
     """Test that model prefixes are removed."""
+    # Groq uses OpenAI-compatible API
     lm = LM(model="groq/llama-3-70b", api_key="gsk-test")
-    assert isinstance(lm, GroqLM)
+    assert isinstance(lm, OpenAILM)
     assert lm.default_model == "llama-3-70b"  # Prefix removed
 
     lm = LM(model="ollama/llama2")
