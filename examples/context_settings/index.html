@@ -465,6 +465,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/lm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LM Abstraction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/signatures/" class="md-nav__link">
         
   
@@ -526,10 +549,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
         
           
-          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
             
   
   
@@ -542,8 +565,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_5">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
             <span class="md-nav__icon md-icon"></span>
             Modules
           </label>
@@ -963,9 +986,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#custom-clients" class="md-nav__link">
+  <a href="#custom-endpoints" class="md-nav__link">
     <span class="md-ellipsis">
-      Custom Clients
+      Custom Endpoints
     </span>
   </a>
   
@@ -1071,6 +1094,29 @@
   
   <span class="md-ellipsis">
     ReAct
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dynamic_tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Dynamic Tools
     
   </span>
   
@@ -1324,6 +1370,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../api/module_callback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Module Callbacks
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../api/history/" class="md-nav__link">
         
   
@@ -1553,9 +1622,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#custom-clients" class="md-nav__link">
+  <a href="#custom-endpoints" class="md-nav__link">
     <span class="md-ellipsis">
-      Custom Clients
+      Custom Endpoints
     </span>
   </a>
   
@@ -1603,142 +1672,159 @@
 <h2 id="basic-usage">Basic Usage</h2>
 <h3 id="override-model">Override Model</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">udspy</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Configure global settings</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-global&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Temporarily use a different model</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">):</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">predictor</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is AI?&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="c1"># Uses gpt-4</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># Back to global settings (gpt-4o-mini)</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is ML?&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Configure global settings</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">global_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-global&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">global_lm</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Temporarily use a different model</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">gpt4_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-global&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">gpt4_lm</span><span class="p">):</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">predictor</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is AI?&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="c1"># Uses gpt-4</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1"># Back to global settings (gpt-4o-mini)</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is ML?&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="override-api-key">Override API Key</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Use a different API key for specific requests</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-user-specific&quot;</span><span class="p">):</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;User-specific query&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="c1"># Uses the user-specific API key</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">user_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-user-specific&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">user_lm</span><span class="p">):</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;User-specific query&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="c1"># Uses the user-specific API key</span>
 </code></pre></div>
 <h3 id="override-multiple-settings">Override Multiple Settings</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">500</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">):</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;Deterministic response needed&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">gpt4_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-...&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">lm</span><span class="o">=</span><span class="n">gpt4_lm</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">500</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">):</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;Deterministic response needed&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="multi-tenant-applications">Multi-Tenant Applications</h2>
 <p>Handle different users with different API keys:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">handle_user_request</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Handle a request from a specific user.&quot;&quot;&quot;</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="c1"># Get user-specific API key from database</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">user_api_key</span> <span class="o">=</span> <span class="n">get_user_api_key</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="c1"># Use user&#39;s API key for this request</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">user_api_key</span><span class="p">):</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="n">predictor</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="n">question</span><span class="p">)</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">answer</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># Each user&#39;s request uses their own API key</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="n">answer1</span> <span class="o">=</span> <span class="n">handle_user_request</span><span class="p">(</span><span class="s2">&quot;user1&quot;</span><span class="p">,</span> <span class="s2">&quot;What is Python?&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="n">answer2</span> <span class="o">=</span> <span class="n">handle_user_request</span><span class="p">(</span><span class="s2">&quot;user2&quot;</span><span class="p">,</span> <span class="s2">&quot;What is Rust?&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">handle_user_request</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Handle a request from a specific user.&quot;&quot;&quot;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="c1"># Get user-specific API key from database</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">user_api_key</span> <span class="o">=</span> <span class="n">get_user_api_key</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="c1"># Use user&#39;s API key for this request</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">user_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="n">user_api_key</span><span class="p">)</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">user_lm</span><span class="p">):</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="n">predictor</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="n">question</span><span class="p">)</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">answer</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="c1"># Each user&#39;s request uses their own API key</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="n">answer1</span> <span class="o">=</span> <span class="n">handle_user_request</span><span class="p">(</span><span class="s2">&quot;user1&quot;</span><span class="p">,</span> <span class="s2">&quot;What is Python?&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="n">answer2</span> <span class="o">=</span> <span class="n">handle_user_request</span><span class="p">(</span><span class="s2">&quot;user2&quot;</span><span class="p">,</span> <span class="s2">&quot;What is Rust?&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="nested-contexts">Nested Contexts</h2>
 <p>Contexts can be nested, with inner contexts overriding outer ones:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.5</span><span class="p">):</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="c1"># Uses gpt-4, temp=0.5</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">global_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-...&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">global_lm</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="c1"># Uses gpt-4 (inherited), temp=0.0 (overridden)</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="k">pass</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">gpt4_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-...&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">gpt4_lm</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.5</span><span class="p">):</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="c1"># Uses gpt-4, temp=0.5</span>
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="c1"># Back to gpt-4, temp=0.5</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="c1"># Back to gpt-4o-mini, temp=0.7</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>        <span class="c1"># Uses gpt-4 (inherited), temp=0.0 (overridden)</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>        <span class="k">pass</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="c1"># Back to gpt-4, temp=0.5</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="c1"># Back to gpt-4o-mini, temp=0.7</span>
 </code></pre></div>
 <h2 id="async-support">Async Support</h2>
 <p>Context managers work seamlessly with async code:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">generate_response</span><span class="p">(</span><span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_api_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">user_api_key</span><span class="p">):</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">predictor</span> <span class="o">=</span> <span class="n">StreamingPredict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">predictor</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="n">question</span><span class="p">):</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>            <span class="k">yield</span> <span class="n">chunk</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="c1"># Handle multiple users concurrently</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>        <span class="n">generate_response</span><span class="p">(</span><span class="s2">&quot;Question 1&quot;</span><span class="p">,</span> <span class="s2">&quot;sk-user1&quot;</span><span class="p">),</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="n">generate_response</span><span class="p">(</span><span class="s2">&quot;Question 2&quot;</span><span class="p">,</span> <span class="s2">&quot;sk-user2&quot;</span><span class="p">),</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="p">]</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">generate_response</span><span class="p">(</span><span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_api_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">user_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="n">user_api_key</span><span class="p">)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">user_lm</span><span class="p">):</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="n">predictor</span> <span class="o">=</span> <span class="n">StreamingPredict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">predictor</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="n">question</span><span class="p">):</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>            <span class="k">yield</span> <span class="n">chunk</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1"># Handle multiple users concurrently</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>        <span class="n">generate_response</span><span class="p">(</span><span class="s2">&quot;Question 1&quot;</span><span class="p">,</span> <span class="s2">&quot;sk-user1&quot;</span><span class="p">),</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>        <span class="n">generate_response</span><span class="p">(</span><span class="s2">&quot;Question 2&quot;</span><span class="p">,</span> <span class="s2">&quot;sk-user2&quot;</span><span class="p">),</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="p">]</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="testing">Testing</h2>
 <p>Use contexts to isolate test settings:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_with_specific_model</span><span class="p">():</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test behavior with a specific model.&quot;&quot;&quot;</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-test&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># Deterministic for testing</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="p">):</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>        <span class="n">predictor</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;2+2&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>        <span class="k">assert</span> <span class="s2">&quot;4&quot;</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">answer</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_with_specific_model</span><span class="p">():</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Test behavior with a specific model.&quot;&quot;&quot;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">test_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-test&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>        <span class="n">lm</span><span class="o">=</span><span class="n">test_lm</span><span class="p">,</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># Deterministic for testing</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="p">):</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>        <span class="n">predictor</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;2+2&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>        <span class="k">assert</span> <span class="s2">&quot;4&quot;</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">answer</span>
 </code></pre></div>
-<h2 id="custom-clients">Custom Clients</h2>
-<p>You can also provide custom OpenAI clients:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAI</span><span class="p">,</span> <span class="n">AsyncOpenAI</span>
+<h2 id="custom-endpoints">Custom Endpoints</h2>
+<p>You can use custom endpoints with the LM factory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">custom_client</span> <span class="o">=</span> <span class="n">OpenAI</span><span class="p">(</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-custom&quot;</span><span class="p">,</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">base_url</span><span class="o">=</span><span class="s2">&quot;https://custom-endpoint.example.com&quot;</span><span class="p">,</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="p">)</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">client</span><span class="o">=</span><span class="n">custom_client</span><span class="p">):</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="c1"># Uses custom client with custom endpoint</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># Use custom endpoint</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">custom_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;custom-model&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-custom&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">base_url</span><span class="o">=</span><span class="s2">&quot;https://custom-endpoint.example.com/v1&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="p">)</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">custom_lm</span><span class="p">):</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    <span class="c1"># Uses custom endpoint</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="complete-example">Complete Example</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">udspy</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Signature</span><span class="p">,</span> <span class="n">InputField</span><span class="p">,</span> <span class="n">OutputField</span><span class="p">,</span> <span class="n">Predict</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Signature</span><span class="p">,</span> <span class="n">InputField</span><span class="p">,</span> <span class="n">OutputField</span><span class="p">,</span> <span class="n">Predict</span><span class="p">,</span> <span class="n">LM</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Global configuration</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-default&quot;</span><span class="p">,</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="p">)</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">QA</span><span class="p">(</span><span class="n">Signature</span><span class="p">):</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Answer questions.&quot;&quot;&quot;</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="n">question</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">InputField</span><span class="p">()</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">OutputField</span><span class="p">()</span>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="n">predictor</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">default_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-default&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">default_lm</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="k">class</span><span class="w"> </span><span class="nc">QA</span><span class="p">(</span><span class="n">Signature</span><span class="p">):</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Answer questions.&quot;&quot;&quot;</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="n">question</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">InputField</span><span class="p">()</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">OutputField</span><span class="p">()</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="n">predictor</span> <span class="o">=</span> <span class="n">Predict</span><span class="p">(</span><span class="n">QA</span><span class="p">)</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="c1"># Scenario 1: Default settings</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is AI?&quot;</span><span class="p">)</span>
 <a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="c1"># Scenario 1: Default settings</span>
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is AI?&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>
-<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="c1"># Scenario 2: High-quality request (use GPT-4)</span>
-<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">):</span>
-<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;Explain quantum computing&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>
-<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="c1"># Scenario 3: Deterministic response</span>
-<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
-<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is 2+2?&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a>
-<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="c1"># Scenario 4: User-specific API key</span>
-<a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">api_key</span><span class="p">):</span>
-<a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">question</span><span class="p">)</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="c1"># Scenario 2: High-quality request (use GPT-4)</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="n">gpt4_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-default&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">gpt4_lm</span><span class="p">):</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;Explain quantum computing&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="c1"># Scenario 3: Deterministic response</span>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;What is 2+2?&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>
+<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="c1"># Scenario 4: User-specific API key</span>
+<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="n">user_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">api_key</span><span class="p">)</span>
+<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">user_lm</span><span class="p">):</span>
+<a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="n">user</span><span class="o">.</span><span class="n">question</span><span class="p">)</span>
 </code></pre></div>
 <p>See the <a href="https://github.com/silvestrid/udspy/blob/main/examples/context.py">full example</a> in the repository.</p>
 

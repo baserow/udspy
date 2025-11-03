@@ -468,6 +468,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../lm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LM Abstraction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../signatures/" class="md-nav__link">
         
   
@@ -532,10 +555,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="">
             
   
   
@@ -548,8 +571,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2_5">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_6">
             <span class="md-nav__icon md-icon"></span>
             Modules
           </label>
@@ -942,9 +965,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#why-ask_to_user-tool" class="md-nav__link">
+  <a href="#why-user_clarification-tool" class="md-nav__link">
     <span class="md-ellipsis">
-      Why ask_to_user Tool?
+      Why user_clarification Tool?
     </span>
   </a>
   
@@ -1307,6 +1330,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../examples/dynamic_tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Dynamic Tools
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../examples/confirmation/" class="md-nav__link">
         
   
@@ -1526,6 +1572,29 @@
   
   <span class="md-ellipsis">
     Callbacks
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/module_callback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Module Callbacks
     
   </span>
   
@@ -1923,9 +1992,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#why-ask_to_user-tool" class="md-nav__link">
+  <a href="#why-user_clarification-tool" class="md-nav__link">
     <span class="md-ellipsis">
-      Why ask_to_user Tool?
+      Why user_clarification Tool?
     </span>
   </a>
   
@@ -2070,11 +2139,11 @@
 <p>ReAct automatically provides:</p>
 <ul>
 <li><strong>finish</strong>: Call when task is complete</li>
-<li><strong>ask_to_user</strong>: Ask user for clarification (if enabled)</li>
+<li><strong>user_clarification</strong>: Ask user for clarification (if enabled)</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># The agent automatically has these tools available:</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># - finish(answer: str) - Complete the task</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># - ask_to_user(question: str) - Ask user for help</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># - user_clarification(question: str) - Ask user for help</span>
 </code></pre></div>
 <h3 id="trajectory">Trajectory</h3>
 <p>The trajectory records every step:</p>
@@ -2098,7 +2167,7 @@
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">agent</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">max_iters</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># Override per call</span>
 </code></pre></div>
 <h3 id="disable-ask-to-user">Disable Ask-to-User</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReAct</span><span class="p">(</span><span class="n">QA</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">search</span><span class="p">],</span> <span class="n">enable_ask_to_user</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReAct</span><span class="p">(</span><span class="n">QA</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">search</span><span class="p">])</span>
 </code></pre></div>
 <h2 id="human-in-the-loop">Human-in-the-Loop</h2>
 <p>ReAct supports tools with require_confirmation that require human confirmation:</p>
@@ -2110,21 +2179,23 @@
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReAct</span><span class="p">(</span><span class="n">QA</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">delete_file</span><span class="p">])</span>
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">aforward</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;Delete /tmp/test.txt&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="k">except</span> <span class="n">ConfirmationRequired</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Confirm: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">question</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Tool: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">tool_call</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Args: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">tool_call</span><span class="o">.</span><span class="n">args</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>    <span class="c1"># User approves</span>
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">aresume</span><span class="p">(</span><span class="s2">&quot;yes&quot;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>
-<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>    <span class="c1"># Or user rejects</span>
-<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">aresume</span><span class="p">(</span><span class="s2">&quot;no&quot;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>
-<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>    <span class="c1"># Or user modifies arguments</span>
-<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">aresume</span><span class="p">(</span><span class="s1">&#39;{&quot;path&quot;: &quot;/tmp/other.txt&quot;}&#39;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># Note: aresume() is not yet implemented in ReAct</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># Use respond_to_confirmation() instead</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">respond_to_confirmation</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">aforward</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;Delete /tmp/test.txt&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="k">except</span> <span class="n">ConfirmationRequired</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Confirm: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">question</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Tool: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">tool_call</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Args: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">tool_call</span><span class="o">.</span><span class="n">args</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>    <span class="c1"># User approves</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>    <span class="n">respond_to_confirmation</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">confirmation_id</span><span class="p">,</span> <span class="n">approved</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">aforward</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;Delete /tmp/test.txt&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>    <span class="c1"># Or user rejects</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>    <span class="n">respond_to_confirmation</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">confirmation_id</span><span class="p">,</span> <span class="n">approved</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">&quot;rejected&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="resumption-flow">Resumption Flow</h3>
 <p>When a confirmation is requested:</p>
@@ -2248,8 +2319,8 @@
 - Tool-using prompts stay focused on actions
 - Final outputs are well-formatted
 - Trajectory doesn't pollute final answer</p>
-<h3 id="why-ask_to_user-tool">Why ask_to_user Tool?</h3>
-<p>The built-in <code>ask_to_user</code> tool allows agents to:
+<h3 id="why-user_clarification-tool">Why user_clarification Tool?</h3>
+<p>The built-in user clarification tool allows agents to:
 - Request clarification when ambiguous
 - Ask for additional information
 - Interact naturally with users</p>

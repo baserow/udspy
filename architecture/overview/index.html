@@ -1443,6 +1443,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../lm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LM Abstraction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../signatures/" class="md-nav__link">
         
   
@@ -1507,10 +1530,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
         
           
-          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="">
             
   
   
@@ -1523,8 +1546,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_5">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
             <span class="md-nav__icon md-icon"></span>
             Modules
           </label>
@@ -1919,6 +1942,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../examples/dynamic_tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Dynamic Tools
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../examples/confirmation/" class="md-nav__link">
         
   
@@ -2138,6 +2184,29 @@
   
   <span class="md-ellipsis">
     Callbacks
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/module_callback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Module Callbacks
     
   </span>
   
@@ -3262,7 +3331,7 @@
 <li><a href="#tools">Tools</a></li>
 <li><a href="#history">History</a></li>
 <li><a href="#streaming">Streaming</a></li>
-<li><a href="#confirmation--suspendresume">Confirmation &amp; Suspend/Resume</a></li>
+<li><a href="#confirmation-suspendresume">Confirmation &amp; Suspend/Resume</a></li>
 <li><a href="#callbacks">Callbacks</a></li>
 <li><a href="#how-to-extend">How to Extend</a></li>
 <li><a href="#design-patterns">Design Patterns</a></li>
@@ -3471,7 +3540,7 @@
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Non-streaming execution.&quot;&quot;&quot;</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">aexecute</span><span class="p">(</span><span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">)</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">astream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">StreamEvent</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">astream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">StreamEvent</span><span class="p">]:</span>
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Streaming execution - sets up queue and yields events.&quot;&quot;&quot;</span>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Prediction</span><span class="p">:</span>
@@ -3507,11 +3576,11 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">pred</span> <span class="o">=</span> <span class="n">Prediction</span><span class="p">(</span><span class="n">answer</span><span class="o">=</span><span class="s2">&quot;Paris&quot;</span><span class="p">,</span> <span class="n">reasoning</span><span class="o">=</span><span class="s2">&quot;France&#39;s capital&quot;</span><span class="p">)</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">pred</span><span class="o">.</span><span class="n">answer</span><span class="p">)</span>  <span class="c1"># &quot;Paris&quot;</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">pred</span><span class="p">[</span><span class="s2">&quot;answer&quot;</span><span class="p">])</span>  <span class="c1"># &quot;Paris&quot;</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">pred</span><span class="o">.</span><span class="n">is_final</span><span class="p">())</span>  <span class="c1"># True if no pending tool calls</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">pred</span><span class="o">.</span><span class="n">is_final</span><span class="p">)</span>  <span class="c1"># True if no pending tool calls</span>
 </code></pre></div>
 <p><strong>Key Properties</strong>:
 - <code>native_tool_calls</code> - Pending tool calls (if any)
-- <code>is_final()</code> - True if execution is complete
+- <code>is_final</code> - True if execution is complete
 - Inherits from <code>dict</code> and <code>StreamEvent</code></p>
 <hr />
 <h3 id="4-tool">4. Tool</h3>
@@ -3560,7 +3629,7 @@
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>        <span class="c1"># 2. Optionally emit streaming events</span>
 <a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">should_emit_events</span><span class="p">():</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>            <span class="k">await</span> <span class="n">emit_event</span><span class="p">(</span><span class="n">OutputStreamChunk</span><span class="p">(</span><span class="o">...</span><span class="p">))</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>            <span class="n">emit_event</span><span class="p">(</span><span class="n">OutputStreamChunk</span><span class="p">(</span><span class="o">...</span><span class="p">))</span>
 <a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
 <a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>        <span class="c1"># 3. Always return final Prediction</span>
 <a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>        <span class="k">return</span> <span class="n">Prediction</span><span class="p">(</span><span class="n">answer</span><span class="o">=</span><span class="n">result</span><span class="p">)</span>
@@ -3568,7 +3637,7 @@
 <h3 id="how-streaming-works">How Streaming Works</h3>
 <p><strong>Event Queue</strong>:
 - <code>astream()</code> sets up an <code>asyncio.Queue</code> via ContextVar
-- Modules emit events using <code>await emit_event(event)</code>
+- Modules emit events using <code>emit_event(event)</code>
 - Queue is automatically available to nested modules</p>
 <p><strong>Flow</strong>:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>User calls module.astream()
@@ -3686,30 +3755,35 @@
 <h3 id="settings-integration">Settings Integration</h3>
 <p>The LM abstraction integrates with udspy's settings system:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">udspy</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="c1"># Configure with API key (creates OpenAILM automatically)</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-...&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">)</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="c1"># Access the LM</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="n">lm</span> <span class="o">=</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">lm</span>  <span class="c1"># Returns OpenAILM instance</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="c1"># Or provide custom LM</span>
-<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy.lm</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAILM</span>
-<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="n">custom_lm</span> <span class="o">=</span> <span class="n">OpenAILM</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">default_model</span><span class="o">=</span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">)</span>
-<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">custom_lm</span><span class="p">)</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># Configure from environment variables (creates OpenAILM automatically)</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="c1"># Set: UDSPY_LM_MODEL=gpt-4o, UDSPY_LM_API_KEY=sk-...</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">()</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="c1"># Or provide explicit LM instance</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="n">lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-...&quot;</span><span class="p">)</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">lm</span><span class="p">)</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="c1"># Access the configured LM</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="n">lm</span> <span class="o">=</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">lm</span>  <span class="c1"># Returns OpenAILM instance</span>
 </code></pre></div>
 <p><strong>Backward Compatibility</strong>: <code>settings.aclient</code> still works but is deprecated. Use <code>settings.lm</code> for new code.</p>
 <h3 id="context-manager-support">Context Manager Support</h3>
 <p>LM instances can be overridden per-context:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Global settings</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;global-key&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">)</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Temporary override</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">custom_lm</span><span class="p">):</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>  <span class="c1"># Uses custom_lm</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="c1"># Back to global LM</span>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>  <span class="c1"># Uses global LM</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1"># Global settings</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="n">global_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;global-key&quot;</span><span class="p">)</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">global_lm</span><span class="p">)</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># Temporary override</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="n">custom_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;custom-key&quot;</span><span class="p">)</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">custom_lm</span><span class="p">):</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>  <span class="c1"># Uses custom_lm</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="c1"># Back to global LM</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>  <span class="c1"># Uses global LM</span>
 </code></pre></div>
 <p><strong>Priority</strong>:
 1. Explicit <code>lm</code> parameter (highest)
@@ -3908,7 +3982,7 @@
 <h3 id="schema-extraction">Schema Extraction</h3>
 <p>Tool class extracts schema from function signature:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Automatic schema generation</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="n">tool</span><span class="o">.</span><span class="n">get_args_schema</span><span class="p">()</span> <span class="err">→</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="n">tool</span><span class="o">.</span><span class="n">parameters</span> <span class="err">→</span>
 <a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="p">{</span>
 <a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
 <a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>    <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -3921,14 +3995,19 @@
 </code></pre></div>
 <h3 id="conversion-to-openai-format">Conversion to OpenAI Format</h3>
 <p>Adapter converts Tool → OpenAI schema:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="p">{</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;function&quot;</span><span class="p">,</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>    <span class="s2">&quot;function&quot;</span><span class="p">:</span> <span class="p">{</span>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>        <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;calculator&quot;</span><span class="p">,</span>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Perform arithmetic&quot;</span><span class="p">,</span>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>        <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">tool</span><span class="o">.</span><span class="n">get_args_schema</span><span class="p">()}</span>
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>    <span class="p">}</span>
-<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Tool provides the parameters schema</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy.adapter</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatAdapter</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="n">adapter</span> <span class="o">=</span> <span class="n">ChatAdapter</span><span class="p">()</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="n">adapter</span><span class="o">.</span><span class="n">format_tool_schema</span><span class="p">(</span><span class="n">tool</span><span class="p">)</span> <span class="err">→</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="p">{</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;function&quot;</span><span class="p">,</span>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>    <span class="s2">&quot;function&quot;</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>        <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;calculator&quot;</span><span class="p">,</span>
+<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a>        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Perform arithmetic&quot;</span><span class="p">,</span>
+<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a>        <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="n">tool</span><span class="o">.</span><span class="n">parameters</span>  <span class="c1"># Tool provides this</span>
+<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a>    <span class="p">}</span>
+<a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a><span class="p">}</span>
 </code></pre></div>
 <h3 id="execution">Execution</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># In Predict module:</span>
@@ -3962,8 +4041,10 @@
 <a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_user_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
 <a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_assistant_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">tool_calls</span><span class="p">:</span> <span class="nb">list</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span>
 <a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_tool_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tool_call_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_system_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_system_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>  <span class="c1"># Appends to end</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_system_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>  <span class="c1"># Always at position 0 (recommended)</span>
 </code></pre></div>
+<p><strong>Note</strong>: Use <code>set_system_message()</code> instead of <code>add_system_message()</code> to ensure the system prompt is always at position 0. When using Predict, the system prompt is automatically managed.</p>
 <h3 id="usage">Usage</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="n">history</span> <span class="o">=</span> <span class="n">History</span><span class="p">()</span>
 <a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
@@ -3980,27 +4061,24 @@
 <a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="c1"># LLM sees full conversation history</span>
 </code></pre></div>
 <h3 id="how-predict-uses-history">How Predict Uses History</h3>
+<p>Predict automatically manages the system prompt in history:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_build_initial_messages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signature</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">history</span><span class="p">):</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>    <span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>    <span class="c1"># Add history messages if provided</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="k">if</span> <span class="n">history</span><span class="p">:</span>
-<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>        <span class="n">messages</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">history</span><span class="o">.</span><span class="n">messages</span><span class="p">)</span>
-<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>        <span class="c1"># Add system message with instructions</span>
-<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>        <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>            <span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span>
-<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>            <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">adapter</span><span class="o">.</span><span class="n">format_instructions</span><span class="p">(</span><span class="n">signature</span><span class="p">)</span>
-<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>        <span class="p">})</span>
-<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>
-<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a>    <span class="c1"># Add current input</span>
-<a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a>    <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-<a id="__codelineno-32-16" name="__codelineno-32-16" href="#__codelineno-32-16"></a>        <span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span>
-<a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a>        <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">adapter</span><span class="o">.</span><span class="n">format_inputs</span><span class="p">(</span><span class="n">signature</span><span class="p">,</span> <span class="n">inputs</span><span class="p">)</span>
-<a id="__codelineno-32-18" name="__codelineno-32-18" href="#__codelineno-32-18"></a>    <span class="p">})</span>
-<a id="__codelineno-32-19" name="__codelineno-32-19" href="#__codelineno-32-19"></a>
-<a id="__codelineno-32-20" name="__codelineno-32-20" href="#__codelineno-32-20"></a>    <span class="k">return</span> <span class="n">messages</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>    <span class="c1"># Always set system message at position 0 (replaces if exists)</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="n">history</span><span class="o">.</span><span class="n">set_system_message</span><span class="p">(</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">adapter</span><span class="o">.</span><span class="n">format_instructions</span><span class="p">(</span><span class="n">signature</span><span class="p">)</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="p">)</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>    <span class="c1"># Add current user input</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>    <span class="n">history</span><span class="o">.</span><span class="n">add_user_message</span><span class="p">(</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">adapter</span><span class="o">.</span><span class="n">format_inputs</span><span class="p">(</span><span class="n">signature</span><span class="p">,</span> <span class="n">inputs</span><span class="p">)</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>    <span class="p">)</span>
 </code></pre></div>
+<p><strong>Key behaviors</strong>:
+1. <strong>System prompt is always at position 0</strong> - Managed automatically from signature
+2. <strong>User message added at the end</strong> - Current input appended to history
+3. <strong>After generation</strong> - Assistant response added to history
+4. <strong>Tool calls recorded</strong> - Tool interactions preserved in history</p>
+<p>This means you can pre-populate history with only user/assistant messages, and the system prompt will be automatically managed.</p>
 <h3 id="when-to-use">When to Use</h3>
 <ul>
 <li><strong>Multi-turn conversations</strong>: Chatbots, assistants</li>
@@ -4044,7 +4122,7 @@
 <a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>
 <a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="c1"># Emit from anywhere</span>
-<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a><span class="k">await</span> <span class="n">emit_event</span><span class="p">(</span><span class="n">ToolProgress</span><span class="p">(</span><span class="s2">&quot;search&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s2">&quot;Searching...&quot;</span><span class="p">))</span>
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a><span class="n">emit_event</span><span class="p">(</span><span class="n">ToolProgress</span><span class="p">(</span><span class="s2">&quot;search&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s2">&quot;Searching...&quot;</span><span class="p">))</span>
 </code></pre></div></p>
 <h3 id="flow">Flow</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>1. User calls module.astream()
@@ -4145,7 +4223,7 @@
 <h3 id="usage-streaming-pattern">Usage: Streaming Pattern</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a><span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">agent</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">&quot;Delete files&quot;</span><span class="p">):</span>
 <a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">Prediction</span><span class="p">):</span>
-<a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">event</span><span class="o">.</span><span class="n">is_final</span><span class="p">():</span>
+<a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">event</span><span class="o">.</span><span class="n">is_final</span><span class="p">:</span>
 <a id="__codelineno-44-4" name="__codelineno-44-4" href="#__codelineno-44-4"></a>            <span class="c1"># Has pending tool calls requiring confirmation</span>
 <a id="__codelineno-44-5" name="__codelineno-44-5" href="#__codelineno-44-5"></a>            <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">event</span><span class="o">.</span><span class="n">native_tool_calls</span><span class="p">:</span>
 <a id="__codelineno-44-6" name="__codelineno-44-6" href="#__codelineno-44-6"></a>                <span class="c1"># Show confirmation UI</span>
@@ -4292,18 +4370,17 @@
 <a id="__codelineno-50-15" name="__codelineno-50-15" href="#__codelineno-50-15"></a>        <span class="c1"># Custom post-processing</span>
 <a id="__codelineno-50-16" name="__codelineno-50-16" href="#__codelineno-50-16"></a>        <span class="n">final</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">postprocess</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 <a id="__codelineno-50-17" name="__codelineno-50-17" href="#__codelineno-50-17"></a>
-<a id="__codelineno-50-18" name="__codelineno-50-18" href="#__codelineno-50-18"></a>        <span class="c1"># Emit event if streaming</span>
-<a id="__codelineno-50-19" name="__codelineno-50-19" href="#__codelineno-50-19"></a>        <span class="k">if</span> <span class="n">stream</span><span class="p">:</span>
-<a id="__codelineno-50-20" name="__codelineno-50-20" href="#__codelineno-50-20"></a>            <span class="k">await</span> <span class="n">emit_event</span><span class="p">(</span><span class="n">OutputStreamChunk</span><span class="p">(</span>
-<a id="__codelineno-50-21" name="__codelineno-50-21" href="#__codelineno-50-21"></a>                <span class="n">module</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
-<a id="__codelineno-50-22" name="__codelineno-50-22" href="#__codelineno-50-22"></a>                <span class="n">field_name</span><span class="o">=</span><span class="s2">&quot;answer&quot;</span><span class="p">,</span>
-<a id="__codelineno-50-23" name="__codelineno-50-23" href="#__codelineno-50-23"></a>                <span class="n">delta</span><span class="o">=</span><span class="n">final</span><span class="p">[</span><span class="s2">&quot;answer&quot;</span><span class="p">],</span>
-<a id="__codelineno-50-24" name="__codelineno-50-24" href="#__codelineno-50-24"></a>                <span class="n">content</span><span class="o">=</span><span class="n">final</span><span class="p">[</span><span class="s2">&quot;answer&quot;</span><span class="p">],</span>
-<a id="__codelineno-50-25" name="__codelineno-50-25" href="#__codelineno-50-25"></a>                <span class="n">is_complete</span><span class="o">=</span><span class="kc">True</span>
-<a id="__codelineno-50-26" name="__codelineno-50-26" href="#__codelineno-50-26"></a>            <span class="p">))</span>
-<a id="__codelineno-50-27" name="__codelineno-50-27" href="#__codelineno-50-27"></a>
-<a id="__codelineno-50-28" name="__codelineno-50-28" href="#__codelineno-50-28"></a>        <span class="c1"># Return final prediction</span>
-<a id="__codelineno-50-29" name="__codelineno-50-29" href="#__codelineno-50-29"></a>        <span class="k">return</span> <span class="n">Prediction</span><span class="p">(</span><span class="o">**</span><span class="n">final</span><span class="p">)</span>
+<a id="__codelineno-50-18" name="__codelineno-50-18" href="#__codelineno-50-18"></a>        <span class="c1"># Anything listening to stream gets this chunk</span>
+<a id="__codelineno-50-19" name="__codelineno-50-19" href="#__codelineno-50-19"></a>        <span class="n">emit_event</span><span class="p">(</span><span class="n">OutputStreamChunk</span><span class="p">(</span>
+<a id="__codelineno-50-20" name="__codelineno-50-20" href="#__codelineno-50-20"></a>            <span class="n">module</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-50-21" name="__codelineno-50-21" href="#__codelineno-50-21"></a>            <span class="n">field_name</span><span class="o">=</span><span class="s2">&quot;answer&quot;</span><span class="p">,</span>
+<a id="__codelineno-50-22" name="__codelineno-50-22" href="#__codelineno-50-22"></a>            <span class="n">delta</span><span class="o">=</span><span class="n">final</span><span class="p">[</span><span class="s2">&quot;answer&quot;</span><span class="p">],</span>
+<a id="__codelineno-50-23" name="__codelineno-50-23" href="#__codelineno-50-23"></a>            <span class="n">content</span><span class="o">=</span><span class="n">final</span><span class="p">[</span><span class="s2">&quot;answer&quot;</span><span class="p">],</span>
+<a id="__codelineno-50-24" name="__codelineno-50-24" href="#__codelineno-50-24"></a>            <span class="n">is_complete</span><span class="o">=</span><span class="kc">True</span>
+<a id="__codelineno-50-25" name="__codelineno-50-25" href="#__codelineno-50-25"></a>        <span class="p">))</span>
+<a id="__codelineno-50-26" name="__codelineno-50-26" href="#__codelineno-50-26"></a>
+<a id="__codelineno-50-27" name="__codelineno-50-27" href="#__codelineno-50-27"></a>        <span class="c1"># Return final prediction</span>
+<a id="__codelineno-50-28" name="__codelineno-50-28" href="#__codelineno-50-28"></a>        <span class="k">return</span> <span class="n">Prediction</span><span class="p">(</span><span class="o">**</span><span class="n">final</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="adding-a-new-lm-provider">Adding a New LM Provider</h3>
 <ol>
@@ -4343,7 +4420,7 @@
 <a id="__codelineno-52-8" name="__codelineno-52-8" href="#__codelineno-52-8"></a>
 <a id="__codelineno-52-9" name="__codelineno-52-9" href="#__codelineno-52-9"></a><span class="c1"># Emit from anywhere</span>
 <a id="__codelineno-52-10" name="__codelineno-52-10" href="#__codelineno-52-10"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">my_function</span><span class="p">():</span>
-<a id="__codelineno-52-11" name="__codelineno-52-11" href="#__codelineno-52-11"></a>    <span class="k">await</span> <span class="n">emit_event</span><span class="p">(</span><span class="n">CustomEvent</span><span class="p">(</span><span class="s2">&quot;Processing...&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">))</span>
+<a id="__codelineno-52-11" name="__codelineno-52-11" href="#__codelineno-52-11"></a>    <span class="n">emit_event</span><span class="p">(</span><span class="n">CustomEvent</span><span class="p">(</span><span class="s2">&quot;Processing...&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">))</span>
 </code></pre></div>
 <h3 id="adding-custom-tool-logic">Adding Custom Tool Logic</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tool</span>
@@ -4374,11 +4451,10 @@
 <p><strong>Pattern</strong>: One <code>aexecute()</code> implementation for both streaming and non-streaming</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">aexecute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">stream</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
 <a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a>    <span class="c1"># Check if should stream</span>
-<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a>    <span class="k">if</span> <span class="n">stream</span> <span class="ow">and</span> <span class="n">_stream_queue</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-55-4" name="__codelineno-55-4" href="#__codelineno-55-4"></a>        <span class="k">await</span> <span class="n">emit_event</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
-<a id="__codelineno-55-5" name="__codelineno-55-5" href="#__codelineno-55-5"></a>
-<a id="__codelineno-55-6" name="__codelineno-55-6" href="#__codelineno-55-6"></a>    <span class="c1"># Always return final result</span>
-<a id="__codelineno-55-7" name="__codelineno-55-7" href="#__codelineno-55-7"></a>    <span class="k">return</span> <span class="n">Prediction</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a>    <span class="n">emit_event</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+<a id="__codelineno-55-4" name="__codelineno-55-4" href="#__codelineno-55-4"></a>
+<a id="__codelineno-55-5" name="__codelineno-55-5" href="#__codelineno-55-5"></a>    <span class="c1"># Always return final result</span>
+<a id="__codelineno-55-6" name="__codelineno-55-6" href="#__codelineno-55-6"></a>    <span class="k">return</span> <span class="n">Prediction</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
 </code></pre></div>
 <p><strong>Why</strong>: DRY, easier to maintain, composable</p>
 <hr />
@@ -4400,15 +4476,19 @@
 <hr />
 <h3 id="4-context-based-configuration">4. Context-Based Configuration</h3>
 <p><strong>Pattern</strong>: Thread-safe configuration overrides</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a><span class="c1"># Global</span>
-<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">)</span>
-<a id="__codelineno-57-3" name="__codelineno-57-3" href="#__codelineno-57-3"></a>
-<a id="__codelineno-57-4" name="__codelineno-57-4" href="#__codelineno-57-4"></a><span class="c1"># Context-specific</span>
-<a id="__codelineno-57-5" name="__codelineno-57-5" href="#__codelineno-57-5"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">):</span>
-<a id="__codelineno-57-6" name="__codelineno-57-6" href="#__codelineno-57-6"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>  <span class="c1"># Uses gpt-4</span>
-<a id="__codelineno-57-7" name="__codelineno-57-7" href="#__codelineno-57-7"></a>
-<a id="__codelineno-57-8" name="__codelineno-57-8" href="#__codelineno-57-8"></a><span class="c1"># Back to global</span>
-<a id="__codelineno-57-9" name="__codelineno-57-9" href="#__codelineno-57-9"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>  <span class="c1"># Uses gpt-4o-mini</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">LM</span>
+<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>
+<a id="__codelineno-57-3" name="__codelineno-57-3" href="#__codelineno-57-3"></a><span class="c1"># Global</span>
+<a id="__codelineno-57-4" name="__codelineno-57-4" href="#__codelineno-57-4"></a><span class="n">global_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-...&quot;</span><span class="p">)</span>
+<a id="__codelineno-57-5" name="__codelineno-57-5" href="#__codelineno-57-5"></a><span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">global_lm</span><span class="p">)</span>
+<a id="__codelineno-57-6" name="__codelineno-57-6" href="#__codelineno-57-6"></a>
+<a id="__codelineno-57-7" name="__codelineno-57-7" href="#__codelineno-57-7"></a><span class="c1"># Context-specific</span>
+<a id="__codelineno-57-8" name="__codelineno-57-8" href="#__codelineno-57-8"></a><span class="n">gpt4_lm</span> <span class="o">=</span> <span class="n">LM</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-...&quot;</span><span class="p">)</span>
+<a id="__codelineno-57-9" name="__codelineno-57-9" href="#__codelineno-57-9"></a><span class="k">with</span> <span class="n">udspy</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">context</span><span class="p">(</span><span class="n">lm</span><span class="o">=</span><span class="n">gpt4_lm</span><span class="p">):</span>
+<a id="__codelineno-57-10" name="__codelineno-57-10" href="#__codelineno-57-10"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>  <span class="c1"># Uses gpt-4</span>
+<a id="__codelineno-57-11" name="__codelineno-57-11" href="#__codelineno-57-11"></a>
+<a id="__codelineno-57-12" name="__codelineno-57-12" href="#__codelineno-57-12"></a><span class="c1"># Back to global</span>
+<a id="__codelineno-57-13" name="__codelineno-57-13" href="#__codelineno-57-13"></a><span class="n">result</span> <span class="o">=</span> <span class="n">predictor</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>  <span class="c1"># Uses gpt-4o-mini</span>
 </code></pre></div>
 <p><strong>Why</strong>: Multi-tenant safe, no parameter drilling</p>
 <hr />

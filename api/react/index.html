@@ -465,6 +465,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/lm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LM Abstraction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/signatures/" class="md-nav__link">
         
   
@@ -526,10 +549,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
         
           
-          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
             
   
   
@@ -542,8 +565,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_5">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
             <span class="md-nav__icon md-icon"></span>
             Modules
           </label>
@@ -938,6 +961,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../examples/dynamic_tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Dynamic Tools
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../examples/confirmation/" class="md-nav__link">
         
   
@@ -1160,6 +1206,29 @@
   
   <span class="md-ellipsis">
     Callbacks
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../module_callback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Module Callbacks
     
   </span>
   
@@ -1479,15 +1548,6 @@
   <a href="#finish" class="md-nav__link">
     <span class="md-ellipsis">
       finish
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ask_to_user" class="md-nav__link">
-    <span class="md-ellipsis">
-      ask_to_user
     </span>
   </a>
   
@@ -1922,15 +1982,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#ask_to_user" class="md-nav__link">
-    <span class="md-ellipsis">
-      ask_to_user
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -2048,8 +2099,7 @@
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">tools</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span> <span class="o">|</span> <span class="n">Tool</span><span class="p">],</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="o">*</span><span class="p">,</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">max_iters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">enable_ask_to_user</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">)</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">)</span>
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -2059,8 +2109,6 @@
 <li>Tools can be decorated functions (<code>@tool</code>) or <code>Tool</code> instances</li>
 <li><strong><code>max_iters</code></strong> (<code>int</code>, default: <code>10</code>): Maximum number of reasoning iterations</li>
 <li>Agent will stop after this many steps even if not finished</li>
-<li><strong><code>enable_ask_to_user</code></strong> (<code>bool</code>, default: <code>True</code>): Whether to enable the <code>ask_to_user</code> tool</li>
-<li>If <code>False</code>, the agent cannot request user clarification</li>
 </ul>
 <p><strong>Example:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">udspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReAct</span><span class="p">,</span> <span class="n">Signature</span><span class="p">,</span> <span class="n">InputField</span><span class="p">,</span> <span class="n">OutputField</span><span class="p">,</span> <span class="n">tool</span>
@@ -2095,7 +2143,7 @@
 <p><strong>Raises:</strong></p>
 <ul>
 <li><code>ConfirmationRequired</code>: When user input is needed</li>
-<li>Raised when <code>ask_to_user</code> is called</li>
+<li>Raised when user clarification is called</li>
 <li>Raised when tool requires confirmation</li>
 <li>Contains saved state for resumption</li>
 </ul>
@@ -2128,6 +2176,9 @@
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
 <h5 id="resumeuser_response-saved_state-prediction"><code>resume(user_response, saved_state) -&gt; Prediction</code></h5>
+<blockquote>
+<p><strong>⚠️ Not Yet Implemented</strong>: This method is planned but not yet available in ReAct. Use <code>respond_to_confirmation()</code> with <code>forward()</code> instead.</p>
+</blockquote>
 <p>Resume execution after user provides input (synchronous).</p>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -2159,6 +2210,9 @@
 <a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">resume</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
 </code></pre></div>
 <h5 id="aresumeuser_response-saved_state-prediction"><code>aresume(user_response, saved_state) -&gt; Prediction</code></h5>
+<blockquote>
+<p><strong>⚠️ Not Yet Implemented</strong>: This method is planned but not yet available in ReAct. Use <code>respond_to_confirmation()</code> with <code>aforward()</code> instead.</p>
+</blockquote>
 <p>Resume execution after user provides input (async).</p>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -2186,8 +2240,7 @@
 </code></pre></div>
 <p>Dictionary mapping tool names to Tool objects. Includes:
 - User-provided tools
-- Built-in <code>finish</code> tool
-- Built-in <code>ask_to_user</code> tool (if enabled)</p>
+- Built-in <code>finish</code> tool</p>
 <h5 id="react_signature"><code>react_signature</code></h5>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">react_signature</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Signature</span><span class="p">]</span>
 </code></pre></div>
@@ -2206,7 +2259,7 @@
 </code></pre></div>
 <p><strong>Note</strong>: This exception has been moved to the <code>confirmation</code> module. See the <a href="../confirmation/">Confirmation API</a> for full documentation.</p>
 <p>Exception that pauses ReAct execution and saves state for resumption. This exception can be raised by:
-- The <code>ask_to_user</code> tool when the agent needs clarification
+- The user clarification tool when the agent needs clarification
 - Tools with <code>require_confirmation=True</code> before execution
 - Custom tools that need human input</p>
 <h4 id="constructor_1">Constructor</h4>
@@ -2309,17 +2362,6 @@
 <p><strong>Arguments:</strong> None</p>
 <p><strong>Usage:</strong></p>
 <p>The agent automatically selects this tool when it has enough information to answer. You don't call it directly.</p>
-<h3 id="ask_to_user"><code>ask_to_user</code></h3>
-<p>Tool for requesting user clarification (if enabled).</p>
-<p><strong>Name:</strong> <code>ask_to_user</code></p>
-<p><strong>Description:</strong> "Ask the user for clarification. ONLY use this when: ..."</p>
-<p><strong>Arguments:</strong>
-- <code>question</code> (<code>str</code>): The question to ask the user</p>
-<p><strong>Usage:</strong></p>
-<p>The agent can call this whenever it needs clarification or more information from the user.</p>
-<p>Raises <code>ConfirmationRequired</code> exception.</p>
-<p><strong>Notes:</strong>
-- Can be disabled with <code>enable_ask_to_user=False</code></p>
 <hr />
 <h2 id="trajectory-format">Trajectory Format</h2>
 <p>The trajectory is a dictionary with the following keys:</p>
@@ -2427,7 +2469,7 @@
 <p>The agent can then:
 1. Try a different tool
 2. Retry with different arguments
-3. Ask the user for help (using the <code>ask_to_user</code> tool)</p>
+3. Ask the user for help (using the user clarification tool)</p>
 <h3 id="maximum-iterations">Maximum Iterations</h3>
 <p>If the agent reaches <code>max_iters</code>, it stops and extracts an answer from the current trajectory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReAct</span><span class="p">(</span><span class="n">signature</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">,</span> <span class="n">max_iters</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
@@ -2443,7 +2485,7 @@
 <a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="n">signature</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Signature</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span>
 <a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="n">tools</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span> <span class="o">|</span> <span class="n">Tool</span><span class="p">]</span>
 <a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="n">max_iters</span><span class="p">:</span> <span class="nb">int</span>
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="n">enable_ask_to_user</span><span class="p">:</span> <span class="nb">bool</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="n">enable_user_clarification</span><span class="p">:</span> <span class="nb">bool</span>
 <a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>
 <a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="c1"># Method types</span>
 <a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="o">**</span><span class="n">input_args</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Prediction</span><span class="p">:</span> <span class="o">...</span>
