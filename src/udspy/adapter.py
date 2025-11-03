@@ -6,12 +6,16 @@ import json
 from typing import Any, Literal, get_args, get_origin
 
 import jiter
-from pydantic import TypeAdapter
+import regex as re
+from pydantic import BaseModel, TypeAdapter
 from pydantic.fields import FieldInfo
 
+from udspy.exceptions import AdapterParseError
 from udspy.formatters import format_value, parse_value
+from udspy.lm import ChatCompletionChunk
 from udspy.signature import Signature
-from udspy.streaming import OutputStreamChunk, emit_event
+from udspy.streaming import OutputStreamChunk, ThoughtStreamChunk, emit_event
+from udspy.tool import Tool, ToolCall
 from udspy.utils.schema import minimize_schema, resolve_json_schema_reference
 
 
@@ -70,11 +74,15 @@ def translate_field_type(field_name: str, field_info: FieldInfo) -> str:
 
 
 class StreamingParser:
-    """Parse streaming JSON output using jiter for robust partial JSON parsing.
+    """Parse streaming responses and generate StreamEvent objects.
 
-    This parser uses jiter's partial JSON parsing to robustly handle
-    incremental JSON output from LLMs. It validates fields against the
-    signature and emits OutputStreamChunk events as content arrives.
+    This parser processes streaming chunks from the LLM, handling:
+    - Content deltas (JSON output fields)
+    - Tool call deltas
+    - Reasoning deltas
+
+    It yields StreamEvent objects as they occur and provides finalized
+    outputs at the end.
     """
 
     def __init__(
@@ -83,10 +91,10 @@ class StreamingParser:
         module: Any,
         signature: Any,
     ):
-        """Initialize JSON stream parser.
+        """Initialize streaming parser.
 
         Args:
-            adapter: ChatAdapter instance to use for final parsing
+            adapter: ChatAdapter instance for parsing logic
             module: Module instance for creating stream events
             signature: Signature defining expected outputs
         """
@@ -94,16 +102,96 @@ class StreamingParser:
         self.module = module
         self.signature = signature
         self.output_fields = signature.get_output_fields()
+
+        # Content parsing state
         self.accumulated_json = ""
         self.previous_values: dict[str, str] = {}
         self.completed_fields: set[str] = set()
 
-    async def process_delta(self, delta: str) -> None:
-        """Process a delta of JSON content.
+        # Tool call accumulation
+        self.tool_calls: dict[int, dict[str, Any]] = {}
+
+        # Reasoning tracking
+        self.reasoning_content = ""
+        self.reasoning_complete = False
+        self.has_seen_reasoning = False  # Track if we've seen any reasoning
+
+        # Full completion text
+        self.full_completion: list[str] = []
+
+    def reset_content_accumulator(self) -> None:
+        """Reset the JSON content accumulator.
+
+        Called when reasoning is completed and we're about to parse actual output fields.
+        """
+        self.accumulated_json = ""
+        self.previous_values.clear()
+        self.completed_fields.clear()
+
+    async def process_chunk(self, chunk: ChatCompletionChunk) -> Any:
+        """Process a streaming chunk and yield StreamEvent objects.
 
         Args:
-            delta: New JSON content fragment
+            chunk: ChatCompletionChunk from the LLM
+
+        Yields:
+            StreamEvent objects (ThoughtStreamChunk, OutputStreamChunk, etc.)
         """
+
+        choice = chunk.choices[0]
+
+        # Process tool calls first (mutually exclusive with content/reasoning)
+        if choice.delta.tool_calls:
+            self.adapter.process_tool_call_deltas(self.tool_calls, choice.delta.tool_calls)
+            return
+
+        # Check for reasoning (only if we haven't completed it yet)
+        if not self.reasoning_complete:
+            reasoning_delta, is_complete = self.adapter.process_reasoning_delta(chunk)
+
+            # If we found reasoning content, track that we're in reasoning mode
+            if reasoning_delta:
+                self.has_seen_reasoning = True
+                self.reasoning_content += reasoning_delta
+                self.reasoning_complete = is_complete
+
+                yield ThoughtStreamChunk(
+                    self.module,
+                    "thought",
+                    reasoning_delta,
+                    self.reasoning_content,
+                    is_complete=is_complete,
+                )
+                return
+
+        # Process content delta for output fields
+        # Only accumulate if: no reasoning seen OR reasoning is complete
+        delta = choice.delta.content or ""
+        if delta:
+            if self.has_seen_reasoning and not self.reasoning_complete:
+                self.reasoning_complete = True
+                yield ThoughtStreamChunk(
+                    self.module,
+                    "thought",
+                    "",
+                    self.reasoning_content,
+                    is_complete=self.reasoning_complete,
+                )
+
+            self.full_completion.append(delta)
+            async for event in self._process_content_delta(delta):
+                yield event
+
+    async def _process_content_delta(self, delta: str) -> Any:
+        """Process content delta for JSON output fields.
+
+        Args:
+            delta: New content fragment
+
+        Yields:
+            OutputStreamChunk events
+        """
+
         if not delta:
             return
 
@@ -119,68 +207,53 @@ class StreamingParser:
             return
 
         if not isinstance(parsed, dict):
-            # Not a dictionary, ignore
             return
 
         # Process each field in the parsed output
         for field_name, value in parsed.items():
-            # Validate field belongs to signature
             if field_name not in self.output_fields:
                 continue
 
-            # Convert value to string for comparison
             value_str = str(value) if not isinstance(value, str) else value
-
-            # Check if this field has changed
             previous = self.previous_values.get(field_name, "")
+
             if value_str != previous:
                 delta_content = value_str[len(previous) :]
-
-                emit_event(
-                    OutputStreamChunk(
-                        module=self.module,
-                        field_name=field_name,
-                        delta=delta_content,
-                        content=value_str,
-                        is_complete=False,
-                    )
+                yield OutputStreamChunk(
+                    module=self.module,
+                    field_name=field_name,
+                    delta=delta_content,
+                    content=value_str,
+                    is_complete=False,
                 )
-
                 self.previous_values[field_name] = value_str
             elif value_str and field_name not in self.completed_fields:
-                # Field unchanged but not marked complete yet
-                emit_event(
-                    OutputStreamChunk(
-                        module=self.module,
-                        field_name=field_name,
-                        delta="",
-                        content=value_str,
-                        is_complete=True,
-                    )
+                yield OutputStreamChunk(
+                    module=self.module,
+                    field_name=field_name,
+                    delta="",
+                    content=value_str,
+                    is_complete=True,
                 )
                 self.completed_fields.add(field_name)
 
-    async def finalize(self) -> dict[str, Any]:
-        """Finalize parsing and emit completion events.
-
-        Calls the adapter's parse_outputs method to allow custom adapters
-        to validate and transform the final output.
+    async def finalize(self) -> tuple[dict[str, Any], list[Any], str]:
+        """Finalize parsing and return outputs, tool calls, and completion text.
 
         Returns:
-            Final parsed output dictionary
+            Tuple of (outputs, native_tool_calls, completion_text)
 
         Raises:
-            AdapterParseError: If adapter's parse_outputs fails validation
+            AdapterParseError: If parsing fails
         """
-        # Use the adapter's parse_outputs to validate and parse the final JSON
+        # Parse final outputs
         outputs = self.adapter.parse_outputs(self.signature, self.accumulated_json)
 
-        # Emit completion events for any fields that haven't been marked complete yet
+        # Emit completion events for any fields not yet marked complete
         for field_name in self.output_fields:
             if field_name in outputs and field_name not in self.completed_fields:
                 value = outputs[field_name]
                 value_str = str(value) if not isinstance(value, str) else value
-
                 emit_event(
                     OutputStreamChunk(
                         module=self.module,
@@ -192,7 +265,13 @@ class StreamingParser:
                 )
                 self.completed_fields.add(field_name)
 
-        return outputs
+        # Finalize tool calls
+        native_tool_calls = self.adapter.finalize_tool_calls(self.tool_calls)
+
+        # Get completion text
+        completion_text = "".join(self.full_completion)
+
+        return outputs, native_tool_calls, completion_text
 
 
 class ChatAdapter:
@@ -200,14 +279,22 @@ class ChatAdapter:
 
     This adapter converts Signature inputs into properly formatted
     chat messages and parses LLM responses back into structured outputs.
+
+    The adapter handles both streaming and non-streaming responses:
+    - For streaming: Call process_message() for each chunk, then finalize()
+    - For non-streaming: Call process_message() once with the complete response
     """
 
-    def create_streaming_parser(
+    def __init__(self) -> None:
+        """Initialize the adapter."""
+        self._streaming_parser: StreamingParser | None = None
+
+    def _get_or_create_parser(
         self,
         module: Any,
         signature: type[Signature],
     ) -> StreamingParser:
-        """Create a streaming parser for this adapter.
+        """Get existing parser or create a new one.
 
         Args:
             module: Module instance
@@ -216,7 +303,205 @@ class ChatAdapter:
         Returns:
             StreamingParser instance
         """
-        return StreamingParser(self, module, signature)
+        if self._streaming_parser is None:
+            self._streaming_parser = StreamingParser(self, module, signature)
+        return self._streaming_parser
+
+    def reset_parser(self) -> None:
+        """Reset the streaming parser for a new request."""
+        self._streaming_parser = None
+
+    async def process_chunk(
+        self,
+        chunk: ChatCompletionChunk,
+        module: Any,
+        signature: type[Signature],
+    ) -> Any:
+        """Process an LLM streaming chunk.
+
+        This method processes streaming chunks and yields StreamEvent objects.
+        After processing all chunks, call finalize() to get validated outputs.
+
+        Args:
+            chunk: ChatCompletionChunk from streaming LLM
+            module: Module instance
+            signature: Signature defining expected outputs
+
+        Yields:
+            StreamEvent objects (ThoughtStreamChunk, OutputStreamChunk, etc.)
+        """
+
+        parser = self._get_or_create_parser(module, signature)
+        async for event in parser.process_chunk(chunk):
+            yield event
+
+    async def finalize(
+        self,
+        signature: type[Signature],
+    ) -> tuple[dict[str, Any], list[Any], str]:
+        """Finalize streaming response and validate outputs.
+
+        Must be called after processing all streaming chunks.
+
+        Args:
+            signature: Signature defining expected outputs
+
+        Returns:
+            Tuple of (outputs, native_tool_calls, completion_text)
+
+        Raises:
+            AdapterParseError: If outputs don't match signature or parsing fails
+        """
+        if self._streaming_parser is None:
+            raise RuntimeError("No streaming parser available - call process_message first")
+
+        (
+            outputs,
+            native_tool_calls,
+            completion_text,
+        ) = await self._streaming_parser.finalize()
+
+        # Validate outputs match signature
+        self.validate_outputs(signature, outputs, native_tool_calls, completion_text)
+
+        # Reset for next request
+        self.reset_parser()
+
+        return outputs, native_tool_calls, completion_text
+
+    def validate_outputs(
+        self,
+        signature: type[Signature],
+        outputs: dict[str, Any],
+        native_tool_calls: list[Any],
+        completion_text: str,
+    ) -> None:
+        """Validate that outputs match the signature.
+
+        Args:
+            signature: Signature defining expected outputs
+            outputs: Parsed output fields
+            native_tool_calls: Tool calls from LLM
+            completion_text: Raw completion text
+
+        Raises:
+            AdapterParseError: If outputs don't match signature
+        """
+
+        # If no tool calls, outputs must match signature exactly
+        if not native_tool_calls and outputs.keys() != signature.get_output_fields().keys():
+            raise AdapterParseError(
+                adapter_name=self.__class__.__name__,
+                signature=signature,
+                lm_response=completion_text,
+                parsed_result=outputs,
+            )
+
+    def process_reasoning_delta(
+        self,
+        chunk: ChatCompletionChunk,
+    ) -> tuple[str, bool]:
+        """Extract reasoning delta from a streaming chunk.
+
+        This handles provider-specific reasoning formats:
+        - OpenAI: choice.delta.reasoning (structured field)
+        - AWS Bedrock: <reasoning>...</reasoning> tags in content
+        - Other providers: may use different formats
+
+        Args:
+            chunk: ChatCompletionChunk from streaming LLM
+
+        Returns:
+            Tuple of (reasoning_delta, is_complete):
+            - reasoning_delta: New reasoning content in this chunk
+            - is_complete: Whether reasoning is finished
+        """
+        choice = chunk.choices[0]
+
+        # For some providers (like AWS Bedrock), reasoning is returned as
+        # <reasoning> tags inside choice.delta.content instead of choice.delta.reasoning
+        if match := re.search(
+            r"<reasoning>(.*?)</reasoning>", choice.delta.content or "", re.DOTALL
+        ):
+            reasoning_delta = match.group(1)
+        else:
+            # Standard structured reasoning field (OpenAI, Groq, etc.)
+            reasoning_delta = getattr(choice.delta, "reasoning", None) or ""
+
+        is_complete = choice.finish_reason is not None
+        return reasoning_delta, is_complete
+
+    def process_tool_call_deltas(
+        self,
+        tool_calls_accumulator: dict[int, dict[str, Any]],
+        delta_tool_calls: list[Any],
+    ) -> None:
+        """Process tool call deltas from streaming response.
+
+        Accumulates tool call information across multiple chunks, handling
+        incremental updates to tool call names and arguments.
+
+        Args:
+            tool_calls_accumulator: Dictionary mapping tool call index to accumulated data
+            delta_tool_calls: List of tool call delta objects from the current chunk
+        """
+        for tc_delta in delta_tool_calls:
+            idx = tc_delta.index
+            if idx not in tool_calls_accumulator:
+                tool_calls_accumulator[idx] = {
+                    "id": tc_delta.id,
+                    "type": tc_delta.type,
+                    "function": {"name": "", "arguments": ""},
+                }
+
+            if tc_delta.function:
+                if tc_delta.function.name:
+                    tool_calls_accumulator[idx]["function"]["name"] += tc_delta.function.name
+                if tc_delta.function.arguments:
+                    tool_calls_accumulator[idx]["function"]["arguments"] += (
+                        tc_delta.function.arguments
+                    )
+
+    def finalize_tool_calls(self, tool_calls_accumulator: dict[int, dict[str, Any]]) -> list[Any]:
+        """Convert accumulated tool calls to ToolCall objects.
+
+        Parses JSON arguments and creates properly formatted ToolCall instances.
+
+        Args:
+            tool_calls_accumulator: Dictionary of accumulated tool call data
+
+        Returns:
+            List of ToolCall objects
+
+        Raises:
+            AdapterParseError: If tool call arguments are not valid JSON
+        """
+
+        native_tool_calls = []
+        for tc in tool_calls_accumulator.values():
+            try:
+                arguments = (
+                    json.loads(tc["function"]["arguments"])
+                    if isinstance(tc["function"]["arguments"], str)
+                    else tc["function"]["arguments"]
+                )
+            except json.JSONDecodeError as exc:
+                raise AdapterParseError(
+                    adapter_name=self.__class__.__name__,
+                    signature=None,  # Tool calls don't have a signature
+                    lm_response=tc["function"]["arguments"],
+                    message=f"Failed to parse tool call {tc['id']} arguments as JSON: {exc}",
+                ) from exc
+
+            native_tool_calls.append(
+                ToolCall(
+                    call_id=tc["id"],
+                    name=tc["function"]["name"],
+                    args=arguments,
+                )
+            )
+
+        return native_tool_calls
 
     def format_field_structure(self, signature: type[Signature]) -> str:
         """Format example field structure with type hints for the LLM.
@@ -336,7 +621,7 @@ class ChatAdapter:
         parts = []
         input_fields = signature.get_input_fields()
 
-        for name, _field_info in input_fields.items():
+        for name, _ in input_fields.items():
             if name in inputs:
                 value = inputs[name]
                 formatted = format_value(value)
@@ -389,7 +674,6 @@ class ChatAdapter:
         Raises:
             AdapterParseError: If completion is not valid JSON
         """
-        from udspy.exceptions import AdapterParseError
 
         output_fields = signature.get_output_fields()
 
@@ -415,9 +699,6 @@ class ChatAdapter:
                 lm_response=completion,
                 message=f"Expected JSON object, got {type(outputs).__name__}",
             )
-
-        # Parse each field according to its type
-        from pydantic import BaseModel
 
         parsed_outputs: dict[str, Any] = {}
         for field_name, field_info in output_fields.items():
@@ -471,7 +752,6 @@ class ChatAdapter:
                 }
             }
         """
-        from udspy.tool import Tool
 
         if isinstance(tool, Tool):
             # Tool decorator - construct OpenAI schema from Tool properties

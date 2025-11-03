@@ -4,9 +4,7 @@ import json
 import logging
 from typing import Any
 
-import regex as re
 from openai import AsyncStream, BaseModel
-from openai.types.chat import ChatCompletionChunk
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -19,16 +17,12 @@ from udspy.callback import with_callbacks
 from udspy.decorators import suspendable
 from udspy.exceptions import AdapterParseError
 from udspy.history import History
+from udspy.lm import ChatCompletionChunk
 from udspy.module.base import Module
 from udspy.module.callbacks import PredictContext, is_module_callback
 from udspy.settings import settings
 from udspy.signature import Signature
-from udspy.streaming import (
-    Prediction,
-    StreamEvent,
-    ThoughtStreamChunk,
-    emit_event,
-)
+from udspy.streaming import Prediction, StreamEvent, emit_event
 from udspy.tool import Tool, ToolCall
 
 logger = logging.getLogger(__name__)
@@ -348,47 +342,6 @@ class Predict(Module):
         content = "\n".join(content_parts) if content_parts else ""
         history.add_assistant_message(content)
 
-    def _process_tool_call_delta(
-        self, tool_calls: dict[int, dict[str, Any]], delta_tool_calls: list[Any]
-    ) -> None:
-        """Process tool call deltas and accumulate them.
-
-        Args:
-            tool_calls: Dictionary to accumulate tool calls in
-            delta_tool_calls: List of tool call deltas from the chunk
-        """
-        for tool_call in delta_tool_calls:
-            idx = tool_call.index
-            if idx not in tool_calls:
-                tool_calls[idx] = {
-                    "id": tool_call.id or "",
-                    "type": tool_call.type or "function",
-                    "function": {
-                        "name": tool_call.function.name if tool_call.function else "",
-                        "arguments": "",
-                    },
-                }
-
-            if tool_call.function and tool_call.function.arguments:
-                tool_calls[idx]["function"]["arguments"] += tool_call.function.arguments
-
-    def _check_valid_outputs_or_raise(
-        self,
-        native_tool_calls: list[ToolCall],
-        outputs: dict[str, Any],
-        completion_text: str,
-    ) -> None:
-        """
-        Check if the tool calls and outputs are valid; raise AdapterParseError if not.
-        """
-        if not native_tool_calls and outputs.keys() != self.signature.get_output_fields().keys():
-            raise AdapterParseError(
-                adapter_name=self.adapter.__class__.__name__,
-                signature=self.signature,
-                lm_response=completion_text,
-                parsed_result=outputs,
-            )
-
     @retry(
         retry=retry_if_exception_type(AdapterParseError),
         stop=stop_after_attempt(3),
@@ -411,7 +364,6 @@ class Predict(Module):
         response = await settings.lm.acomplete(**completion_kwargs)
 
         message = response.choices[0].message  # type: ignore[union-attr]
-        completion_text = message.content or ""
         native_tool_calls: list[ToolCall] = []
         for tc in message.tool_calls or []:
             try:
@@ -435,8 +387,11 @@ class Predict(Module):
                     ToolCall(call_id=tc.id, name=tc.function.name, args=arguments)
                 )
 
+        completion_text = message.content or ""
         outputs = self.adapter.parse_outputs(self.signature, completion_text)
-        self._check_valid_outputs_or_raise(native_tool_calls, outputs, completion_text)
+
+        self.adapter.validate_outputs(self.signature, outputs, native_tool_calls, completion_text)
+
         prediction = Prediction(module=self, native_tool_calls=native_tool_calls, **outputs)
         emit_event(prediction)  # If a stream is active, emit the final prediction
 
@@ -462,65 +417,24 @@ class Predict(Module):
         """
 
         try:
-            stream: AsyncStream[ChatCompletionChunk] = await settings.lm.acomplete(  # type: ignore[assignment]
-                **completion_kwargs
-            )
+            # Reset parser for this attempt (important for retries)
+            self.adapter.reset_parser()
 
-            full_completion: list[str] = []
-            tool_calls: dict[int, dict[str, Any]] = {}
+            response = await settings.lm.acomplete(**completion_kwargs)
+            stream: AsyncStream[ChatCompletionChunk] = response  # type: ignore[assignment]
 
-            # Use adapter's streaming parser for robust partial JSON parsing
-            streaming_parser = self.adapter.create_streaming_parser(self, self.signature)
-
-            reasoning = ThoughtStreamChunk(self, "thought", "", "", is_complete=False)
-
+            # Process each chunk through adapter, which yields events
             async for chunk in stream:
-                choice = chunk.choices[0]
+                async for event in self.adapter.process_chunk(chunk, self, self.signature):
+                    emit_event(event)
 
-                delta = choice.delta.content or ""
-                if delta:
-                    full_completion.append(delta)
-                    await streaming_parser.process_delta(delta)
-
-                if choice.delta.tool_calls:
-                    self._process_tool_call_delta(tool_calls, choice.delta.tool_calls)
-                elif not reasoning.is_complete:
-                    reasoning = await self._process_reasoning_delta(reasoning, choice)
-
-            # Finalize streaming parsing and get outputs
-            outputs = await streaming_parser.finalize()
-            completion_text = "".join(full_completion)
-
-            native_tool_calls = []
-            for tc in tool_calls.values():
-                try:
-                    arguments = (
-                        json.loads(tc["function"]["arguments"])
-                        if isinstance(tc["function"]["arguments"], str)
-                        else tc["function"]["arguments"]
-                    )
-
-                except json.JSONDecodeError as exc:
-                    raise AdapterParseError(
-                        adapter_name=self.adapter.__class__.__name__,
-                        signature=self.signature,
-                        lm_response=arguments,
-                        parsed_result={
-                            "error": f"Failed to parse tool call {tc['id']} arguments as JSON."
-                        },
-                    ) from exc
-                else:
-                    native_tool_calls.append(
-                        ToolCall(
-                            call_id=tc["id"],
-                            name=tc["function"]["name"],
-                            args=arguments,
-                        )
-                    )
-
-            self._check_valid_outputs_or_raise(native_tool_calls, outputs, completion_text)
-
-            prediction = Prediction(module=self, native_tool_calls=native_tool_calls, **outputs)
+            # Finalize and get validated outputs
+            outputs, native_tool_calls, _ = await self.adapter.finalize(self.signature)
+            prediction = Prediction(
+                module=self,
+                native_tool_calls=native_tool_calls,
+                **outputs,
+            )
             emit_event(prediction)
 
             return prediction
@@ -531,47 +445,14 @@ class Predict(Module):
             error_event = type(
                 "StreamError",
                 (StreamEvent,),
-                {"error": str(exc), "traceback": traceback.format_exc(), "module": self},
+                {
+                    "error": str(exc),
+                    "traceback": traceback.format_exc(),
+                    "module": self,
+                },
             )()
             emit_event(error_event)
             raise
-
-    async def _process_reasoning_delta(
-        self,
-        reasoning: ThoughtStreamChunk,
-        choice: Any,
-    ) -> ThoughtStreamChunk:
-        """Process reasoning delta from choice.
-
-        Args:
-            reasoning: Current reasoning chunk state
-            choice: Choice object from streaming chunk
-            queue: Event queue to emit chunks to
-
-        Returns:
-            Updated ThoughtStreamChunk
-        """
-        # For some reason, AWS Bedrock returns reasoning as content inside <reasoning> tags
-        # instead of proper choice.delta.reasoning, so if that happens, we extract it here
-        # Unfortunately, we cannot really say it's finished until we get the real content after.
-        if match := re.search(
-            r"<reasoning>(.*?)</reasoning>", choice.delta.content or "", re.DOTALL
-        ):
-            thought_chunk = match.group(1)
-        else:
-            thought_chunk = getattr(choice.delta, "reasoning", None) or ""
-
-        is_complete = choice.finish_reason is not None
-        if thought_chunk or is_complete != reasoning.is_complete:
-            reasoning = ThoughtStreamChunk(
-                self,
-                reasoning.field_name,
-                thought_chunk,
-                reasoning.content + thought_chunk,
-                is_complete=is_complete,
-            )
-            emit_event(reasoning)
-        return reasoning
 
 
 __all__ = ["Predict"]
