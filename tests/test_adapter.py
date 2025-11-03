@@ -4,9 +4,16 @@ from enum import Enum
 from typing import Literal
 
 import pytest
+from openai.types.chat import ChatCompletionChunk
+from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 from pydantic import BaseModel
+from pydantic.fields import FieldInfo
 
 from udspy import ChatAdapter, InputField, OutputField, Signature
+from udspy.adapter import parse_value, translate_field_type
+from udspy.exceptions import AdapterParseError
+from udspy.streaming import OutputStreamChunk
+from udspy.tool.types import ToolCall
 
 
 def test_format_instructions() -> None:
@@ -111,7 +118,6 @@ def test_format_tool_schemas() -> None:
 
 def test_parse_value_with_different_types() -> None:
     """Test parse_value handles different types correctly."""
-    from udspy.adapter import parse_value
 
     # Test int
     assert parse_value("42", int) == 42
@@ -140,7 +146,6 @@ def test_parse_value_with_different_types() -> None:
 
 def test_parse_value_with_pydantic_model() -> None:
     """Test parse_value handles Pydantic models."""
-    from udspy.adapter import parse_value
 
     class TestModel(BaseModel):
         name: str
@@ -174,7 +179,6 @@ def test_parse_outputs_with_extra_json_whitespace() -> None:
 
 def test_parse_outputs_invalid_json_raises_error() -> None:
     """Test that parse_outputs raises AdapterParseError for invalid JSON."""
-    from udspy.exceptions import AdapterParseError
 
     class QA(Signature):
         """Answer questions."""
@@ -211,9 +215,6 @@ def test_parse_outputs_preserves_multiline_strings() -> None:
 
 def test_translate_field_type_string() -> None:
     """Test translate_field_type with string fields."""
-    from pydantic.fields import FieldInfo
-
-    from udspy.adapter import translate_field_type
 
     field_info = FieldInfo(annotation=str)
     result = translate_field_type("answer", field_info)
@@ -225,9 +226,6 @@ def test_translate_field_type_string() -> None:
 
 def test_translate_field_type_int() -> None:
     """Test translate_field_type with int fields."""
-    from pydantic.fields import FieldInfo
-
-    from udspy.adapter import translate_field_type
 
     field_info = FieldInfo(annotation=int)
     result = translate_field_type("count", field_info)
@@ -238,9 +236,6 @@ def test_translate_field_type_int() -> None:
 
 def test_translate_field_type_float() -> None:
     """Test translate_field_type with float fields."""
-    from pydantic.fields import FieldInfo
-
-    from udspy.adapter import translate_field_type
 
     field_info = FieldInfo(annotation=float)
     result = translate_field_type("score", field_info)
@@ -251,9 +246,6 @@ def test_translate_field_type_float() -> None:
 
 def test_translate_field_type_bool() -> None:
     """Test translate_field_type with bool fields."""
-    from pydantic.fields import FieldInfo
-
-    from udspy.adapter import translate_field_type
 
     field_info = FieldInfo(annotation=bool)
     result = translate_field_type("is_valid", field_info)
@@ -264,9 +256,6 @@ def test_translate_field_type_bool() -> None:
 
 def test_translate_field_type_enum() -> None:
     """Test translate_field_type with Enum fields."""
-    from pydantic.fields import FieldInfo
-
-    from udspy.adapter import translate_field_type
 
     class Priority(Enum):
         LOW = "low"
@@ -285,9 +274,6 @@ def test_translate_field_type_enum() -> None:
 
 def test_translate_field_type_literal() -> None:
     """Test translate_field_type with Literal fields."""
-    from pydantic.fields import FieldInfo
-
-    from udspy.adapter import translate_field_type
 
     field_info = FieldInfo(annotation=Literal["pending", "approved", "rejected"])
     result = translate_field_type("status", field_info)
@@ -301,9 +287,6 @@ def test_translate_field_type_literal() -> None:
 
 def test_translate_field_type_pydantic_model() -> None:
     """Test translate_field_type with Pydantic model fields."""
-    from pydantic.fields import FieldInfo
-
-    from udspy.adapter import translate_field_type
 
     class Person(BaseModel):
         name: str
@@ -447,3 +430,172 @@ def test_format_user_request() -> None:
     assert "JSON object" in user_request
     assert "`answer`" in user_request
     assert "must be a single int value" in user_request
+
+
+@pytest.mark.asyncio
+async def test_process_chunk_and_finalize() -> None:
+    """Test process_chunk and finalize methods for streaming responses."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    # Create mock module
+    class MockModule:
+        pass
+
+    module = MockModule()
+    adapter = ChatAdapter()
+
+    # Create streaming chunks
+    chunks = [
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    delta=ChoiceDelta(content='{"answer": "', role="assistant"),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(index=0, delta=ChoiceDelta(content="Paris", role=None), finish_reason=None)
+            ],
+        ),
+        ChatCompletionChunk(
+            id="test",
+            model="gpt-4o",
+            object="chat.completion.chunk",
+            created=1234567890,
+            choices=[
+                Choice(index=0, delta=ChoiceDelta(content='"}', role=None), finish_reason="stop")
+            ],
+        ),
+    ]
+
+    # Process chunks
+    events = []
+    for chunk in chunks:
+        async for event in adapter.process_chunk(chunk, module, QA):
+            events.append(event)
+
+    # Should have yielded OutputStreamChunk events
+    assert len(events) > 0
+    assert any(isinstance(e, OutputStreamChunk) for e in events)
+
+    # Finalize and get outputs
+    outputs, native_tool_calls, _completion_text = await adapter.finalize(QA)
+
+    assert outputs["answer"] == "Paris"
+    assert native_tool_calls == []
+
+
+@pytest.mark.asyncio
+async def test_reset_parser_between_requests() -> None:
+    """Test that reset_parser clears state between requests."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    class MockModule:
+        pass
+
+    module = MockModule()
+    adapter = ChatAdapter()
+
+    # First request
+    chunk1 = ChatCompletionChunk(
+        id="test1",
+        model="gpt-4o",
+        object="chat.completion.chunk",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                delta=ChoiceDelta(content='{"answer": "First"}', role="assistant"),
+                finish_reason="stop",
+            )
+        ],
+    )
+
+    async for _event in adapter.process_chunk(chunk1, module, QA):
+        pass
+
+    outputs1, _, _ = await adapter.finalize(QA)
+    assert outputs1["answer"] == "First"
+
+    # Parser should be reset after finalize
+    assert adapter._streaming_parser is None
+
+    # Second request should work independently
+    chunk2 = ChatCompletionChunk(
+        id="test2",
+        model="gpt-4o",
+        object="chat.completion.chunk",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                delta=ChoiceDelta(content='{"answer": "Second"}', role="assistant"),
+                finish_reason="stop",
+            )
+        ],
+    )
+
+    async for _event in adapter.process_chunk(chunk2, module, QA):
+        pass
+
+    outputs2, _, _ = await adapter.finalize(QA)
+    assert outputs2["answer"] == "Second"
+
+
+@pytest.mark.asyncio
+async def test_validate_outputs_raises_on_mismatch() -> None:
+    """Test that validate_outputs raises AdapterParseError when outputs don't match signature."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    adapter = ChatAdapter()
+
+    # Missing required field
+    with pytest.raises(AdapterParseError) as exc_info:
+        adapter.validate_outputs(QA, {}, [], '{"wrong": "field"}')
+
+    assert "answer" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_validate_outputs_allows_tool_calls_without_outputs() -> None:
+    """Test that validate_outputs allows tool calls without output fields."""
+
+    class QA(Signature):
+        """Answer questions."""
+
+        question: str = InputField()
+        answer: str = OutputField()
+
+    adapter = ChatAdapter()
+
+    # Tool calls present, so empty outputs is OK
+    tool_calls = [ToolCall(call_id="call_1", name="search", args={"query": "test"})]
+
+    # Should not raise
+    adapter.validate_outputs(QA, {}, tool_calls, "")
