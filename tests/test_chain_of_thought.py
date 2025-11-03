@@ -50,12 +50,7 @@ def test_chain_of_thought_forward() -> None:
 
     from conftest import make_mock_response
 
-    content = (
-        "[[ ## reasoning ## ]]\n"
-        "Let's think step by step. 2+2 is basic addition.\n"
-        "[[ ## answer ## ]]\n"
-        "4"
-    )
+    content = '{"reasoning": "Let\'s think step by step. 2+2 is basic addition.", "answer": "4"}'
     settings.lm.client.chat.completions.create = AsyncMock(return_value=make_mock_response(content))
 
     cot = ChainOfThought(QA)

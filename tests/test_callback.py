@@ -50,7 +50,7 @@ async def test_module_callbacks():
     predictor = Predict(QA)
 
     # Mock the OpenAI API response
-    mock_response = make_mock_response("[[ ## answer ## ]]\n4")
+    mock_response = make_mock_response('{"answer": "4"}')
     settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     with udspy.settings.context(callbacks=[callback]):
@@ -77,7 +77,7 @@ async def test_lm_callbacks():
     predictor = Predict(QA)
 
     # Mock the OpenAI API response
-    mock_response = make_mock_response("[[ ## answer ## ]]\nParis")
+    mock_response = make_mock_response('{"answer": "Paris"}')
     settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     with udspy.settings.context(callbacks=[callback]):
@@ -130,7 +130,7 @@ async def test_global_callbacks():
     callback = CallbackRecorder()
 
     # Mock the OpenAI API response
-    mock_response = make_mock_response("[[ ## answer ## ]]\nTest answer")
+    mock_response = make_mock_response('{"answer": "Test answer"}')
     settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     # Save the mocked client
@@ -160,7 +160,7 @@ async def test_callback_exception_handling():
     predictor = Predict(QA)
 
     # Mock the OpenAI API response
-    mock_response = make_mock_response("[[ ## answer ## ]]\n4")
+    mock_response = make_mock_response('{"answer": "4"}')
     settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     # Should still work despite callback error
@@ -176,7 +176,7 @@ def test_sync_callbacks():
     predictor = Predict(QA)
 
     # Mock the OpenAI API response
-    mock_response = make_mock_response("[[ ## answer ## ]]\nPython is a programming language")
+    mock_response = make_mock_response('{"answer": "Python is a programming language"}')
     settings.lm.client.chat.completions.create = AsyncMock(return_value=mock_response)
 
     with udspy.settings.context(callbacks=[callback]):

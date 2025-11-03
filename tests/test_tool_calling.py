@@ -99,7 +99,7 @@ async def test_tool_calling_with_content() -> None:
                 )
             ],
         ),
-        # Third chunk with answer field marker
+        # Third chunk with JSON answer start
         ChatCompletionChunk(
             id="test",
             model="gpt-4o-mini",
@@ -108,7 +108,7 @@ async def test_tool_calling_with_content() -> None:
             choices=[
                 Choice(
                     index=0,
-                    delta=ChoiceDelta(content="[[ ## answer ## ]]\n"),
+                    delta=ChoiceDelta(content='{"answer": "'),
                     finish_reason=None,
                 )
             ],
@@ -122,7 +122,7 @@ async def test_tool_calling_with_content() -> None:
             choices=[
                 Choice(
                     index=0,
-                    delta=ChoiceDelta(content="36738"),
+                    delta=ChoiceDelta(content='36738"}'),
                     finish_reason=None,
                 )
             ],

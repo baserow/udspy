@@ -145,7 +145,7 @@ async def test_predict_with_tool_automatic_execution() -> None:
     )
 
     # Mock second response - LLM provides final answer after seeing tool result
-    second_response = make_mock_response("[[ ## answer ## ]]\nThe answer is 15")
+    second_response = make_mock_response('{"answer": "The answer is 15"}')
 
     call_count = 0
 
@@ -255,7 +255,7 @@ async def test_tool_error_handling() -> None:
     )
 
     # Mock second response - LLM provides answer after seeing error
-    second_response = make_mock_response("[[ ## answer ## ]]\nThe tool encountered an error")
+    second_response = make_mock_response('{"answer": "The tool encountered an error"}')
 
     call_count = 0
     messages_log = []

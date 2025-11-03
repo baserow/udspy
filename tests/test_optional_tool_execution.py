@@ -68,7 +68,7 @@ async def test_auto_execute_tools_true() -> None:
     )
 
     # Mock second response - LLM provides final answer
-    second_response = make_mock_response("[[ ## answer ## ]]\nThe answer is 15")
+    second_response = make_mock_response('{"answer": "The answer is 15"}')
 
     call_count = 0
 
@@ -107,7 +107,7 @@ async def test_auto_execute_tools_false() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content="[[ ## answer ## ]]\nCalling calculator",  # Add content to avoid AdapterParseError
+                    content='{"answer": "Calling calculator"}',  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_123",
@@ -163,7 +163,7 @@ def test_forward_with_auto_execute_tools_false() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content="[[ ## answer ## ]]\nCalling calculator",  # Add content to avoid AdapterParseError
+                    content='{"answer": "Calling calculator"}',  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_456",
@@ -217,7 +217,7 @@ def test_call_with_auto_execute_tools_false() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content="[[ ## answer ## ]]\nCalling calculator",  # Add content to avoid AdapterParseError
+                    content='{"answer": "Calling calculator"}',  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_789",

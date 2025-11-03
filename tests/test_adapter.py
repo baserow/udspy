@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Literal
 
+import pytest
 from pydantic import BaseModel
 
 from udspy import ChatAdapter, InputField, OutputField, Signature
@@ -46,7 +47,7 @@ def test_format_inputs() -> None:
 
 
 def test_parse_outputs() -> None:
-    """Test parsing LLM outputs."""
+    """Test parsing JSON LLM outputs."""
 
     class QA(Signature):
         """Answer questions."""
@@ -55,7 +56,7 @@ def test_parse_outputs() -> None:
         answer: str = OutputField()
 
     adapter = ChatAdapter()
-    completion = "[[ ## answer ## ]]\n4"
+    completion = '{"answer": "4"}'
 
     outputs = adapter.parse_outputs(QA, completion)
 
@@ -64,7 +65,7 @@ def test_parse_outputs() -> None:
 
 
 def test_parse_outputs_with_multiple_fields() -> None:
-    """Test parsing multiple output fields."""
+    """Test parsing multiple output fields from JSON."""
 
     class Reasoning(Signature):
         """Task with reasoning."""
@@ -74,9 +75,7 @@ def test_parse_outputs_with_multiple_fields() -> None:
         answer: str = OutputField()
 
     adapter = ChatAdapter()
-    completion = (
-        "[[ ## reasoning ## ]]\nLet me think about this...\n[[ ## answer ## ]]\nThe answer is 42"
-    )
+    completion = '{"reasoning": "Let me think about this...", "answer": "The answer is 42"}'
 
     outputs = adapter.parse_outputs(Reasoning, completion)
 
@@ -154,8 +153,8 @@ def test_parse_value_with_pydantic_model() -> None:
     assert result.age == 30
 
 
-def test_parse_outputs_with_extra_text_before_marker() -> None:
-    """Test that parse_outputs ignores text before field markers."""
+def test_parse_outputs_with_extra_json_whitespace() -> None:
+    """Test that parse_outputs handles JSON with extra whitespace."""
 
     class QA(Signature):
         """Answer questions."""
@@ -164,8 +163,8 @@ def test_parse_outputs_with_extra_text_before_marker() -> None:
         answer: str = OutputField()
 
     adapter = ChatAdapter()
-    # LLM adds preamble before the marker
-    completion = "Let me answer your question.\n\n[[ ## answer ## ]]\nParis"
+    # JSON with extra whitespace
+    completion = '{\n  "answer": "Paris"\n}'
 
     outputs = adapter.parse_outputs(QA, completion)
 
@@ -173,8 +172,9 @@ def test_parse_outputs_with_extra_text_before_marker() -> None:
     assert outputs["answer"] == "Paris"
 
 
-def test_parse_outputs_with_extra_text_after_marker() -> None:
-    """Test that parse_outputs ignores text after field content."""
+def test_parse_outputs_invalid_json_raises_error() -> None:
+    """Test that parse_outputs raises AdapterParseError for invalid JSON."""
+    from udspy.exceptions import AdapterParseError
 
     class QA(Signature):
         """Answer questions."""
@@ -183,18 +183,15 @@ def test_parse_outputs_with_extra_text_after_marker() -> None:
         answer: str = OutputField()
 
     adapter = ChatAdapter()
-    # LLM adds extra text after the answer
-    completion = "[[ ## answer ## ]]\nParis\n\nI hope this helps!"
+    # Invalid JSON
+    completion = "Not JSON at all"
 
-    outputs = adapter.parse_outputs(QA, completion)
-
-    assert "answer" in outputs
-    # Should only capture "Paris", not the extra text
-    assert outputs["answer"] == "Paris\n\nI hope this helps!"
+    with pytest.raises(AdapterParseError):
+        adapter.parse_outputs(QA, completion)
 
 
-def test_parse_outputs_strips_newlines() -> None:
-    """Test that parse_outputs strips leading/trailing newlines from content."""
+def test_parse_outputs_preserves_multiline_strings() -> None:
+    """Test that parse_outputs preserves newlines in JSON string values."""
 
     class QA(Signature):
         """Answer questions."""
@@ -203,52 +200,13 @@ def test_parse_outputs_strips_newlines() -> None:
         answer: str = OutputField()
 
     adapter = ChatAdapter()
-    # Extra newlines after marker and before content
-    completion = "[[ ## answer ## ]]\n\n\nParis\n\n\n"
-
-    outputs = adapter.parse_outputs(QA, completion)
-
-    assert "answer" in outputs
-    # Should strip leading/trailing newlines
-    assert outputs["answer"] == "Paris"
-
-
-def test_parse_outputs_preserves_internal_newlines() -> None:
-    """Test that parse_outputs preserves newlines within content."""
-
-    class QA(Signature):
-        """Answer questions."""
-
-        question: str = InputField()
-        answer: str = OutputField()
-
-    adapter = ChatAdapter()
-    # Multi-line answer with internal newlines
-    completion = "[[ ## answer ## ]]\nLine 1\nLine 2\nLine 3"
+    # Multi-line answer in JSON
+    completion = '{"answer": "Line 1\\nLine 2\\nLine 3"}'
 
     outputs = adapter.parse_outputs(QA, completion)
 
     assert "answer" in outputs
     assert outputs["answer"] == "Line 1\nLine 2\nLine 3"
-
-
-def test_parse_outputs_with_varied_whitespace_in_markers() -> None:
-    """Test that parse_outputs handles varied whitespace in markers."""
-
-    class QA(Signature):
-        """Answer questions."""
-
-        question: str = InputField()
-        answer: str = OutputField()
-
-    adapter = ChatAdapter()
-    # Marker with extra spaces
-    completion = "[[  ##  answer  ##  ]]\nParis"
-
-    outputs = adapter.parse_outputs(QA, completion)
-
-    assert "answer" in outputs
-    assert outputs["answer"] == "Paris"
 
 
 def test_translate_field_type_string() -> None:
@@ -463,9 +421,9 @@ def test_format_output_instructions() -> None:
     adapter = ChatAdapter()
     output_instructions = adapter.format_output_instructions(MathQA)
 
-    # Should include instructions to respond with output fields
-    assert "Respond with the corresponding output fields" in output_instructions
-    assert "[[ ## answer ## ]]" in output_instructions
+    # Should include instructions to respond with JSON
+    assert "JSON object" in output_instructions
+    assert "`answer`" in output_instructions
     assert "must be a single int value" in output_instructions
 
 
@@ -485,7 +443,7 @@ def test_format_user_request() -> None:
     assert "[[ ## question ## ]]" in user_request
     assert "What is 2+2?" in user_request
 
-    # Should include output instructions
-    assert "Respond with the corresponding output fields" in user_request
-    assert "[[ ## answer ## ]]" in user_request
+    # Should include JSON output instructions
+    assert "JSON object" in user_request
+    assert "`answer`" in user_request
     assert "must be a single int value" in user_request

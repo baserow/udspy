@@ -3,14 +3,15 @@
 import enum
 import inspect
 import json
-import re
 from typing import Any, Literal, get_args, get_origin
 
+import jiter
 from pydantic import TypeAdapter
 from pydantic.fields import FieldInfo
 
 from udspy.formatters import format_value, parse_value
 from udspy.signature import Signature
+from udspy.streaming import OutputStreamChunk, emit_event
 from udspy.utils.schema import minimize_schema, resolve_json_schema_reference
 
 
@@ -68,12 +69,154 @@ def translate_field_type(field_name: str, field_info: FieldInfo) -> str:
     return f"{{{field_name}}}{desc}"
 
 
+class StreamingParser:
+    """Parse streaming JSON output using jiter for robust partial JSON parsing.
+
+    This parser uses jiter's partial JSON parsing to robustly handle
+    incremental JSON output from LLMs. It validates fields against the
+    signature and emits OutputStreamChunk events as content arrives.
+    """
+
+    def __init__(
+        self,
+        adapter: "ChatAdapter",
+        module: Any,
+        signature: Any,
+    ):
+        """Initialize JSON stream parser.
+
+        Args:
+            adapter: ChatAdapter instance to use for final parsing
+            module: Module instance for creating stream events
+            signature: Signature defining expected outputs
+        """
+        self.adapter = adapter
+        self.module = module
+        self.signature = signature
+        self.output_fields = signature.get_output_fields()
+        self.accumulated_json = ""
+        self.previous_values: dict[str, str] = {}
+        self.completed_fields: set[str] = set()
+
+    async def process_delta(self, delta: str) -> None:
+        """Process a delta of JSON content.
+
+        Args:
+            delta: New JSON content fragment
+        """
+        if not delta:
+            return
+
+        self.accumulated_json += delta
+
+        # Try to parse the accumulated JSON
+        try:
+            parsed = jiter.from_json(
+                self.accumulated_json.encode("utf-8"), partial_mode="trailing-strings"
+            )
+        except (TypeError, ValueError):
+            # If we can't parse yet, just accumulate more
+            return
+
+        if not isinstance(parsed, dict):
+            # Not a dictionary, ignore
+            return
+
+        # Process each field in the parsed output
+        for field_name, value in parsed.items():
+            # Validate field belongs to signature
+            if field_name not in self.output_fields:
+                continue
+
+            # Convert value to string for comparison
+            value_str = str(value) if not isinstance(value, str) else value
+
+            # Check if this field has changed
+            previous = self.previous_values.get(field_name, "")
+            if value_str != previous:
+                delta_content = value_str[len(previous) :]
+
+                emit_event(
+                    OutputStreamChunk(
+                        module=self.module,
+                        field_name=field_name,
+                        delta=delta_content,
+                        content=value_str,
+                        is_complete=False,
+                    )
+                )
+
+                self.previous_values[field_name] = value_str
+            elif value_str and field_name not in self.completed_fields:
+                # Field unchanged but not marked complete yet
+                emit_event(
+                    OutputStreamChunk(
+                        module=self.module,
+                        field_name=field_name,
+                        delta="",
+                        content=value_str,
+                        is_complete=True,
+                    )
+                )
+                self.completed_fields.add(field_name)
+
+    async def finalize(self) -> dict[str, Any]:
+        """Finalize parsing and emit completion events.
+
+        Calls the adapter's parse_outputs method to allow custom adapters
+        to validate and transform the final output.
+
+        Returns:
+            Final parsed output dictionary
+
+        Raises:
+            AdapterParseError: If adapter's parse_outputs fails validation
+        """
+        # Use the adapter's parse_outputs to validate and parse the final JSON
+        outputs = self.adapter.parse_outputs(self.signature, self.accumulated_json)
+
+        # Emit completion events for any fields that haven't been marked complete yet
+        for field_name in self.output_fields:
+            if field_name in outputs and field_name not in self.completed_fields:
+                value = outputs[field_name]
+                value_str = str(value) if not isinstance(value, str) else value
+
+                emit_event(
+                    OutputStreamChunk(
+                        module=self.module,
+                        field_name=field_name,
+                        delta="",
+                        content=value_str,
+                        is_complete=True,
+                    )
+                )
+                self.completed_fields.add(field_name)
+
+        return outputs
+
+
 class ChatAdapter:
     """Adapter for formatting signatures into OpenAI chat messages.
 
     This adapter converts Signature inputs into properly formatted
     chat messages and parses LLM responses back into structured outputs.
     """
+
+    def create_streaming_parser(
+        self,
+        module: Any,
+        signature: type[Signature],
+    ) -> StreamingParser:
+        """Create a streaming parser for this adapter.
+
+        Args:
+            module: Module instance
+            signature: The signature defining expected outputs
+
+        Returns:
+            StreamingParser instance
+        """
+        return StreamingParser(self, module, signature)
 
     def format_field_structure(self, signature: type[Signature]) -> str:
         """Format example field structure with type hints for the LLM.
@@ -139,10 +282,10 @@ class ChatAdapter:
         return "\n".join(parts).strip()
 
     def format_output_instructions(self, signature: type[Signature]) -> str:
-        """Format instructions for how to structure output fields.
+        """Format instructions for how to structure output fields in JSON.
 
-        This generates the part that tells the LLM how to respond with output fields,
-        including field order and type constraints.
+        This generates the part that tells the LLM how to respond with output fields
+        as a JSON object.
 
         Args:
             signature: The signature defining expected outputs
@@ -155,34 +298,24 @@ class ChatAdapter:
             return ""
 
         parts = []
-        parts.append(
-            f"\n\nRespond with the corresponding output fields, starting with the field "
-            f"`[[ ## {list(output_fields.keys())[0]} ## ]]`"
-        )
+        parts.append("\n\nRespond with a JSON object containing the following fields:\n")
 
-        # Add subsequent fields
-        field_names = list(output_fields.keys())
-        if len(field_names) > 1:
-            for field_name in field_names[1:]:
-                parts.append(f", then `[[ ## {field_name} ## ]]`")
-
-        parts.append(".")
-
-        # Add type constraints for each field (if any)
-        constraints = []
+        # List all required fields
         for name, field_info in output_fields.items():
             type_hint = translate_field_type(name, field_info)
-            # Extract the type constraint if it exists (after the field placeholder)
-            # Format is either "{field}" or "{field}        # note: ..."
+            # Extract constraint if exists
+            constraint = ""
             if "# note:" in type_hint:
-                # Extract everything after and including "# note:"
-                constraint = type_hint.split("# note:", 1)[1].strip()
-                constraints.append(f"`{name}` {constraint}")
+                constraint = " - " + type_hint.split("# note:", 1)[1].strip()
 
-        if constraints:
-            parts.append(" The output fields must adhere to the following constraints: ")
-            parts.append("; ".join(constraints))
-            parts.append(".")
+            type_name = (
+                getattr(field_info.annotation, "__name__", "string")
+                if field_info.annotation
+                else "string"
+            )
+            parts.append(f"- `{name}`: {type_name}{constraint}\n")
+
+        parts.append("\nReturn ONLY valid JSON with no additional text or markdown formatting.")
 
         return "".join(parts)
 
@@ -244,50 +377,79 @@ class ChatAdapter:
     ) -> dict[str, Any]:
         """Parse LLM completion into structured outputs.
 
-        Uses regex to extract field content, ignoring any text before/after markers.
-        Field content is stripped of leading/trailing whitespace (including newlines).
+        Expects JSON format matching the signature's output fields.
 
         Args:
             signature: The signature defining expected outputs
-            completion: Raw completion string from LLM
+            completion: Raw completion string from LLM (should be JSON)
 
         Returns:
             Dictionary of parsed output values
-        """
-        output_fields = signature.get_output_fields()
-        outputs: dict[str, Any] = {}
 
-        # If the completion is valid JSON, parse and return it directly
+        Raises:
+            AdapterParseError: If completion is not valid JSON
+        """
+        from udspy.exceptions import AdapterParseError
+
+        output_fields = signature.get_output_fields()
+
+        # Handle empty completion (tool calls without content)
+        if not completion or completion.strip() == "":
+            return {}
+
+        # Parse JSON completion
         try:
             outputs = json.loads(completion)
-            if isinstance(outputs, dict):
-                return outputs
-            raise ValueError("Parsed JSON is not a dictionary")
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            raise AdapterParseError(
+                adapter_name=self.__class__.__name__,
+                signature=signature,
+                lm_response=completion,
+                message=f"Failed to parse JSON output: {e}",
+            ) from e
 
-        # Pattern: [[ ## field_name ## ]] followed by content until next marker or end
-        # (?:...) = non-capturing group
-        # [\s\S]*? = match any character (including newlines) non-greedily
-        pattern = r"\[\[\s*##\s*(\w+)\s*##\s*\]\]\s*\n?([\s\S]*?)(?=\[\[\s*##\s*\w+\s*##\s*\]\]|$)"
+        if not isinstance(outputs, dict):
+            raise AdapterParseError(
+                adapter_name=self.__class__.__name__,
+                signature=signature,
+                lm_response=completion,
+                message=f"Expected JSON object, got {type(outputs).__name__}",
+            )
 
-        for match in re.finditer(pattern, completion):
-            field_name = match.group(1).strip()
-            content = match.group(
-                2
-            ).strip()  # strip() removes leading/trailing whitespace and newlines
+        # Parse each field according to its type
+        from pydantic import BaseModel
 
-            if field_name in output_fields:
-                field_info = output_fields[field_name]
+        parsed_outputs: dict[str, Any] = {}
+        for field_name, field_info in output_fields.items():
+            if field_name in outputs:
+                value = outputs[field_name]
+                field_type = field_info.annotation
 
-                # Parse according to field type
+                # Parse value according to field type
                 try:
-                    outputs[field_name] = parse_value(content, field_info.annotation)  # type: ignore[arg-type]
+                    # Check if field type is a Pydantic model
+                    if (
+                        field_type
+                        and isinstance(field_type, type)
+                        and issubclass(field_type, BaseModel)
+                    ):
+                        # Convert dict to Pydantic model
+                        if isinstance(value, dict):
+                            parsed_outputs[field_name] = field_type.model_validate(value)
+                        else:
+                            # Try parsing as string
+                            parsed_outputs[field_name] = parse_value(str(value), field_type)
+                    elif isinstance(value, str):
+                        # String value - parse according to type
+                        parsed_outputs[field_name] = parse_value(value, field_type)  # type: ignore[arg-type]
+                    else:
+                        # Value is already correct type (int, float, list, dict, etc.)
+                        parsed_outputs[field_name] = value
                 except Exception:
-                    # Fallback: keep as string
-                    outputs[field_name] = content
+                    # Fallback: keep original value
+                    parsed_outputs[field_name] = value
 
-        return outputs
+        return parsed_outputs
 
     def format_tool_schema(self, tool: Any) -> dict[str, Any]:
         """Convert a Tool object or Pydantic model to OpenAI tool schema.

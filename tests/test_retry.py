@@ -132,7 +132,7 @@ async def test_aforward_retries_on_adapter_parse_error():
     predictor = Predict(QA, adapter=adapter)
 
     # Mock the API response
-    mock_response = make_mock_response("[[ ## answer ## ]]\n4")
+    mock_response = make_mock_response('{"answer": "4"}')
     mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=mock_response)
 
@@ -154,7 +154,7 @@ async def test_aforward_stops_after_max_retries():
     predictor = Predict(QA, adapter=adapter)
 
     # Mock the API response
-    mock_response = make_mock_response("[[ ## answer ## ]]\n4")
+    mock_response = make_mock_response('{"answer": "4"}')
     mock_aclient = settings.lm.client
     mock_aclient.chat.completions.create = AsyncMock(return_value=mock_response)
 
@@ -187,7 +187,7 @@ async def test_astream_retries_on_adapter_parse_error():
                 choices=[
                     Choice(
                         index=0,
-                        delta=ChoiceDelta(content="[[ ## answer ## ]]\n4"),
+                        delta=ChoiceDelta(content='{"answer": "4"}'),
                         finish_reason=None,
                     )
                 ],
@@ -246,7 +246,7 @@ async def test_astream_stops_after_max_retries():
                 choices=[
                     Choice(
                         index=0,
-                        delta=ChoiceDelta(content="[[ ## answer ## ]]\n4"),
+                        delta=ChoiceDelta(content='{"answer": "4"}'),
                         finish_reason=None,
                     )
                 ],

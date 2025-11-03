@@ -118,7 +118,7 @@ class ChainOfThought(Module):
         """Execute chain of thought prediction.
 
         Delegates to the wrapped Predict module's aexecute method, which will
-        automatically emit streaming events if stream=True and a queue is active.
+        automatically emit streaming events if a queue is active.
 
         Args:
             stream: If True, request streaming from LLM provider

@@ -53,7 +53,7 @@ def test_predict_forward() -> None:
     from conftest import make_mock_response
 
     settings.lm.client.chat.completions.create = AsyncMock(
-        return_value=make_mock_response("[[ ## answer ## ]]\nParis")
+        return_value=make_mock_response('{"answer": "Paris"}')
     )
 
     predictor = Predict(QA)

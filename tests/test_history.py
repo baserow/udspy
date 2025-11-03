@@ -177,7 +177,7 @@ def test_set_system_message_with_predict() -> None:
     from conftest import make_mock_response
 
     settings.lm.client.chat.completions.create = AsyncMock(
-        return_value=make_mock_response("[[ ## answer ## ]]\nTest answer")
+        return_value=make_mock_response('{"answer": "Test answer"}')
     )
 
     predictor = Predict(QA)
@@ -206,8 +206,8 @@ async def test_predict_with_history() -> None:
     from conftest import make_mock_response
 
     responses = [
-        "[[ ## answer ## ]]\nPython is a programming language",
-        "[[ ## answer ## ]]\nKey features include simplicity and readability",
+        '{"answer": "Python is a programming language"}',
+        '{"answer": "Key features include simplicity and readability"}',
     ]
     call_count = 0
 
@@ -242,7 +242,7 @@ def test_predict_forward_with_history() -> None:
     from conftest import make_mock_response
 
     settings.lm.client.chat.completions.create = AsyncMock(
-        return_value=make_mock_response("[[ ## answer ## ]]\nTest response")
+        return_value=make_mock_response('{"answer": "Test response"}')
     )
 
     predictor = Predict(QA)
@@ -286,7 +286,7 @@ async def test_predict_with_history_and_tools() -> None:
                 index=0,
                 message=ChatCompletionMessage(
                     role="assistant",
-                    content="[[ ## answer ## ]]\nCalculating",  # Add content to avoid AdapterParseError
+                    content='{"answer": "Calculating"}',  # Add content to avoid AdapterParseError
                     tool_calls=[
                         ChatCompletionMessageToolCall(
                             id="call_123",
@@ -301,7 +301,7 @@ async def test_predict_with_history_and_tools() -> None:
     )
 
     # Mock second response with final answer
-    response2 = make_mock_response("[[ ## answer ## ]]\nThe result is 30")
+    response2 = make_mock_response('{"answer": "The result is 30"}')
 
     call_count = {"count": 0}
 
@@ -339,8 +339,8 @@ async def test_predict_history_preserves_context() -> None:
     from conftest import make_mock_response
 
     responses = [
-        "[[ ## answer ## ]]\nPython is a programming language",
-        "[[ ## answer ## ]]\nIt was created by Guido van Rossum",
+        '{"answer": "Python is a programming language"}',
+        '{"answer": "It was created by Guido van Rossum"}',
     ]
     call_count = 0
 
