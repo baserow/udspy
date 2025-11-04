@@ -1,5 +1,7 @@
 """udspy: A minimal DSPy-inspired library with native OpenAI tool calling."""
 
+from importlib.metadata import version
+
 from udspy.adapter import ChatAdapter
 from udspy.callback import ACTIVE_CALL_ID, BaseCallback, with_callbacks
 from udspy.confirmation import (
@@ -33,7 +35,7 @@ from udspy.signature import InputField, OutputField, Signature, make_signature
 from udspy.streaming import OutputStreamChunk, StreamEvent, emit_event
 from udspy.tool import Tool, ToolCall, ToolCalls, Tools, tool
 
-__version__ = "0.1.3"
+__version__ = version("udspy")
 
 __all__ = [
     # Settings
