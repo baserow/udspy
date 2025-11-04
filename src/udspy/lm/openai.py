@@ -46,12 +46,12 @@ class OpenAILM(LM):
         """Get the default model."""
         return self.default_model
 
-    @with_callbacks
     @retry(
         retry=retry_if_exception_type(APIError),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=0.2, max=3),
     )
+    @with_callbacks
     async def acomplete(
         self,
         messages: list[dict[str, Any]],

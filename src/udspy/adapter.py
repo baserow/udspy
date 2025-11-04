@@ -12,7 +12,7 @@ from pydantic.fields import FieldInfo
 
 from udspy.exceptions import AdapterParseError
 from udspy.formatters import format_value, parse_value
-from udspy.lm import ChatCompletionChunk
+from udspy.lm import ChatCompletion, ChatCompletionChunk
 from udspy.signature import Signature
 from udspy.streaming import OutputStreamChunk, ThoughtStreamChunk, emit_event
 from udspy.tool import Tool, ToolCall
@@ -145,41 +145,31 @@ class StreamingParser:
             self.adapter.process_tool_call_deltas(self.tool_calls, choice.delta.tool_calls)
             return
 
-        # Check for reasoning (only if we haven't completed it yet)
-        if not self.reasoning_complete:
-            reasoning_delta, is_complete = self.adapter.process_reasoning_delta(chunk)
+        # Check if the answer contains reasoning content
+        (
+            reasoning_delta,
+            remaining_delta,
+        ) = self.adapter.split_reasoning_and_content_delta(chunk)
+        # If we found reasoning content, track that we're in reasoning mode
+        if reasoning_delta and not self.reasoning_complete:
+            self.has_seen_reasoning = True
+            self.reasoning_content += reasoning_delta
+            self.reasoning_complete = bool(remaining_delta)
 
-            # If we found reasoning content, track that we're in reasoning mode
-            if reasoning_delta:
-                self.has_seen_reasoning = True
-                self.reasoning_content += reasoning_delta
-                self.reasoning_complete = is_complete
-
-                yield ThoughtStreamChunk(
-                    self.module,
-                    "thought",
-                    reasoning_delta,
-                    self.reasoning_content,
-                    is_complete=is_complete,
-                )
-                return
+            yield ThoughtStreamChunk(
+                self.module,
+                "thought",
+                reasoning_delta,
+                self.reasoning_content,
+                is_complete=self.reasoning_complete,
+            )
+            return
 
         # Process content delta for output fields
         # Only accumulate if: no reasoning seen OR reasoning is complete
-        delta = choice.delta.content or ""
-        if delta:
-            if self.has_seen_reasoning and not self.reasoning_complete:
-                self.reasoning_complete = True
-                yield ThoughtStreamChunk(
-                    self.module,
-                    "thought",
-                    "",
-                    self.reasoning_content,
-                    is_complete=self.reasoning_complete,
-                )
-
-            self.full_completion.append(delta)
-            async for event in self._process_content_delta(delta):
+        if remaining_delta:
+            self.full_completion.append(remaining_delta)
+            async for event in self._process_content_delta(remaining_delta):
                 yield event
 
     async def _process_content_delta(self, delta: str) -> Any:
@@ -397,11 +387,11 @@ class ChatAdapter:
                 parsed_result=outputs,
             )
 
-    def process_reasoning_delta(
+    def split_reasoning_and_content_delta(
         self,
-        chunk: ChatCompletionChunk,
-    ) -> tuple[str, bool]:
-        """Extract reasoning delta from a streaming chunk.
+        response_or_chunk: ChatCompletion | ChatCompletionChunk,
+    ) -> tuple[str, str]:
+        """Split reasoning and content delta from a streaming chunk.
 
         This handles provider-specific reasoning formats:
         - OpenAI: choice.delta.reasoning (structured field)
@@ -409,27 +399,34 @@ class ChatAdapter:
         - Other providers: may use different formats
 
         Args:
-            chunk: ChatCompletionChunk from streaming LLM
+            response_or_chunk: ChatCompletion or ChatCompletionChunk from streaming LLM
 
         Returns:
-            Tuple of (reasoning_delta, is_complete):
+            Tuple of (reasoning_delta, content_delta) where:
             - reasoning_delta: New reasoning content in this chunk
-            - is_complete: Whether reasoning is finished
+            - content_delta: Content excluding reasoning
         """
-        choice = chunk.choices[0]
+        if isinstance(response_or_chunk, ChatCompletion):
+            message = response_or_chunk.choices[0].message
+            message_content = message.content or ""
+            reasoning_delta = getattr(message, "reasoning", None) or ""
+        else:
+            delta = response_or_chunk.choices[0].delta
+            message_content = delta.content or ""
+            reasoning_delta = getattr(delta, "reasoning", None) or ""
 
         # For some providers (like AWS Bedrock), reasoning is returned as
         # <reasoning> tags inside choice.delta.content instead of choice.delta.reasoning
+        remaining_content = message_content
         if match := re.search(
-            r"<reasoning>(.*?)</reasoning>", choice.delta.content or "", re.DOTALL
+            r"<reasoning>(.*?)</reasoning>(.*)",
+            message_content,
+            re.DOTALL | re.IGNORECASE,
         ):
-            reasoning_delta = match.group(1)
-        else:
-            # Standard structured reasoning field (OpenAI, Groq, etc.)
-            reasoning_delta = getattr(choice.delta, "reasoning", None) or ""
+            reasoning_delta = match.group(1).strip()
+            remaining_content = match.group(2).strip()
 
-        is_complete = choice.finish_reason is not None
-        return reasoning_delta, is_complete
+        return reasoning_delta, remaining_content
 
     def process_tool_call_deltas(
         self,
