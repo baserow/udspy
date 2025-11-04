@@ -387,7 +387,7 @@ class Predict(Module):
                     ToolCall(call_id=tc.id, name=tc.function.name, args=arguments)
                 )
 
-        completion_text = message.content or ""
+        _, completion_text = self.adapter.split_reasoning_and_content_delta(response)  # type: ignore[arg-type]
         outputs = self.adapter.parse_outputs(self.signature, completion_text)
 
         self.adapter.validate_outputs(self.signature, outputs, native_tool_calls, completion_text)
