@@ -71,7 +71,7 @@ class OpenAILM(LM):
             **kwargs: Additional OpenAI parameters (temperature, max_tokens, etc.)
 
         Returns:
-            ChatCompletion or AsyncStream[ChatCompletionChunk]
+            ChatCompletion if stream=False, AsyncStream[ChatCompletionChunk] if stream=True
         """
         # Use provided model or fall back to default
         actual_model = model or self.default_model

@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator
 from typing import Any, overload
 
 from udspy.callback import with_callbacks
+
 from .types import ChatCompletion, ChatCompletionChunk
 
 
@@ -63,8 +64,8 @@ class LM(ABC):
             **kwargs: Provider-specific parameters (temperature, max_tokens, etc.)
 
         Returns:
-            If stream=False: Completion response object
-            If stream=True: AsyncGenerator yielding completion chunks
+            If stream=False: ChatCompletion response object
+            If stream=True: AsyncGenerator yielding ChatCompletionChunk objects
 
         Raises:
             LMError: On API errors, rate limits, etc.

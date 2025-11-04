@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any
 
-from openai import AsyncStream, BaseModel
+from openai import BaseModel
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -17,7 +17,6 @@ from udspy.callback import with_callbacks
 from udspy.decorators import suspendable
 from udspy.exceptions import AdapterParseError
 from udspy.history import History
-from udspy.lm import ChatCompletionChunk
 from udspy.module.base import Module
 from udspy.module.callbacks import PredictContext, is_module_callback
 from udspy.settings import settings
@@ -368,15 +367,15 @@ class Predict(Module):
         for tc in message.tool_calls or []:
             try:
                 arguments = (
-                    json.loads(tc.function.arguments)
-                    if isinstance(tc.function.arguments, str)
-                    else tc.function.arguments
+                    json.loads(tc.function.arguments)  # type: ignore[union-attr]
+                    if isinstance(tc.function.arguments, str)  # type: ignore[union-attr]
+                    else tc.function.arguments  # type: ignore[union-attr]
                 )
             except json.JSONDecodeError as exc:
                 raise AdapterParseError(
                     adapter_name=self.adapter.__class__.__name__,
                     signature=self.signature,
-                    lm_response=tc.function.arguments,
+                    lm_response=tc.function.arguments,  # type: ignore[union-attr]
                     parsed_result={
                         "error": f"Failed to parse tool call {tc.id} arguments as JSON."
                     },
@@ -384,7 +383,7 @@ class Predict(Module):
 
             else:
                 native_tool_calls.append(
-                    ToolCall(call_id=tc.id, name=tc.function.name, args=arguments)
+                    ToolCall(call_id=tc.id, name=tc.function.name, args=arguments)  # type: ignore[union-attr]
                 )
 
         _, completion_text = self.adapter.split_reasoning_and_content_delta(response)  # type: ignore[arg-type]
@@ -420,11 +419,10 @@ class Predict(Module):
             # Reset parser for this attempt (important for retries)
             self.adapter.reset_parser()
 
-            response = await settings.lm.acomplete(**completion_kwargs)
-            stream: AsyncStream[ChatCompletionChunk] = response  # type: ignore[assignment]
+            stream = await settings.lm.acomplete(**completion_kwargs)
 
             # Process each chunk through adapter, which yields events
-            async for chunk in stream:
+            async for chunk in stream:  # type: ignore[union-attr]
                 async for event in self.adapter.process_chunk(chunk, self, self.signature):
                     emit_event(event)
 
