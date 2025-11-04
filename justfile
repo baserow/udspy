@@ -74,3 +74,27 @@ build:
 # Run example
 example name:
     uv run python examples/{{name}}.py
+
+# Bump version and create release (e.g., just bump-release 0.1.4)
+bump-release version:
+    @echo "🚀 Starting release process for version {{version}}..."
+    @echo ""
+    @echo "Step 1: Running pre-release checks..."
+    just release-check
+    @echo ""
+    @echo "Step 2: Updating version in pyproject.toml..."
+    sed -i '' 's/^version = ".*"/version = "{{version}}"/' pyproject.toml
+    @echo "Step 3: Updating lockfile..."
+    uv lock
+    @echo ""
+    @echo "Step 4: Committing changes..."
+    git add pyproject.toml uv.lock
+    git commit -m "chore: bump version to {{version}}"
+    @echo ""
+    @echo "Step 5: Creating tag..."
+    git tag -a "v{{version}}" -m "Release v{{version}}"
+    @echo ""
+    @echo "Step 6: Pushing commit and tags..."
+    git push origin main && git push --tags
+    @echo ""
+    @echo "✅ Release v{{version}} completed successfully!"
