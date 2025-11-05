@@ -79,6 +79,16 @@ example name:
 bump-release version:
     @echo "🚀 Starting release process for version {{version}}..."
     @echo ""
+    @echo "Validating version format..."
+    @if ! echo "{{version}}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
+        echo "❌ Error: Invalid version format '{{version}}'"; \
+        echo "   Version must be three numbers separated by dots (e.g., 0.1.4)"; \
+        exit 1; \
+    fi
+    @echo "✓ Version format is valid"
+    @echo ""
+    @./scripts/validate-version.sh {{version}}
+    @echo ""
     @echo "Step 1: Running pre-release checks..."
     just release-check
     @echo ""
