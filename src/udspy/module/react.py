@@ -180,10 +180,12 @@ class ReAct(Module):
             ]
         )
 
-        react_input_fields: dict[str, type] = {}
+        react_input_fields: dict[str, type] = {
+            "trajectory": str,
+            "messages": list[dict[str, Any]],
+        }
         for name, field_info in self.user_signature.get_input_fields().items():
             react_input_fields[name] = field_info.annotation or str
-        react_input_fields["trajectory"] = str
 
         react_output_fields: dict[str, type] = {
             "next_thought": str,
@@ -199,8 +201,6 @@ class ReAct(Module):
 
     def _build_extract_signature(self) -> type[Signature]:
         """Build extract signature for final answer extraction from trajectory."""
-        base_instructions = getattr(self.user_signature, "__doc__", "")
-
         extract_input_fields: dict[str, type] = {}
         extract_output_fields: dict[str, type] = {}
 
@@ -215,7 +215,7 @@ class ReAct(Module):
         return make_signature(
             extract_input_fields,
             extract_output_fields,
-            base_instructions or "Extract the final answer from the trajectory",
+            "Extract the final answer from the trajectory",
         )
 
     def init_module(self, tools: list[Any] | None = None) -> None:
@@ -345,12 +345,14 @@ class ReAct(Module):
 
         trajectory = self._context.trajectory
         input_args = self._context.input_args
+        history = self._context.history
 
         # Normal flow: get next thought and tool calls from LLM
         formatted_trajectory = self._format_trajectory(trajectory)
         pred = await self.react_module.aexecute(
             stream=stream,
             **input_args,
+            messages=history.messages if history else [],
             trajectory=formatted_trajectory,
         )
 
@@ -402,12 +404,15 @@ class ReAct(Module):
         """
         max_iters = input_args.pop("max_iters", self.max_iters)
         trajectory: list[Episode] = _trajectory if _trajectory is not None else []
+        if history is None:
+            history = History()
 
         # Set up React context for this execution
         self._context = ReactContext(
             module=self,
             trajectory=trajectory,
             input_args=input_args,
+            history=history,
             stream=stream,
         )
 
@@ -441,6 +446,7 @@ class ReAct(Module):
                 for key, value in extract.items()
                 if key in self.signature.get_output_fields()
             }
+            history.add_assistant_message(json.dumps(result_dict))
 
             prediction = Prediction(
                 **result_dict,
