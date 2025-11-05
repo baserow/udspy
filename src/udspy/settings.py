@@ -1,11 +1,13 @@
 """Global settings and configuration."""
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
 from udspy.lm import BaseLM
+from udspy.lm.factory import LM
 
 
 class Settings:
@@ -88,6 +90,9 @@ class Settings:
         context_lm = self._context_lm.get()
         if context_lm is not None:
             return context_lm
+
+        if model := os.getenv("USDPY_LM_MODEL"):
+            self._lm = LM(model)
 
         if self._lm is None:
             raise RuntimeError(
