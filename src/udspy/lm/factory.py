@@ -36,7 +36,7 @@ PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
         "api_key": os.getenv("GROQ_API_KEY"),
     },
     "bedrock": {
-        "default_base_url": f"https://bedrock-runtime.{os.getenv('AWS_REGION', 'us-east-1')}.amazonaws.com/openai/v1",
+        "default_base_url": f"https://bedrock-runtime.{os.getenv('AWS_REGION_NAME', 'us-east-1')}.amazonaws.com/openai/v1",
         "api_key": os.getenv("AWS_BEARER_TOKEN_BEDROCK"),
     },
     "ollama": {

@@ -18,33 +18,51 @@ The LM abstraction consists of:
 
 ```python
 import udspy
-from udspy import LM
 
-# Configure from environment variables (UDSPY_LM_MODEL, UDSPY_LM_API_KEY)
+# Configure from environment variables
+# Set: UDSPY_LM_MODEL="gpt-4o-mini" and OPENAI_API_KEY="sk-..."
 udspy.settings.configure()
 
 # Or use explicit LM instance
+from udspy import LM
 lm = LM(model="gpt-4o-mini", api_key="sk-...")
 udspy.settings.configure(lm=lm)
 ```
 
 ### Multiple Providers
 
+The recommended way to work with multiple providers is to set provider-specific API keys and switch via `UDSPY_LM_MODEL`:
+
+```bash
+# .env file
+OPENAI_API_KEY="sk-..."
+GROQ_API_KEY="gsk-..."
+UDSPY_LM_MODEL="gpt-4o-mini"  # Change this to switch providers
+```
+
 ```python
-# OpenAI (default)
-lm = LM(model="gpt-4o", api_key="sk-...")
+import udspy
 
-# Groq (via model prefix)
-lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
+# Auto-configures based on UDSPY_LM_MODEL prefix
+udspy.settings.configure()
 
-# Ollama (local, no API key needed)
+# Or create LM instances directly:
+from udspy import LM
+
+# OpenAI (uses OPENAI_API_KEY from environment)
+lm = LM(model="gpt-4o-mini")
+
+# Groq (uses GROQ_API_KEY from environment)
+lm = LM(model="groq/llama-3-70b")
+
+# Ollama (local, minimal config needed)
 lm = LM(model="ollama/llama2")
 
-# Custom endpoint (explicit base_url)
+# Custom endpoint (only when needed)
 lm = LM(
-    model="llama-3-70b",
+    model="my-model",
     api_key="...",
-    base_url="https://api.groq.com/openai/v1"
+    base_url="https://my-endpoint.com/v1"
 )
 ```
 
@@ -80,15 +98,94 @@ The factory auto-detects the provider from:
 | AWS Bedrock | `bedrock/` | OpenAI-compatible endpoint | Yes |
 | Ollama | `ollama/` | OpenAI-compatible endpoint | No |
 
+## Provider Configuration
+
+udspy supports multiple LLM providers through a unified interface. All providers use OpenAI-compatible APIs, making it easy to switch between them.
+
+### Environment Variable Precedence
+
+When configuring providers, udspy follows this precedence order for API keys and base URLs:
+
+**API Key Precedence** (highest to lowest):
+1. Explicitly passed `api_key` parameter to `LM()`
+2. `UDSPY_LM_API_KEY` environment variable (general fallback)
+3. Provider-specific environment variable (e.g., `OPENAI_API_KEY`, `GROQ_API_KEY`)
+
+**Base URL Precedence** (highest to lowest):
+1. Explicitly passed `base_url` parameter to `LM()`
+2. `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` environment variable (general fallback)
+3. Provider's default base URL from registry
+
+This precedence system allows you to:
+- Use **provider-specific keys** for different services simultaneously
+- Override with **general keys** (`UDSPY_LM_API_KEY`) when needed
+- Set custom **base URLs** for self-hosted or custom endpoints
+
+### Best Practice: Switching Between Providers
+
+The recommended approach for working with multiple providers is to:
+
+1. **Set provider-specific API keys** in your environment:
+   ```bash
+   export OPENAI_API_KEY="sk-..."
+   export GROQ_API_KEY="gsk-..."
+   export AWS_BEARER_TOKEN_BEDROCK="..."
+   # Don't set UDSPY_LM_API_KEY - let provider-specific keys work
+   ```
+
+2. **Switch providers by changing only the model**:
+   ```bash
+   # Switch to OpenAI
+   export UDSPY_LM_MODEL="gpt-4o-mini"
+
+   # Switch to Groq
+   export UDSPY_LM_MODEL="groq/llama-3.1-70b-versatile"
+
+   # Switch to Ollama (local)
+   export UDSPY_LM_MODEL="ollama/llama2"
+   ```
+
+3. **Let the registry handle base URLs** - don't set `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` unless you need a custom endpoint.
+
+**Example Multi-Provider Setup**:
+
+```bash
+# .env file
+OPENAI_API_KEY="sk-proj-..."
+GROQ_API_KEY="gsk_..."
+AWS_BEARER_TOKEN_BEDROCK="eyJ..."
+AWS_REGION_NAME="us-east-1"
+
+# Switch providers by changing this single variable:
+UDSPY_LM_MODEL="gpt-4o-mini"          # Uses OPENAI_API_KEY
+# UDSPY_LM_MODEL="groq/llama-3-70b"   # Uses GROQ_API_KEY
+# UDSPY_LM_MODEL="bedrock/claude-3"   # Uses AWS_BEARER_TOKEN_BEDROCK
+```
+
+```python
+import udspy
+
+# Auto-configures from environment
+udspy.settings.configure()
+
+# Now just change UDSPY_LM_MODEL to switch providers!
+```
+
 ### Provider Examples
 
 ```python
 from udspy import LM
 
-# OpenAI
+# OpenAI (uses OPENAI_API_KEY from environment)
+lm = LM(model="gpt-4o-mini")
+
+# OpenAI with explicit key
 lm = LM(model="gpt-4o-mini", api_key="sk-...")
 
-# Groq with prefix
+# Groq with prefix (uses GROQ_API_KEY from environment)
+lm = LM(model="groq/llama-3-70b")
+
+# Groq with explicit key
 lm = LM(model="groq/llama-3-70b", api_key="gsk-...")
 
 # Groq without prefix (explicit base_url)
@@ -98,19 +195,45 @@ lm = LM(
     base_url="https://api.groq.com/openai/v1"
 )
 
-# Ollama (local)
-lm = LM(model="ollama/llama2")  # No API key needed
+# Ollama (local, uses UDSPY_LM_API_KEY or empty string)
+lm = LM(model="ollama/llama2")
 
 # Ollama with explicit base_url
 lm = LM(model="llama2", base_url="http://localhost:11434/v1")
 
-# AWS Bedrock
+# AWS Bedrock (uses AWS_BEARER_TOKEN_BEDROCK and AWS_REGION_NAME)
+lm = LM(model="bedrock/anthropic.claude-3")
+
+# AWS Bedrock with explicit configuration
 lm = LM(
     model="bedrock/anthropic.claude-3",
-    api_key="...",
+    api_key="eyJ...",
     base_url="https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1"
 )
 ```
+
+### When to Use Custom Base URLs
+
+Only set `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` or pass `base_url` when:
+
+1. **Self-hosted models**: Running your own OpenAI-compatible server
+   ```bash
+   export UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL="http://localhost:8000/v1"
+   export UDSPY_LM_MODEL="my-custom-model"
+   ```
+
+2. **Proxy/Gateway**: Using a proxy that forwards to multiple providers
+   ```bash
+   export UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL="https://my-proxy.com/v1"
+   ```
+
+3. **Custom Ollama port**: Running Ollama on a non-standard port
+   ```bash
+   export UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL="http://localhost:8080/v1"
+   export UDSPY_LM_MODEL="ollama/llama2"
+   ```
+
+**Don't use custom base URLs** when switching between standard providers - the registry already knows the correct endpoints!
 
 ## Provider Registry
 
@@ -120,19 +243,19 @@ The provider registry maps provider names to default configuration and implement
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
         "default_base_url": None,  # Uses OpenAI's default
-        "api_key": os.getenv("OPENAI_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
+        "api_key": os.getenv("OPENAI_API_KEY") ,
     },
     "groq": {
         "default_base_url": "https://api.groq.com/openai/v1",
-        "api_key": os.getenv("GROQ_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
+        "api_key": os.getenv("GROQ_API_KEY"),
     },
     "bedrock": {
-        "default_base_url": None,  # Region-specific, must be provided
-        "api_key": os.getenv("AWS_BEDROCK_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
+        "default_base_url": f"https://bedrock-runtime.{os.getenv('AWS_REGION_NAME', 'us-east-1')}.amazonaws.com/openai/v1",
+        "api_key": os.getenv("AWS_BEDROCK_API_KEY"),
     },
     "ollama": {
         "default_base_url": "http://localhost:11434/v1",
-        "api_key": os.getenv("UDSPY_LM_API_KEY"),
+        "api_key": os.getenv("OLLAMA_API_KEY"),
     },
 }
 # Note: All providers use OpenAILM implementation (OpenAI-compatible APIs)
@@ -422,11 +545,13 @@ The LM abstraction uses **OpenAI's message format** as the standard:
 
 ### For Users
 
-1. **Use model prefixes** for clarity: `"groq/llama-3-70b"` instead of manual base_url
-2. **Store API keys in environment variables** - never hardcode
-3. **Use context managers** for multi-tenant scenarios
-4. **Always specify a model** to avoid runtime errors
-5. **Prefer `settings.lm.client`** over deprecated `settings.aclient`
+1. **Use provider-specific API keys** for multi-provider setups - See [Best Practice: Switching Between Providers](#best-practice-switching-between-providers)
+2. **Switch providers via `UDSPY_LM_MODEL` only** - avoid changing `base_url` unless needed
+3. **Use model prefixes** for clarity: `"groq/llama-3-70b"` instead of manual base_url
+4. **Store API keys in environment variables** - never hardcode
+5. **Use context managers** for multi-tenant scenarios
+6. **Always specify a model** to avoid runtime errors
+7. **Prefer `settings.lm.client`** over deprecated `settings.aclient`
 
 ### For Provider Implementers
 
@@ -439,23 +564,79 @@ The LM abstraction uses **OpenAI's message format** as the standard:
 
 ## Environment Variables
 
-udspy recognizes these environment variables:
+udspy recognizes these environment variables. See [Environment Variable Precedence](#environment-variable-precedence) for how these variables are resolved.
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `UDSPY_LM_MODEL` | Default model | `gpt-4o-mini` |
-| `UDSPY_LM_API_KEY` | API key | `sk-...` |
-| `UDSPY_LM_BASE_URL` | Custom base URL | `https://api.groq.com/openai/v1` |
-| `OPENAI_API_KEY` | Fallback API key | `sk-...` |
+### General Variables
+
+| Variable | Description | Example | Precedence |
+|----------|-------------|---------|------------|
+| `UDSPY_LM_MODEL` | Default model identifier | `gpt-4o-mini`, `groq/llama-3-70b` | Required for auto-config |
+| `UDSPY_LM_API_KEY` | General API key fallback | `sk-...` | 2nd (after explicit `api_key` param) |
+| `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` | Custom base URL override | `https://my-proxy.com/v1` | 2nd (after explicit `base_url` param) |
+
+### Provider-Specific Variables
+
+| Variable | Provider | Description | Precedence |
+|----------|----------|-------------|------------|
+| `OPENAI_API_KEY` | OpenAI | OpenAI API key | 3rd (provider-specific) |
+| `GROQ_API_KEY` | Groq | Groq API key | 3rd (provider-specific) |
+| `AWS_BEARER_TOKEN_BEDROCK` | AWS Bedrock | AWS Bedrock bearer token | 3rd (provider-specific) |
+| `AWS_REGION_NAME` | AWS Bedrock | AWS region for Bedrock endpoint | Used for default base URL |
+| `OLLAMA_API_KEY` | Ollama | Ollama API key (rarely needed) | 3rd (provider-specific) |
+
+### Variable Resolution Order
+
+**For API Keys**:
+1. Explicit `api_key` parameter to `LM()`
+2. `UDSPY_LM_API_KEY` (general fallback)
+3. Provider-specific key (e.g., `OPENAI_API_KEY`, `GROQ_API_KEY`)
+
+**For Base URLs**:
+1. Explicit `base_url` parameter to `LM()`
+2. `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` (general override)
+3. Provider's default from registry
+
+### Examples
+
+**Single Provider Setup**:
+```bash
+# Using general variables
+export UDSPY_LM_MODEL="gpt-4o-mini"
+export UDSPY_LM_API_KEY="sk-..."
+```
 
 ```python
-# Set environment variables
-export UDSPY_LM_MODEL="groq/llama-3-70b"
-export UDSPY_LM_API_KEY="gsk-..."
-
-# Configure from environment
 import udspy
-udspy.settings.configure()  # Uses environment variables
+udspy.settings.configure()  # Uses UDSPY_LM_API_KEY
+```
+
+**Multi-Provider Setup (Recommended)**:
+```bash
+# Set provider-specific keys (no UDSPY_LM_API_KEY needed)
+export OPENAI_API_KEY="sk-..."
+export GROQ_API_KEY="gsk-..."
+
+# Switch providers by changing model only
+export UDSPY_LM_MODEL="gpt-4o-mini"          # Uses OPENAI_API_KEY
+# export UDSPY_LM_MODEL="groq/llama-3-70b"   # Uses GROQ_API_KEY
+```
+
+```python
+import udspy
+udspy.settings.configure()  # Auto-detects provider from model prefix
+```
+
+**Custom Endpoint**:
+```bash
+# Override base URL for all providers
+export UDSPY_LM_MODEL="my-model"
+export UDSPY_LM_API_KEY="custom-key"
+export UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL="http://localhost:8000/v1"
+```
+
+```python
+import udspy
+udspy.settings.configure()  # Uses custom endpoint
 ```
 
 ## Comparison with DSPy
