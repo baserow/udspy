@@ -182,7 +182,6 @@ class ReAct(Module):
 
         react_input_fields: dict[str, type] = {
             "trajectory": str,
-            "messages": list[dict[str, Any]],
         }
         for name, field_info in self.user_signature.get_input_fields().items():
             react_input_fields[name] = field_info.annotation or str
@@ -345,14 +344,12 @@ class ReAct(Module):
 
         trajectory = self._context.trajectory
         input_args = self._context.input_args
-        history = self._context.history
 
         # Normal flow: get next thought and tool calls from LLM
         formatted_trajectory = self._format_trajectory(trajectory)
         pred = await self.react_module.aexecute(
             stream=stream,
             **input_args,
-            messages=history.messages if history else [],
             trajectory=formatted_trajectory,
         )
 
@@ -409,11 +406,7 @@ class ReAct(Module):
 
         # Set up React context for this execution
         self._context = ReactContext(
-            module=self,
-            trajectory=trajectory,
-            input_args=input_args,
-            history=history,
-            stream=stream,
+            module=self, trajectory=trajectory, input_args=input_args, stream=stream
         )
 
         try:
