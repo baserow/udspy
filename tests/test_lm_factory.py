@@ -14,10 +14,9 @@ def test_provider_registry_structure():
 
     # Check that each provider has required fields
     for _provider_name, config in PROVIDER_REGISTRY.items():
+        assert len(config) == 2
         assert "default_base_url" in config
         assert "api_key" in config
-        # base_class is optional
-        assert len(config) in (2, 3)
 
 
 def test_detect_provider_from_model_prefix():
@@ -26,19 +25,6 @@ def test_detect_provider_from_model_prefix():
     assert _detect_provider("ollama/llama2") == "ollama"
     assert _detect_provider("bedrock/claude-3") == "bedrock"
     assert _detect_provider("gpt-4o") == "openai"  # Default
-
-
-def test_lm_factory_returns_correct_lm_class():
-    """Test that LM factory returns correct LM class instances."""
-    lm = LM(model="gpt-4o", api_key="sk-test")
-    assert isinstance(lm, OpenAILM)
-
-    # Groq uses OpenAI-compatible API
-    lm = LM(model="groq/llama-3-70b", api_key="gsk-test")
-    assert isinstance(lm, OpenAILM)
-
-    lm = LM(model="ollama/llama2")  # No API key needed
-    assert isinstance(lm, OpenAILM)
 
 
 def test_lm_factory_default_base_urls():
