@@ -38,7 +38,7 @@ def calculator(expression: str) -> str:
 async def main():
     # Configure udspy
     api_key = os.getenv("UDSPY_LM_API_KEY") or os.getenv("OPENAI_API_KEY")
-    base_url = os.getenv("UDSPY_LM_BASE_URL")
+    base_url = os.getenv("UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL")
     model = os.getenv("UDSPY_LM_MODEL", "gpt-4o-mini")
 
     client = AsyncOpenAI(api_key=api_key, base_url=base_url)
