@@ -28,22 +28,20 @@ class ProviderConfig(TypedDict, total=False):
 
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
-        "default_base_url": os.getenv("UDSPY_LM_BASE_URL"),
-        "api_key": os.getenv("OPENAI_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
+        "default_base_url": None,
+        "api_key": os.getenv("OPENAI_API_KEY"),
     },
     "groq": {
-        "default_base_url": os.getenv("UDSPY_LM_BASE_URL") or "https://api.groq.com/openai/v1",
-        "api_key": os.getenv("GROQ_API_KEY") or os.getenv("UDSPY_LM_API_KEY"),
+        "default_base_url": "https://api.groq.com/openai/v1",
+        "api_key": os.getenv("GROQ_API_KEY"),
     },
     "bedrock": {
-        "default_base_url": os.getenv(
-            "UDSPY_LM_BASE_URL"
-        ),  # Region-specific, must be provided by user
-        "api_key": os.getenv("AWS_BEARER_TOKEN_BEDROCK") or os.getenv("UDSPY_LM_API_KEY"),
+        "default_base_url": f"https://bedrock-runtime.{os.getenv('AWS_REGION', 'us-east-1')}.amazonaws.com/openai/v1",
+        "api_key": os.getenv("AWS_BEARER_TOKEN_BEDROCK"),
     },
     "ollama": {
-        "default_base_url": os.getenv("UDSPY_LM_BASE_URL") or "http://localhost:11434/v1",
-        "api_key": os.getenv("UDSPY_LM_API_KEY"),
+        "default_base_url": "http://localhost:11434/v1",
+        "api_key": os.getenv("UDSPY_LM_API_KEY", ""),
     },
 }
 
@@ -130,8 +128,10 @@ def LM(
 
     client_kwargs: dict[str, Any] = {
         **kwargs,
-        "base_url": base_url or config["default_base_url"] or None,
-        "api_key": api_key or config["api_key"] or "",
+        "base_url": base_url
+        or os.getenv("UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL")
+        or config["default_base_url"],
+        "api_key": api_key or os.getenv("UDSPY_LM_API_KEY") or config["api_key"],
     }
 
     ClientClass = config.get("base_class", OpenAILM)
