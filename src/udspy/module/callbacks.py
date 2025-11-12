@@ -134,7 +134,6 @@ class ReactContext(ModuleContext):
         module: "ReAct",
         trajectory: list["Episode"],
         input_args: dict[str, Any],
-        history: Optional["History"] = None,
         stream: bool = False,
     ):
         """Initialize ReAct context.
@@ -149,7 +148,6 @@ class ReactContext(ModuleContext):
         self.trajectory = trajectory
         self.input_args = input_args
         self.stream = stream
-        self.history = history
 
 
 class PredictContext(ModuleContext):
