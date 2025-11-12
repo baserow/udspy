@@ -126,16 +126,17 @@ def LM(
     provider = _detect_provider(model)
     config = PROVIDER_REGISTRY[provider]
 
+    base_url = (
+        base_url or os.getenv("UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL") or config["default_base_url"]
+    )
+    api_key = api_key or os.getenv("UDSPY_LM_API_KEY") or config["api_key"]
     client_kwargs: dict[str, Any] = {
         **kwargs,
-        "base_url": base_url
-        or os.getenv("UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL")
-        or config["default_base_url"],
-        "api_key": api_key or os.getenv("UDSPY_LM_API_KEY") or config["api_key"],
+        "base_url": base_url,
+        "api_key": api_key,
     }
 
-    ClientClass = config.get("base_class", OpenAILM)
-    return ClientClass(**client_kwargs, default_model=_clean_model_name(model))  # type: ignore[call-arg]
+    return OpenAILM(**client_kwargs, default_model=_clean_model_name(model))
 
 
 __all__ = ["LM"]
