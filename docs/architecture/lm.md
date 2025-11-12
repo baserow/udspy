@@ -108,47 +108,50 @@ When configuring providers, udspy follows this precedence order for API keys and
 
 **API Key Precedence** (highest to lowest):
 1. Explicitly passed `api_key` parameter to `LM()`
-2. `UDSPY_LM_API_KEY` environment variable (general fallback)
+2. `UDSPY_LM_API_KEY` environment variable (general override)
 3. Provider-specific environment variable (e.g., `OPENAI_API_KEY`, `GROQ_API_KEY`)
 
 **Base URL Precedence** (highest to lowest):
 1. Explicitly passed `base_url` parameter to `LM()`
-2. `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` environment variable (general fallback)
+2. `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` environment variable (general override)
 3. Provider's default base URL from registry
 
 This precedence system allows you to:
-- Use **provider-specific keys** for different services simultaneously
-- Override with **general keys** (`UDSPY_LM_API_KEY`) when needed
+- **Override all providers** with `UDSPY_LM_API_KEY` when you want to use the same key everywhere
+- **Fall back to provider-specific keys** when `UDSPY_LM_API_KEY` is not set
 - Set custom **base URLs** for self-hosted or custom endpoints
+
+**Important**: `UDSPY_LM_API_KEY` takes **precedence** over provider-specific keys. If you want to use different keys for different providers, **don't set** `UDSPY_LM_API_KEY`.
 
 ### Best Practice: Switching Between Providers
 
-The recommended approach for working with multiple providers is to:
+There are two recommended approaches depending on your use case:
 
-1. **Set provider-specific API keys** in your environment:
+#### Approach 1: Provider-Specific Keys (Recommended for Multi-Provider)
+
+Best when you need different API keys for different providers:
+
+1. **Set provider-specific API keys** (don't set `UDSPY_LM_API_KEY`):
    ```bash
    export OPENAI_API_KEY="sk-..."
    export GROQ_API_KEY="gsk-..."
    export AWS_BEARER_TOKEN_BEDROCK="..."
-   # Don't set UDSPY_LM_API_KEY - let provider-specific keys work
+   # Don't set UDSPY_LM_API_KEY - it would override all provider-specific keys!
    ```
 
 2. **Switch providers by changing only the model**:
    ```bash
-   # Switch to OpenAI
+   # Switch to OpenAI (uses OPENAI_API_KEY)
    export UDSPY_LM_MODEL="gpt-4o-mini"
 
-   # Switch to Groq
+   # Switch to Groq (uses GROQ_API_KEY)
    export UDSPY_LM_MODEL="groq/llama-3.1-70b-versatile"
 
    # Switch to Ollama (local)
    export UDSPY_LM_MODEL="ollama/llama2"
    ```
 
-3. **Let the registry handle base URLs** - don't set `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` unless you need a custom endpoint.
-
-**Example Multi-Provider Setup**:
-
+**Example**:
 ```bash
 # .env file
 OPENAI_API_KEY="sk-proj-..."
@@ -164,12 +167,25 @@ UDSPY_LM_MODEL="gpt-4o-mini"          # Uses OPENAI_API_KEY
 
 ```python
 import udspy
-
-# Auto-configures from environment
-udspy.settings.configure()
-
-# Now just change UDSPY_LM_MODEL to switch providers!
+udspy.settings.configure()  # Auto-configures based on UDSPY_LM_MODEL
 ```
+
+#### Approach 2: Single Key Override (Development/Testing)
+
+Best when using the same API key across all providers (e.g., testing with one account):
+
+```bash
+# .env file
+UDSPY_LM_API_KEY="sk-..."  # This overrides ALL provider-specific keys
+UDSPY_LM_MODEL="gpt-4o-mini"
+```
+
+```python
+import udspy
+udspy.settings.configure()
+```
+
+**Note**: Because `UDSPY_LM_API_KEY` has higher precedence than provider-specific keys, it will be used for all providers regardless of whether `OPENAI_API_KEY`, `GROQ_API_KEY`, etc. are set.
 
 ### Provider Examples
 
@@ -571,50 +587,53 @@ udspy recognizes these environment variables. See [Environment Variable Preceden
 | Variable | Description | Example | Precedence |
 |----------|-------------|---------|------------|
 | `UDSPY_LM_MODEL` | Default model identifier | `gpt-4o-mini`, `groq/llama-3-70b` | Required for auto-config |
-| `UDSPY_LM_API_KEY` | General API key fallback | `sk-...` | 2nd (after explicit `api_key` param) |
-| `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` | Custom base URL override | `https://my-proxy.com/v1` | 2nd (after explicit `base_url` param) |
+| `UDSPY_LM_API_KEY` | General API key override | `sk-...` | 2nd (overrides provider-specific keys) |
+| `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` | Custom base URL override | `https://my-proxy.com/v1` | 2nd (overrides provider defaults) |
 
 ### Provider-Specific Variables
 
 | Variable | Provider | Description | Precedence |
 |----------|----------|-------------|------------|
-| `OPENAI_API_KEY` | OpenAI | OpenAI API key | 3rd (provider-specific) |
-| `GROQ_API_KEY` | Groq | Groq API key | 3rd (provider-specific) |
-| `AWS_BEARER_TOKEN_BEDROCK` | AWS Bedrock | AWS Bedrock bearer token | 3rd (provider-specific) |
+| `OPENAI_API_KEY` | OpenAI | OpenAI API key | 3rd (fallback if no UDSPY_LM_API_KEY) |
+| `GROQ_API_KEY` | Groq | Groq API key | 3rd (fallback if no UDSPY_LM_API_KEY) |
+| `AWS_BEARER_TOKEN_BEDROCK` | AWS Bedrock | AWS Bedrock bearer token | 3rd (fallback if no UDSPY_LM_API_KEY) |
 | `AWS_REGION_NAME` | AWS Bedrock | AWS region for Bedrock endpoint | Used for default base URL |
-| `OLLAMA_API_KEY` | Ollama | Ollama API key (rarely needed) | 3rd (provider-specific) |
+| `OLLAMA_API_KEY` | Ollama | Ollama API key (rarely needed) | 3rd (fallback if no UDSPY_LM_API_KEY) |
 
 ### Variable Resolution Order
 
 **For API Keys**:
 1. Explicit `api_key` parameter to `LM()`
-2. `UDSPY_LM_API_KEY` (general fallback)
+2. `UDSPY_LM_API_KEY` (general override - **takes precedence over provider-specific keys**)
 3. Provider-specific key (e.g., `OPENAI_API_KEY`, `GROQ_API_KEY`)
 
 **For Base URLs**:
 1. Explicit `base_url` parameter to `LM()`
-2. `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` (general override)
+2. `UDSPY_LM_OPENAI_COMPATIBLE_BASE_URL` (general override - **takes precedence over provider defaults**)
 3. Provider's default from registry
+
+**Important**: To use different API keys for different providers, **do not set** `UDSPY_LM_API_KEY`. Only set provider-specific keys (`OPENAI_API_KEY`, `GROQ_API_KEY`, etc.).
 
 ### Examples
 
-**Single Provider Setup**:
+**Example 1: Single API Key for All Providers**:
 ```bash
-# Using general variables
+# UDSPY_LM_API_KEY overrides provider-specific keys
 export UDSPY_LM_MODEL="gpt-4o-mini"
-export UDSPY_LM_API_KEY="sk-..."
+export UDSPY_LM_API_KEY="sk-..."  # Used for ALL providers
 ```
 
 ```python
 import udspy
-udspy.settings.configure()  # Uses UDSPY_LM_API_KEY
+udspy.settings.configure()  # Uses UDSPY_LM_API_KEY for all models
 ```
 
-**Multi-Provider Setup (Recommended)**:
+**Example 2: Multi-Provider Setup (Recommended)**:
 ```bash
-# Set provider-specific keys (no UDSPY_LM_API_KEY needed)
+# Set provider-specific keys, DON'T set UDSPY_LM_API_KEY
 export OPENAI_API_KEY="sk-..."
 export GROQ_API_KEY="gsk-..."
+# No UDSPY_LM_API_KEY - this allows provider-specific keys to work
 
 # Switch providers by changing model only
 export UDSPY_LM_MODEL="gpt-4o-mini"          # Uses OPENAI_API_KEY
@@ -623,10 +642,10 @@ export UDSPY_LM_MODEL="gpt-4o-mini"          # Uses OPENAI_API_KEY
 
 ```python
 import udspy
-udspy.settings.configure()  # Auto-detects provider from model prefix
+udspy.settings.configure()  # Auto-selects key based on provider
 ```
 
-**Custom Endpoint**:
+**Example 3: Custom Endpoint**:
 ```bash
 # Override base URL for all providers
 export UDSPY_LM_MODEL="my-model"
