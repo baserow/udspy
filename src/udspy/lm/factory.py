@@ -41,7 +41,7 @@ PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     },
     "ollama": {
         "default_base_url": "http://localhost:11434/v1",
-        "api_key": os.getenv("UDSPY_LM_API_KEY", ""),
+        "api_key": os.getenv("OLLAMA_API_KEY", ""),
     },
 }
 

@@ -243,7 +243,7 @@ The provider registry maps provider names to default configuration and implement
 PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     "openai": {
         "default_base_url": None,  # Uses OpenAI's default
-        "api_key": os.getenv("OPENAI_API_KEY") ,
+        "api_key": os.getenv("OPENAI_API_KEY"),
     },
     "groq": {
         "default_base_url": "https://api.groq.com/openai/v1",
@@ -251,7 +251,7 @@ PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
     },
     "bedrock": {
         "default_base_url": f"https://bedrock-runtime.{os.getenv('AWS_REGION_NAME', 'us-east-1')}.amazonaws.com/openai/v1",
-        "api_key": os.getenv("AWS_BEDROCK_API_KEY"),
+        "api_key": os.getenv("AWS_BEARER_TOKEN_BEDROCK"),
     },
     "ollama": {
         "default_base_url": "http://localhost:11434/v1",
