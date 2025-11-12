@@ -98,53 +98,57 @@ refactor: split large astream method into smaller functions
 
 ## Release Process
 
-Releases are automated through GitHub Actions. Here's how to create a new release:
+Releases are created through a branch-based workflow with automated GitHub Actions. Here's the complete process:
 
-### 1. Pre-release Checks
+### 1. Create Release Branch
 
-Before creating a release, run all CI checks locally to ensure everything will pass:
-
-```bash
-just release-check
-```
-
-This command runs:
-- Linter (ruff) and type checker (mypy)
-- Full test suite with coverage
-- Documentation build
-- Package build
-
-If this passes locally, CI will pass too!
-
-### 2. Update Version
-
-Update the version in `pyproject.toml`:
-
-```toml
-[project]
-version = "0.2.0"  # Update this
-```
-
-And in `src/udspy/__init__.py`:
-
-```python
-__version__ = "0.2.0"  # Update this
-```
-
-### 3. Commit and Tag
+Use the `bump-release` just command to automate the version bump and branch creation:
 
 ```bash
-# Commit version bump
-git add pyproject.toml src/udspy/__init__.py
-git commit -m "chore: bump version to 0.2.0"
-
-# Create and push tag
-git tag v0.2.0
-git push origin main
-git push origin v0.2.0
+just bump-release 0.2.0
 ```
 
-### 4. Automated Release
+This command will:
+1. Run all pre-release checks (lint, tests, docs, build)
+2. Create a new branch `release/v0.2.0`
+3. Update version in `pyproject.toml`
+4. Update lockfile (`uv.lock`)
+5. Commit the changes
+6. Push the release branch to GitHub
+
+The command will output next steps when complete.
+
+### 2. Create Pull Request
+
+After the release branch is pushed:
+
+1. Go to GitHub and create a PR from `release/v0.2.0` to `main`
+2. Add title: "chore: release v0.2.0"
+3. Add description summarizing the changes in this release
+4. Request review if needed
+
+### 3. Merge the PR
+
+Once the PR is approved and CI passes:
+1. Merge the PR to `main`
+2. The version bump is now in the main branch
+
+### 4. Create Release Tag
+
+After the PR is merged, create and push the release tag:
+
+```bash
+just create-release-tag 0.2.0
+```
+
+This command will:
+1. Check out the `main` branch
+2. Pull the latest changes
+3. Verify the version is in `pyproject.toml`
+4. Create annotated tag `v0.2.0`
+5. Push the tag to GitHub
+
+### 5. Automated Release
 
 Once the tag is pushed, GitHub Actions will automatically:
 1. Run all tests
@@ -154,11 +158,23 @@ Once the tag is pushed, GitHub Actions will automatically:
 5. Create GitHub release with changelog
 6. Comment on related issues
 
-### 5. Verify Release
+### 6. Verify Release
 
 - Check [PyPI](https://pypi.org/project/udspy/) for the new version
 - Check [GitHub Releases](https://github.com/silvestrid/udspy/releases) for the release notes
 - Verify documentation is updated at the docs site
+
+### Quick Reference
+
+```bash
+# Full release workflow
+just bump-release 0.2.0          # Create release branch and PR
+# ... merge PR on GitHub ...
+just create-release-tag 0.2.0    # Create and push tag after merge
+
+# Pre-release checks only (optional)
+just release-check               # Run all CI checks locally
+```
 
 ## PyPI Publishing Setup
 
