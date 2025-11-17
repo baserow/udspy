@@ -1,8 +1,9 @@
 """OpenAI language model implementation."""
 
+from collections.abc import AsyncGenerator
 from typing import Any
 
-from openai import APIError, AsyncOpenAI, AsyncStream
+from openai import APIError, AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from tenacity import (
     retry,
@@ -46,12 +47,17 @@ class OpenAILM(LM):
         """Get the default model."""
         return self.default_model
 
+    @with_callbacks
+    async def _acomplete(
+        self, **kwargs: Any
+    ) -> ChatCompletion | AsyncGenerator[ChatCompletionChunk, None]:
+        return await self.client.chat.completions.create(**kwargs)
+
     @retry(
         retry=retry_if_exception_type(APIError),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=0.2, max=3),
     )
-    @with_callbacks
     async def acomplete(
         self,
         messages: list[dict[str, Any]],
@@ -60,7 +66,7 @@ class OpenAILM(LM):
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
-    ) -> ChatCompletion | AsyncStream[ChatCompletionChunk]:
+    ) -> ChatCompletion | AsyncGenerator[ChatCompletionChunk, None]:
         """Generate completion using OpenAI API.
 
         Args:
@@ -71,7 +77,7 @@ class OpenAILM(LM):
             **kwargs: Additional OpenAI parameters (temperature, max_tokens, etc.)
 
         Returns:
-            ChatCompletion if stream=False, AsyncStream[ChatCompletionChunk] if stream=True
+            ChatCompletion if stream=False, AsyncGenerator[ChatCompletionChunk, None] if stream=True
         """
         # Use provided model or fall back to default
         actual_model = model or self.default_model
@@ -91,10 +97,7 @@ class OpenAILM(LM):
         if tools:
             completion_kwargs["tools"] = tools
 
-        # Call OpenAI API
-        response = await self.client.chat.completions.create(**completion_kwargs)
-
-        return response
+        return await self._acomplete(**completion_kwargs)
 
 
 __all__ = ["OpenAILM"]
