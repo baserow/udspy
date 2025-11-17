@@ -102,6 +102,7 @@ class ReAct(Module):
         tools: list[Callable | Tool],
         *,
         max_iters: int = 10,
+        **kwargs: Any,
     ):
         """Initialize ReAct module.
 
@@ -116,6 +117,7 @@ class ReAct(Module):
         self.signature = signature
         self.user_signature = signature
         self.max_iters = max_iters
+        self._kwargs = kwargs
         self._context: ReactContext | None = None  # Current execution context
 
         self.init_module(tools=tools)
@@ -149,8 +151,8 @@ class ReAct(Module):
         """
         self.react_signature = self._build_react_signature()
         self.extract_signature = self._build_extract_signature()
-        self.react_module = Predict(self.react_signature)
-        self.extract_module = ChainOfThought(self.extract_signature)
+        self.react_module = Predict(self.react_signature, **self._kwargs)
+        self.extract_module = ChainOfThought(self.extract_signature, **self._kwargs)
 
     def _build_react_signature(self) -> type[Signature]:
         """Build ReAct signature with tool descriptions in instructions."""
