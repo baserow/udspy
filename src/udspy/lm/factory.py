@@ -136,7 +136,7 @@ def LM(
         "api_key": api_key,
     }
 
-    return OpenAILM(**client_kwargs, default_model=_clean_model_name(model))
+    return OpenAILM(**client_kwargs, default_model=_clean_model_name(model), provider=provider)
 
 
 __all__ = ["LM"]

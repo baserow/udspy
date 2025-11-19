@@ -161,10 +161,7 @@ def with_callbacks(fn: Callable) -> Callable:
     ) -> None:
         """Execute all start callbacks."""
         # Get function arguments
-        inputs = inspect.getcallargs(fn, instance, *args, **kwargs)
-        # Remove self/instance from inputs
-        inputs.pop("self", None)
-        inputs.pop("instance", None)
+        inputs = {"kwargs": kwargs, "args": args}
 
         for callback in callbacks:
             try:

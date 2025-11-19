@@ -28,6 +28,7 @@ class OpenAILM(LM):
         base_url: str | None = None,
         default_model: str | None = None,
         client: AsyncOpenAI | None = None,
+        provider: str = "openai",
     ):
         """Initialize OpenAI LM.
 
@@ -36,11 +37,13 @@ class OpenAILM(LM):
             base_url: Optional base URL for API
             default_model: Default model to use if not specified in acomplete()
             client: Optional AsyncOpenAI client (for testing)
+            provider: Provider name (e.g., "openai", "bedrock", "ollama")
         """
         self.client = (
             client if client is not None else AsyncOpenAI(api_key=api_key, base_url=base_url)
         )
         self.default_model = default_model
+        self.provider = provider
 
     @property
     def model(self) -> str | None:
