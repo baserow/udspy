@@ -138,6 +138,9 @@ class StreamingParser:
             StreamEvent objects (ThoughtStreamChunk, OutputStreamChunk, etc.)
         """
 
+        if not chunk.choices:
+            return
+
         choice = chunk.choices[0]
 
         # Process tool calls first (mutually exclusive with content/reasoning)
@@ -379,7 +382,8 @@ class ChatAdapter:
         """
 
         # If no tool calls, outputs must match signature exactly
-        if not native_tool_calls and outputs.keys() != signature.get_output_fields().keys():
+        output_match_keys = outputs.keys() == signature.get_output_fields().keys()
+        if not native_tool_calls and not output_match_keys:
             raise AdapterParseError(
                 adapter_name=self.__class__.__name__,
                 signature=signature,
