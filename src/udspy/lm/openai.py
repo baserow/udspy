@@ -1,19 +1,14 @@
 """OpenAI language model implementation."""
 
 from collections.abc import AsyncGenerator
-from typing import Any
-
-from openai import APIError, AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from udspy.callback import with_callbacks
 from udspy.lm.base import LM
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
+    from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 
 class OpenAILM(LM):
@@ -27,7 +22,7 @@ class OpenAILM(LM):
         api_key: str = "",
         base_url: str | None = None,
         default_model: str | None = None,
-        client: AsyncOpenAI | None = None,
+        client: Optional["AsyncOpenAI"] = None,
         provider: str = "openai",
     ):
         """Initialize OpenAI LM.
@@ -39,6 +34,9 @@ class OpenAILM(LM):
             client: Optional AsyncOpenAI client (for testing)
             provider: Provider name (e.g., "openai", "bedrock", "ollama")
         """
+
+        from openai import AsyncOpenAI
+
         self.client = (
             client if client is not None else AsyncOpenAI(api_key=api_key, base_url=base_url)
         )
@@ -53,14 +51,9 @@ class OpenAILM(LM):
     @with_callbacks
     async def _acomplete(
         self, **kwargs: Any
-    ) -> ChatCompletion | AsyncGenerator[ChatCompletionChunk, None]:
+    ) -> Union["ChatCompletion", AsyncGenerator["ChatCompletionChunk", None]]:
         return await self.client.chat.completions.create(**kwargs)
 
-    @retry(
-        retry=retry_if_exception_type(APIError),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=0.2, max=3),
-    )
     async def acomplete(
         self,
         messages: list[dict[str, Any]],
@@ -69,7 +62,7 @@ class OpenAILM(LM):
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
-    ) -> ChatCompletion | AsyncGenerator[ChatCompletionChunk, None]:
+    ) -> Union["ChatCompletion", AsyncGenerator["ChatCompletionChunk", None]]:
         """Generate completion using OpenAI API.
 
         Args:
@@ -82,6 +75,14 @@ class OpenAILM(LM):
         Returns:
             ChatCompletion if stream=False, AsyncGenerator[ChatCompletionChunk, None] if stream=True
         """
+        from openai import APIError
+        from tenacity import (
+            AsyncRetrying,
+            retry_if_exception_type,
+            stop_after_attempt,
+            wait_exponential,
+        )
+
         # Use provided model or fall back to default
         actual_model = model or self.default_model
         if not actual_model:
@@ -100,7 +101,15 @@ class OpenAILM(LM):
         if tools:
             completion_kwargs["tools"] = tools
 
-        return await self._acomplete(**completion_kwargs)
+        async for attempt in AsyncRetrying(
+            retry=retry_if_exception_type(APIError),
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=0.2, max=3),
+        ):
+            with attempt:
+                return await self._acomplete(**completion_kwargs)
+
+        raise AssertionError("unreachable")  # AsyncRetrying always executes at least once
 
 
 __all__ = ["OpenAILM"]

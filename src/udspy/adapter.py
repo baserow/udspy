@@ -3,7 +3,7 @@
 import enum
 import inspect
 import json
-from typing import Any, Literal, get_args, get_origin
+from typing import TYPE_CHECKING, Any, Literal, Union, get_args, get_origin
 
 import jiter
 import regex as re
@@ -12,11 +12,13 @@ from pydantic.fields import FieldInfo
 
 from udspy.exceptions import AdapterParseError
 from udspy.formatters import format_value, parse_value
-from udspy.lm import ChatCompletion, ChatCompletionChunk
 from udspy.signature import Signature
 from udspy.streaming import OutputStreamChunk, ThoughtStreamChunk, emit_event
 from udspy.tool import Tool, ToolCall
 from udspy.utils.schema import minimize_schema, resolve_json_schema_reference
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 
 def translate_field_type(field_name: str, field_info: FieldInfo) -> str:
@@ -128,7 +130,7 @@ class StreamingParser:
         self.previous_values.clear()
         self.completed_fields.clear()
 
-    async def process_chunk(self, chunk: ChatCompletionChunk) -> Any:
+    async def process_chunk(self, chunk: "ChatCompletionChunk") -> Any:
         """Process a streaming chunk and yield StreamEvent objects.
 
         Args:
@@ -306,7 +308,7 @@ class ChatAdapter:
 
     async def process_chunk(
         self,
-        chunk: ChatCompletionChunk,
+        chunk: "ChatCompletionChunk",
         module: Any,
         signature: type[Signature],
     ) -> Any:
@@ -393,7 +395,7 @@ class ChatAdapter:
 
     def split_reasoning_and_content_delta(
         self,
-        response_or_chunk: ChatCompletion | ChatCompletionChunk,
+        response_or_chunk: Union["ChatCompletion", "ChatCompletionChunk"],
     ) -> tuple[str, str]:
         """Split reasoning and content delta from a streaming chunk.
 
@@ -410,6 +412,8 @@ class ChatAdapter:
             - reasoning_delta: New reasoning content in this chunk
             - content_delta: Content excluding reasoning
         """
+        from openai.types.chat import ChatCompletion
+
         if isinstance(response_or_chunk, ChatCompletion):
             message = response_or_chunk.choices[0].message
             message_content = message.content or ""

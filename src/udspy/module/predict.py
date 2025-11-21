@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any
 
-from openai import BaseModel
+from pydantic import BaseModel
 from tenacity import (
     retry,
     retry_if_exception_type,
