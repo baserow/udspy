@@ -64,10 +64,10 @@ async def test_module_callbacks():
     assert len(module_starts) == 1
     assert len(module_ends) == 1
     assert module_starts[0][2] == "Predict"  # instance type
-    # The inputs dict contains both module params and user inputs
+    # The inputs dict contains args and kwargs
     inputs_dict = module_starts[0][3]
-    assert "inputs" in inputs_dict
-    assert inputs_dict["inputs"]["question"] == "What is 2+2?"
+    assert "kwargs" in inputs_dict
+    assert inputs_dict["kwargs"]["question"] == "What is 2+2?"
 
 
 @pytest.mark.asyncio

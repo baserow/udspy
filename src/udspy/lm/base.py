@@ -3,11 +3,12 @@
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
-from typing import Any, overload
+from typing import TYPE_CHECKING, Any, Union, overload
 
 from udspy.callback import with_callbacks
 
-from .types import ChatCompletion, ChatCompletionChunk
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 
 class LM(ABC):
@@ -52,7 +53,7 @@ class LM(ABC):
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
         **kwargs: Any,
-    ) -> ChatCompletion | AsyncGenerator[ChatCompletionChunk, None]:
+    ) -> Union["ChatCompletion", AsyncGenerator["ChatCompletionChunk", None]]:
         """Generate a completion from the language model.
 
         Args:
