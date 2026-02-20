@@ -5,6 +5,7 @@ module executions, and tool invocations. Compatible with Opik, MLflow, and other
 observability tools that support DSPy callbacks.
 """
 
+import asyncio
 import functools
 import inspect
 import logging
@@ -214,7 +215,7 @@ def with_callbacks(fn: Callable) -> Callable:
             try:
                 results = await fn(instance, *args, **kwargs)
                 return results
-            except Exception as e:
+            except (Exception, asyncio.CancelledError) as e:
                 exception = e
                 raise
             finally:

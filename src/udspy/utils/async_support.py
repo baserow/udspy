@@ -76,6 +76,16 @@ async def execute_function_async(
         return await loop.run_in_executor(None, partial(ctx.run, lambda: func(**kwargs)))
 
 
+def _cancel_all_tasks(loop: asyncio.AbstractEventLoop) -> None:
+    """Cancel all pending tasks on the loop (mirrors asyncio.run internals)."""
+    to_cancel = asyncio.all_tasks(loop)
+    if not to_cancel:
+        return
+    for task in to_cancel:
+        task.cancel()
+    loop.run_until_complete(asyncio.gather(*to_cancel, return_exceptions=True))
+
+
 def run_async_with_context(coro: Any) -> Any:
     """Run an async coroutine with the current context preserved.
 
@@ -109,7 +119,25 @@ def run_async_with_context(coro: Any) -> Any:
         Both use the same pattern: copy_context() + ctx.run()
     """
     ctx = contextvars.copy_context()
-    return ctx.run(asyncio.run, coro)
+
+    # Suppress "Event loop is closed" errors from httpx/AsyncOpenAI client cleanup.
+    # These are harmless GC-triggered warnings when the async client outlives the loop.
+    def _ignore_loop_closed(loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
+        if "Event loop is closed" in str(context.get("exception", "")):
+            return
+        loop.default_exception_handler(context)
+
+    loop = asyncio.new_event_loop()
+    loop.set_exception_handler(_ignore_loop_closed)
+    try:
+        return ctx.run(loop.run_until_complete, coro)
+    finally:
+        try:
+            _cancel_all_tasks(loop)
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.run_until_complete(loop.shutdown_default_executor())
+        finally:
+            loop.close()
 
 
 __all__ = [
