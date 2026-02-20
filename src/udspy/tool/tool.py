@@ -68,7 +68,7 @@ class Tool(BaseModel):
         """
         super().__init__(
             func=func,
-            name=name or func.__name__,
+            name=name or getattr(func, "__name__", ""),
             description=description or inspect.getdoc(func) or "",
             require_confirmation=require_confirmation,
         )
@@ -280,7 +280,7 @@ class Tool(BaseModel):
                 return resolve_json_schema_reference(schema)["properties"]
             else:
                 return schema
-        elif (valid_type := type_map.get(return_type)) is not None:  # type: ignore[arg-type]
+        elif (valid_type := type_map.get(return_type)) is not None:
             return valid_type
         else:
             raise ValueError(
