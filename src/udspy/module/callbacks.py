@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from udspy import History
     from udspy.module.base import Module
     from udspy.module.predict import Predict
-    from udspy.module.react import Episode, ReAct
+    from udspy.module.react import Episode, PlanItem, ReAct
 
 
 class ModuleCallback:
@@ -126,6 +126,7 @@ class ReactContext(ModuleContext):
         module: The ReAct module instance
         trajectory: List of completed episodes
         input_args: Original input arguments to the module
+        plan: System-maintained plan (list of PlanItem dicts)
         stream: Whether streaming is enabled
     """
 
@@ -134,6 +135,7 @@ class ReactContext(ModuleContext):
         module: "ReAct",
         trajectory: list["Episode"],
         input_args: dict[str, Any],
+        plan: list["PlanItem"] | None = None,
         stream: bool = False,
     ):
         """Initialize ReAct context.
@@ -142,11 +144,13 @@ class ReactContext(ModuleContext):
             module: The ReAct module instance
             trajectory: Current trajectory (list of episodes)
             input_args: Original input arguments
+            plan: System-maintained plan
             stream: Whether streaming is enabled
         """
         super().__init__(module)
         self.trajectory = trajectory
         self.input_args = input_args
+        self.plan: list[PlanItem] = plan if plan is not None else []
         self.stream = stream
 
 

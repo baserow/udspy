@@ -167,6 +167,12 @@ class Module:
                     break
 
         finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
             try:
                 _stream_queue.reset(token)
             except (ValueError, LookupError):
