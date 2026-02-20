@@ -380,16 +380,16 @@ async def test_invalid_json_in_tool_arguments() -> None:
 
     # Mock response with malformed JSON in tool arguments - note the invalid JSON in args
     response = make_mock_response(
-        '{"next_thought": "I\'ll use the test tool", '
+        '{"next_thought": "I\'ll use the test tool", "plan_updates": [], '
         '"next_tool_name": "TestTool", "next_tool_args": {"x": invalid_json}}'  # Malformed JSON in content
     )
 
     response2 = make_mock_response(
-        '{"next_thought": "Let me try again", "next_tool_name": "finish", "next_tool_args": {}}'
+        '{"next_thought": "Let me try again", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
     response3 = make_mock_response(
-        '{"next_thought": "Finished", "next_tool_name": "finish", "next_tool_args": {}}'
+        '{"next_thought": "Finished", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
     response4 = make_mock_response('{"reasoning": "Completed", "result": "Completed"}')

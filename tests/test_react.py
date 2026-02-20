@@ -41,12 +41,12 @@ async def test_react_basic_execution() -> None:
     # Mock LLM responses for ReAct loop (using next_thought/next_tool_name/next_tool_args format)
     # First call: agent decides to call search tool
     react_response = make_mock_response(
-        '{"next_thought": "I should search for information about Python", "next_tool_name": "search", "next_tool_args": {"query": "Python programming language"}}'
+        '{"next_thought": "I should search for information about Python", "plan_updates": [{"add": "search for Python info"}, {"add": "compile answer"}], "next_tool_name": "search", "next_tool_args": {"query": "Python programming language"}}'
     )
 
     # Second call: agent decides to finish
     react_finish_response = make_mock_response(
-        '{"next_thought": "I have the information I need", "next_tool_name": "finish", "next_tool_args": {}}'
+        '{"next_thought": "I have the information I need", "plan_updates": [{"done": 0}, {"done": 1}], "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
     # Extract call: final answer extraction
@@ -86,7 +86,7 @@ async def test_react_basic_execution() -> None:
 async def test_react_string_signature() -> None:
     """Test ReAct with string signature format."""
     react_response = make_mock_response(
-        '{"next_thought": "Finish", "next_tool_name": "finish", "next_tool_args": {}}'
+        '{"next_thought": "Finish", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
     extract_response = make_mock_response('{"reasoning": "Completed", "result": "Done"}')
@@ -116,7 +116,7 @@ async def test_react_string_signature() -> None:
 async def test_react_tool_confirmation() -> None:
     """Test ReAct with tool requiring confirmation."""
     react_response = make_mock_response(
-        '{"next_thought": "Delete the file", "next_tool_name": "delete_file", "next_tool_args": {"path": "/tmp/test.txt"}}'
+        '{"next_thought": "Delete the file", "plan_updates": [{"add": "delete the file"}], "next_tool_name": "delete_file", "next_tool_args": {"path": "/tmp/test.txt"}}'
     )
 
     async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
@@ -144,7 +144,7 @@ async def test_react_tool_confirmation() -> None:
 def test_react_forward_sync() -> None:
     """Test sync forward() method."""
     react_response = make_mock_response(
-        '{"next_thought": "Finish", "next_tool_name": "finish", "next_tool_args": {}}'
+        '{"next_thought": "Finish", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
     extract_response = make_mock_response('{"reasoning": "Completed", "answer": "Test answer"}')
@@ -189,7 +189,7 @@ async def test_react_with_string_signature() -> None:
     """Test ReAct with string signature format."""
 
     finish_response = make_mock_response(
-        '{"next_thought": "Reasoning", "next_tool_name": "finish", "next_tool_args": {}}'
+        '{"next_thought": "Reasoning", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}'
     )
 
     extract_response = make_mock_response('{"reasoning": "Completed", "result": "Task completed"}')
@@ -213,3 +213,43 @@ async def test_react_with_string_signature() -> None:
     # Trajectory is now a list of episodes
     assert isinstance(result.trajectory, list)
     assert "result" in result
+
+
+@pytest.mark.asyncio
+async def test_react_plan_all_done_forces_stop() -> None:
+    """Test that system forces stop when all plan items are marked done."""
+    # First call: agent adds a plan item and marks it done, but calls search instead of finish
+    react_response = make_mock_response(
+        '{"next_thought": "Searching", "plan_updates": [{"add": "search"}, {"done": 0}], "next_tool_name": "search", "next_tool_args": {"query": "test"}}'
+    )
+
+    # This should NOT be reached — system should force stop after first call
+    react_second_response = make_mock_response(
+        '{"next_thought": "Again", "plan_updates": [{"add": "another search"}], "next_tool_name": "search", "next_tool_args": {"query": "test2"}}'
+    )
+
+    extract_response = make_mock_response('{"reasoning": "Done", "answer": "Result"}')
+
+    call_count = 0
+
+    async def mock_create(**kwargs):  # type: ignore[no-untyped-def]
+        nonlocal call_count
+        call_count += 1
+
+        if call_count == 1:
+            return react_response
+        elif call_count == 2:
+            return extract_response
+        else:
+            return react_second_response
+
+    mock_aclient = settings.lm.client
+    mock_aclient.chat.completions.create = mock_create
+
+    react = ReAct(QA, tools=[search_tool])
+    result = await react.aforward(question="Test question")
+
+    # Should have stopped after 1 react call + 1 extract call = 2 total
+    assert call_count == 2
+    assert len(result.trajectory) == 1
+    assert result.plan[0]["status"] == "done"
