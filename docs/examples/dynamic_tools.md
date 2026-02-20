@@ -42,7 +42,7 @@ def load_calculator() -> callable:
         # Get current tools (excluding built-ins)
         current_tools = [
             t for t in context.module.tools.values()
-            if t.name not in ("finish", "user_clarification")
+            if t.name not in ("finish", "ask_to_user")
         ]
 
         # Add calculator to available tools
@@ -98,7 +98,7 @@ def my_callback(context: ReactContext):
 
     # Access trajectory history
     trajectory = context.trajectory
-    thoughts = [v for k, v in trajectory.items() if k.startswith("thought_")]
+    thoughts = [episode["thought"] for episode in trajectory]
 
     # Modify tools
     context.module.init_module(tools=current_tools + [new_tool])
@@ -142,7 +142,7 @@ def load_tools(category: str = Field(...)) -> callable:
     def add_tools(context):
         current = [
             t for t in context.module.tools.values()
-            if t.name not in ("finish", "user_clarification", "load_tools")
+            if t.name not in ("finish", "ask_to_user", "load_tools")
         ]
 
         new_tools = []
@@ -249,7 +249,7 @@ def callback(context):
 
 ### Built-in Tools
 
-ReAct's built-in tools (`finish`, user clarification) are automatically preserved when you call `init_module()`. You don't need to include them manually.
+ReAct's built-in tools (`finish`, `ask_to_user`) are automatically preserved when you call `init_module()`. You don't need to include them manually.
 
 ### Error Handling
 

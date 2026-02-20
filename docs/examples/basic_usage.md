@@ -107,11 +107,10 @@ predictor = Predict(
 ## Global Defaults
 
 ```python
-udspy.settings.configure(
-    api_key="sk-...",
-    model="gpt-4o-mini",
-    temperature=0.7,
-)
+from udspy import LM
+
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
+udspy.settings.configure(lm=lm, temperature=0.7)
 
 # All predictors use these defaults unless overridden
 predictor = Predict(QA)
@@ -157,11 +156,11 @@ def test_qa():
         ],
     )
 
-    # Configure mock client
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = mock_response
+    # Configure mock LM
+    mock_lm = MagicMock()
+    mock_lm.acomplete.return_value = mock_response
 
-    udspy.settings.configure(client=mock_client)
+    udspy.settings.configure(lm=mock_lm)
 
     # Test
     predictor = Predict(QA)

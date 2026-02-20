@@ -8,6 +8,7 @@ Build complex modules from simpler ones:
 
 ```python
 from udspy import Module, Predict, Prediction
+from udspy.signature import make_signature
 
 class ChainOfThought(Module):
     """Answer questions with explicit reasoning."""
@@ -128,12 +129,12 @@ def mock_openai_response(content: str) -> ChatCompletion:
     )
 
 def test_with_mock():
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = mock_openai_response(
+    mock_lm = MagicMock()
+    mock_lm.acomplete.return_value = mock_openai_response(
         "[[ ## answer ## ]]\nTest answer"
     )
 
-    udspy.settings.configure(client=mock_client)
+    udspy.settings.configure(lm=mock_lm)
 
     predictor = Predict(QA)
     result = predictor(question="Test?")
