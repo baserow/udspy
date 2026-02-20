@@ -21,7 +21,7 @@ Created a minimal DSPy-inspired library focused on:
    - This reduces complexity and leverages OpenAI's optimized tool calling
 
 2. **Minimal Dependencies**
-   - Only `openai` and `pydantic` in core dependencies
+   - Core dependencies: `openai`, `pydantic`, `tenacity`, `jiter`, `regex`
    - Keeps the library lightweight and maintainable
    - Reduces potential dependency conflicts
 
@@ -48,8 +48,30 @@ udspy/
 ├── src/udspy/           # Core library code
 │   ├── signature.py     # Signature, InputField, OutputField
 │   ├── adapter.py       # ChatAdapter for formatting
-│   ├── module.py        # Module, Predict abstractions
-│   └── streaming.py     # Streaming support
+│   ├── module/          # Module abstractions (package)
+│   │   ├── base.py      # Module base class
+│   │   ├── predict.py   # Predict module
+│   │   ├── chain_of_thought.py  # ChainOfThought module
+│   │   ├── react.py     # ReAct agent module
+│   │   └── callbacks.py # Module callback system
+│   ├── lm/              # Language model abstraction (package)
+│   │   ├── base.py      # LM abstract base class
+│   │   ├── openai.py    # OpenAI implementation
+│   │   └── factory.py   # LM factory with provider registry
+│   ├── tool/            # Tool system (package)
+│   │   ├── tool.py      # Tool class and ToolCall
+│   │   ├── decorator.py # @tool decorator
+│   │   └── types.py     # Tool-related types
+│   ├── utils/           # Utilities (package)
+│   │   ├── async_support.py  # Async helpers
+│   │   ├── formatting.py     # Error formatting
+│   │   └── schema.py         # Schema utilities
+│   ├── streaming.py     # Streaming support
+│   ├── settings.py      # Global settings with context manager
+│   ├── history.py       # Conversation history
+│   ├── callback.py      # Callback/telemetry system
+│   ├── confirmation.py  # Human-in-the-loop confirmation
+│   └── exceptions.py    # Custom exceptions
 ├── tests/               # Pytest tests
 ├── docs/                # MkDocs documentation
 ├── examples/            # Usage examples
@@ -134,7 +156,7 @@ result = predictor(question="...")  # Uses global-key and gpt-4o-mini
    async def handle_user(user):
        user_lm = LM(model="gpt-4o-mini", api_key=user.api_key)
        with udspy.settings.context(lm=user_lm):
-           async for chunk in streaming_predictor.stream(...):
+           async for chunk in streaming_predictor.astream(...):
                yield chunk
    ```
 
@@ -275,7 +297,7 @@ Feature is additive - no migration needed.
 For complete details on recent architectural decisions, see the full ADRs in [docs/architecture/decisions.md](docs/architecture/decisions.md):
 
 - **ADR-008: Module Callbacks and Dynamic Tool Management** - `@module_callback` decorator for runtime tool loading
-- **ADR-009: History Management with System Prompts** - Dedicated `system_prompt` property ensures proper positioning
+- **ADR-009: History Management with System Prompts** - `set_system_message()` method ensures system prompt is always at position 0
 - **ADR-010: LM Callable Interface with String Prompts** - Simple `lm("prompt")` returns text directly
 
 ---

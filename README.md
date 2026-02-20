@@ -45,7 +45,7 @@ If resource constraints aren't a concern for your use case, consider [DSPy](http
 - **Optional Tool Execution**: Control whether tools execute automatically or return for manual handling
 - **Module Abstraction**: Compose LLM calls with reusable modules (`Predict`, `ChainOfThought`, `ReAct`)
 - **Streaming Support**: Stream reasoning and output fields incrementally with async generators
-- **Minimal Dependencies**: Only requires `openai` and `pydantic` (~10MB total footprint)
+- **Minimal Dependencies**: Only requires `openai`, `pydantic`, `tenacity`, `jiter`, and `regex` (~10MB total footprint)
 
 ## Installation
 
@@ -137,7 +137,7 @@ print(result.answer)  # Tools are automatically executed
 ### With Human-in-the-Loop
 
 ```python
-from udspy import ReAct, HumanInTheLoopRequired, tool
+from udspy import ReAct, ConfirmationRequired, tool
 from pydantic import Field
 import os
 
@@ -159,7 +159,7 @@ agent = ReAct(FileTask, tools=[delete_file])
 
 try:
     result = agent(request="Delete /tmp/old_data.txt")
-except HumanInTheLoopRequired as e:
+except ConfirmationRequired as e:
     print(f"Agent asks: {e.question}")
     # User confirms: "yes", "no", or provides feedback
     result = agent.resume("yes", e)
