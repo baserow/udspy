@@ -19,7 +19,7 @@ test-cov:
 lint:
     uv run ruff check src tests examples
     uv run ruff format --check src tests examples
-    uv run mypy src
+    uv run ty check
 
 # Format code and fix linting issues
 fmt:
@@ -28,10 +28,10 @@ fmt:
 
 # Run type checker only
 typecheck:
-    uv run mypy src
+    uv run ty check
 
-# Run all checks (lint, test)
-check: lint test
+# Run all checks (lint, typecheck, test)
+check: lint typecheck test
 
 # Pre-release checks - run everything that CI runs
 release-check:
@@ -65,15 +65,26 @@ docs-deploy:
 
 # Clean build artifacts
 clean:
-    rm -rf dist build *.egg-info htmlcov .coverage .pytest_cache .mypy_cache .ruff_cache
+    rm -rf dist build *.egg-info htmlcov .coverage .pytest_cache .ruff_cache
 
 # Build package
 build:
     uv build
 
-# Run example
-example name:
-    uv run python examples/{{name}}.py
+# Run example (e.g., just example basic_usage, or just example to run all)
+example name='*':
+    #!/usr/bin/env bash
+    uv run python -c "import udspy; udspy.settings.configure(); udspy.settings.lm" 2>&1 || {
+        echo ""
+        echo "Set UDSPY_LM_MODEL before running examples, e.g.:"
+        echo "  export UDSPY_LM_MODEL=gpt-4o-mini"
+        exit 1
+    }
+    trap 'exit 130' INT
+    for f in examples/{{name}}.py; do
+        echo "▶ Running $f..."
+        uv run python "$f"
+    done
 
 # Bump version and create release branch (e.g., just bump-release 0.1.4)
 bump-release version:

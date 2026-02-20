@@ -32,11 +32,6 @@ ENV/
 htmlcov/
 .tox/
 
-# Type checking
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
 # Ruff
 .ruff_cache/
 
