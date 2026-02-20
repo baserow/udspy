@@ -57,7 +57,7 @@ Use OpenAI's native function calling API directly as the primary approach.
 
 #### 2. Minimal Dependencies
 
-Only `openai` and `pydantic` in core dependencies.
+Core dependencies: `openai`, `pydantic`, `tenacity` (retry logic), `jiter` (fast JSON), `regex`.
 
 **Rationale**:
 - Keeps the library lightweight (~10MB)
@@ -476,12 +476,11 @@ try:
 except ConfirmationRequired as e:
     # ReAct enriches context with trajectory state
     e.context = {
-        "trajectory": trajectory.copy(),
-        "iteration": idx,
-        "input_args": input_args.copy(),
+        "trajectory": self._context.trajectory.copy(),
+        "input_args": self._context.input_args.copy(),
+        "plan": [item.copy() for item in self._context.plan],
+        "stream": self._context.stream,
     }
-    if e.tool_call and tool_call_id:
-        e.tool_call.call_id = tool_call_id
     raise  # Re-raise for caller
 ```
 
@@ -607,11 +606,12 @@ result = agent(question="What is the population of Tokyo?")
 
 ### Implementation Approach
 
-1. **Iterative Loop**: Continues until final answer or max iterations
-2. **Dynamic Signature**: Extends signature with reasoning_N, tool_name_N, tool_args_N fields
-3. **Tool Execution**: Automatically executes tools and adds results to context
-4. **Error Handling**: Retries with error feedback if tool execution fails
-5. **Human Confirmations**: Integrates with `@confirm_first` for user input
+1. **Iterative Loop**: Continues until `finish` tool called or max iterations
+2. **Plan System**: Tracks todo/done items via `PlanItem` dicts with `plan_updates`
+3. **Dynamic Signature**: Extends signature with `next_thought`, `plan_updates`, `next_tool_name`, `next_tool_args` fields
+4. **Tool Execution**: Automatically executes tools and adds results to trajectory
+5. **Error Handling**: Retries with error feedback if tool execution fails, warns after consecutive failures
+6. **Human Confirmations**: Integrates with `require_confirmation=True` and `enable_ask_to_user`
 
 ### Key Features
 
@@ -684,28 +684,37 @@ Introduce a single `aexecute()` method that handles both streaming and non-strea
 
 ```python
 class Module:
-    async def aexecute(self, *, stream: bool = False, **inputs):
-        """Core execution logic - handles both streaming and non-streaming."""
+    async def aexecute(self, *, stream: bool = False, **inputs) -> Prediction:
+        """Core execution logic - handles both streaming and non-streaming.
+        Always returns a Prediction. Emits events via emit_event() to the
+        active stream queue (if one exists)."""
         # Implementation here
 
     async def astream(self, **inputs):
-        """Public streaming API."""
-        async for event in self.aexecute(stream=True, **inputs):
-            yield event
+        """Public streaming API. Sets up a queue, spawns aexecute as a task,
+        and yields events from the queue."""
+        queue = asyncio.Queue()
+        token = _stream_queue.set(queue)
+        try:
+            task = asyncio.create_task(self.aexecute(stream=True, **inputs))
+            # yield events from queue until task completes
+            ...
+        finally:
+            _stream_queue.reset(token)
 
-    async def aforward(self, **inputs):
+    async def aforward(self, **inputs) -> Prediction:
         """Public non-streaming API."""
-        async for event in self.aexecute(stream=False, **inputs):
-            if isinstance(event, Prediction):
-                return event
+        return await self.aexecute(stream=False, **inputs)
 ```
 
 ### Implementation Details
 
 1. **Single Source of Truth**: All execution logic in `aexecute()`
-2. **Stream Parameter**: Boolean flag controls behavior
-3. **Generator Pattern**: Always yields events, even in non-streaming mode
-4. **Clean Separation**: Public methods are thin wrappers
+2. **Stream Parameter**: Boolean flag controls whether LLM is called in streaming mode
+3. **Returns Prediction**: `aexecute()` always returns a `Prediction` (not a generator)
+4. **Event Emission**: Events are emitted via `emit_event()` to a ContextVar-based queue
+5. **Queue Pattern**: `astream()` sets up the queue, runs `aexecute` as a task, and yields events
+6. **Clean Separation**: Public methods are thin wrappers
 
 ### Key Benefits
 
@@ -726,7 +735,7 @@ class Module:
 **Trade-offs**:
 - Slightly more complex to implement initially
 - Need to handle both streaming and non-streaming cases in same method
-- Generator pattern requires understanding of async generators
+- Queue-based event pattern requires understanding of ContextVar and asyncio.Queue
 
 ### Before and After
 
@@ -743,18 +752,21 @@ async def aforward(self, **inputs):
 
 **After:**
 ```python
-async def aexecute(self, *, stream: bool, **inputs):
+async def aexecute(self, *, stream: bool, **inputs) -> Prediction:
     # 100 lines of logic (used by both)
+    # Emits events via emit_event() when queue is active
     ...
+    return Prediction(...)
 
 async def astream(self, **inputs):
-    async for event in self.aexecute(stream=True, **inputs):
-        yield event
+    queue = asyncio.Queue()
+    token = _stream_queue.set(queue)
+    task = asyncio.create_task(self.aexecute(stream=True, **inputs))
+    # yield events from queue until task completes
+    ...
 
-async def aforward(self, **inputs):
-    async for event in self.aexecute(stream=False, **inputs):
-        if isinstance(event, Prediction):
-            return event
+async def aforward(self, **inputs) -> Prediction:
+    return await self.aexecute(stream=False, **inputs)
 ```
 
 ### Naming Rationale
@@ -775,20 +787,20 @@ We chose `aexecute()` (without underscore prefix) because:
 
 ## Additional Design Decisions
 
-### Field Markers for Parsing
+### Output Parsing Strategy
 
-**Decision**: Use `[[ ## field_name ## ]]` markers to delineate fields in completions.
+**Decision**: Use JSON format for LLM output parsing, with `[[ ## field_name ## ]]` markers for input formatting.
 
 **Rationale**:
-- Simple, regex-parseable format
-- Clear visual separation
-- Consistent with DSPy's approach (proven)
-- Fallback when native tools aren't available
+- JSON is natively understood by LLMs and reliably generated
+- `[[ ## field_name ## ]]` markers used in input formatting (user messages) for clear field delineation
+- Output parsing via `json.loads()` is simple and robust
+- Fallback parsing for edge cases when JSON is malformed
 
 **Trade-offs**:
-- Requires careful prompt engineering
-- LLM might not always respect markers
-- Uses extra tokens
+- LLM might occasionally generate malformed JSON (handled by retry logic)
+- Input markers use extra tokens
+- Dual format (markers for input, JSON for output) requires clear documentation
 
 ---
 
@@ -978,7 +990,7 @@ def load_calculator() -> callable:
         # Get current tools (excluding built-ins)
         current_tools = [
             t for t in context.module.tools.values()
-            if t.name not in ("finish", "user_clarification")
+            if t.name not in ("finish", "ask_to_user")
         ]
 
         # Add calculator to available tools
@@ -997,10 +1009,10 @@ result = agent(question="What is 157 * 834?")
 
 ### Implementation Details
 
-1. **@module_callback Decorator**: Simple marker decorator that adds `__udspy_module_callback__` attribute
-2. **Return Value Detection**: After tool execution, check `is_module_callback(result)`
+1. **@module_callback Decorator**: Wraps the function in a `ModuleCallback` class instance
+2. **Return Value Detection**: After tool execution, check `is_module_callback(result)` which uses `isinstance(obj, ModuleCallback)`
 3. **Context Objects**: Pass execution context to callbacks:
-   - `ReactContext`: Includes trajectory history
+   - `ReactContext`: Includes trajectory, input_args, plan, and stream flag
    - `PredictContext`: Includes conversation history
    - `ModuleContext`: Base with module reference
 4. **init_module() Pattern**: Unified method to reinitialize tools and regenerate signatures
@@ -1114,7 +1126,7 @@ Chat histories need special handling for system prompts to ensure they're always
 
 ### Decision
 
-Implement `History` class with dedicated `system_prompt` property that ensures system messages always appear first:
+Implement `History` class with a `set_system_message()` method that ensures system messages always appear first:
 
 ```python
 from udspy import History
@@ -1126,9 +1138,9 @@ history.add_message(role="user", content="Hello")
 history.add_message(role="assistant", content="Hi there!")
 
 # System prompt always goes first, even if set later
-history.system_prompt = "You are a helpful assistant"
+history.set_system_message("You are a helpful assistant")
 
-messages = history.messages
+print(history.messages)
 # [{"role": "system", "content": "You are a helpful assistant"},
 #  {"role": "user", "content": "Hello"},
 #  {"role": "assistant", "content": "Hi there!"}]
@@ -1138,99 +1150,94 @@ messages = history.messages
 
 ```python
 class History:
-    def __init__(self, system_prompt: str | None = None):
-        self._messages: list[dict[str, Any]] = []
-        self._system_prompt: str | None = system_prompt
+    def __init__(self, messages: list[dict[str, Any]] | None = None):
+        self.messages: list[dict[str, Any]] = messages or []
 
-    @property
-    def system_prompt(self) -> str | None:
-        return self._system_prompt
+    def set_system_message(self, content: str) -> None:
+        """Set or replace the system message at position 0."""
+        message = {"role": "system", "content": content}
+        if not self.messages:
+            self.messages.append(message)
+        elif self.messages[0]["role"] == "system":
+            self.messages[0] = message
+        else:
+            self.messages.insert(0, message)
 
-    @system_prompt.setter
-    def system_prompt(self, value: str | None) -> None:
-        self._system_prompt = value
-
-    @property
-    def messages(self) -> list[dict[str, Any]]:
-        """Get all messages with system prompt first (if set)."""
-        if self._system_prompt:
-            return [
-                {"role": "system", "content": self._system_prompt},
-                *self._messages
-            ]
-        return self._messages.copy()
+    def add_user_message(self, content: str) -> None: ...
+    def add_assistant_message(self, content: str, tool_calls=None) -> None: ...
+    def add_tool_result(self, tool_call_id: str, content: str) -> None: ...
 ```
 
 **Key aspects**:
-- System prompt stored separately from regular messages
-- `messages` property dynamically constructs full list
-- No risk of system prompt appearing mid-conversation
-- Simple to update system prompt without rebuilding list
-- Clear ownership (History manages system message)
+- `messages` is a plain public list attribute (simple and direct)
+- `set_system_message()` inserts/replaces at position 0
+- No risk of system prompt appearing mid-conversation when using `set_system_message()`
+- Predict module automatically calls `set_system_message()` with formatted instructions
+- Simple implementation -- no properties or dynamic list construction needed
 
 ### Key Features
 
-1. **Dedicated system_prompt property**: Special handling for system messages
-2. **Automatic positioning**: System prompt always first in messages list
-3. **Mutable**: Can update system prompt at any time, position maintained
-4. **Copy support**: `history.copy()` includes system prompt
-5. **Clear separation**: Regular messages in `_messages`, system prompt separate
+1. **Dedicated set_system_message() method**: Ensures system message at position 0
+2. **Automatic management**: Predict calls `set_system_message()` on each invocation
+3. **Mutable**: Can update system message at any time, position maintained
+4. **Copy support**: `history.copy()` deep-copies all messages
+5. **Simple design**: Plain list attribute -- no hidden state or dynamic construction
 
 ### Use Cases
 
-1. **Module initialization**: Set system prompt per module type
+1. **Module initialization**: Predict auto-manages system prompt
    ```python
-   history = History(system_prompt="You are a ReAct agent. Use tools to solve tasks.")
+   history = History()
+   result = predictor(question="What is Python?", history=history)
+   # history.messages[0] is now the system prompt from the signature
    ```
 
-2. **Dynamic prompts**: Update based on context or user
+2. **Manual system prompt**: Set before passing to Predict
    ```python
-   history.system_prompt = f"You are assisting {user.name}. Use their preferences: {prefs}"
+   history = History()
+   history.set_system_message("You are a math tutor")
    ```
 
-3. **Tool manipulation**: Tools can safely update system prompt
+3. **Dynamic prompts**: Update based on context or user
    ```python
-   @tool(name="change_persona")
-   def change_persona(persona: str) -> str:
-       # Tool can access and modify history.system_prompt
-       return f"Changed to {persona} persona"
+   history.set_system_message(f"You are assisting {user.name}. Use their preferences: {prefs}")
    ```
 
-4. **History replay**: Maintain system prompt across sessions
+4. **Multi-turn conversations**: System prompt persists correctly
    ```python
-   saved_history = history.to_dict()  # Save including system prompt
-   loaded_history = History.from_dict(saved_history)  # Restore
+   history = History()
+   # System prompt set once by Predict, remains first through all turns
+   result1 = predictor(question="What is Python?", history=history)
+   result2 = predictor(question="What are its features?", history=history)
    ```
 
-5. **Multi-turn conversations**: System prompt persists correctly
+5. **Pre-populated history**: Add prior context, system prompt auto-managed
    ```python
-   # System prompt set once, remains first through all turns
-   for user_msg in conversation:
-       history.add_message(role="user", content=user_msg)
-       # System prompt still first
+   history = History()
+   history.add_user_message("What is Python?")
+   history.add_assistant_message("Python is a programming language")
+   # System prompt will be prepended automatically by Predict
+   result = predictor(question="What are its features?", history=history)
    ```
 
 ### Consequences
 
 **Benefits**:
 - System prompt guaranteed to be first (LLM APIs require this)
-- Can update system prompt at any time safely
-- Clean property-based API
+- Can update system prompt at any time safely via `set_system_message()`
+- Simple API -- no hidden state or dynamic construction
 - Prevents common mistakes (system prompt mid-conversation)
-- Supports all history manipulation patterns
-- No manual list management required
+- Predict auto-manages system prompt from signature
 
 **Trade-offs**:
-- Small overhead constructing messages list on each access (negligible)
-- System message can't be treated like regular message (by design)
-- Slight complexity in History implementation vs. simple list
-- Property access pattern may surprise developers expecting plain list
+- Must use `set_system_message()` instead of `add_message("system", ...)` to ensure position 0
+- System message is stored in the messages list (not separately), so direct list manipulation could misplace it
+- Simple design trades some safety for transparency
 
 ### Alternatives Considered
 
-- **Insert at index 0**: Rejected as error-prone with mutations, easy to forget
-- **Validation on add**: Rejected as too restrictive, doesn't prevent mid-conversation insertion
-- **Separate system field in messages**: Rejected as doesn't integrate with standard message format
+- **Property-based with private `_messages`**: Considered but rejected for simplicity -- adds complexity without sufficient benefit
+- **Validation on add**: Rejected as too restrictive
 - **Manual management**: Status quo before this ADR, too error-prone
 
 ### Migration Guide
@@ -1239,26 +1246,27 @@ Existing code using `History.add_message()` continues to work unchanged.
 
 To use system prompts:
 
-**Create with system prompt**:
-```python
-history = History(system_prompt="You are a helpful assistant")
-```
-
-**Set later**:
+**Set system message**:
 ```python
 history = History()
-# ... add messages ...
-history.system_prompt = "You are a math tutor"
+history.set_system_message("You are a helpful assistant")
+```
+
+**Let Predict manage it** (recommended):
+```python
+history = History()
+result = predictor(question="...", history=history)
+# System prompt is automatically set from signature
 ```
 
 **Update dynamically**:
 ```python
-history.system_prompt = f"You are assisting {user.name}"
+history.set_system_message(f"You are assisting {user.name}")
 ```
 
 **Always correctly positioned**:
 ```python
-messages = history.messages  # System prompt is always first
+print(history.messages[0])  # System prompt is always first
 ```
 
 ### See Also
