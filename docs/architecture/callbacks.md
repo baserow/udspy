@@ -91,28 +91,14 @@ Configure callbacks globally via `settings.configure()`:
 
 ```python
 import udspy
+from udspy import LM
 
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
 callback = LoggingCallback()
 udspy.settings.configure(
-    api_key="sk-...",
-    model="gpt-4o-mini",
+    lm=lm,
     callbacks=[callback]  # Applied to all modules and tools
 )
-```
-
-### Per-Module Callbacks
-
-Configure callbacks for specific module instances:
-
-```python
-from udspy import Predict, Signature, InputField, OutputField
-
-class QA(Signature):
-    question: str = InputField()
-    answer: str = OutputField()
-
-# This callback only applies to this predictor instance
-predictor = Predict(QA, callbacks=[LoggingCallback()])
 ```
 
 ### Context-Specific Callbacks
@@ -127,15 +113,20 @@ with udspy.settings.context(callbacks=[DebugCallback()]):
 
 ### Combining Callbacks
 
-Callbacks are combined from multiple sources:
+Use global callbacks for persistent monitoring and context callbacks for temporary overrides:
 
 ```python
-# Global callbacks + instance callbacks are all executed
-udspy.settings.configure(callbacks=[GlobalCallback()])
-predictor = Predict(QA, callbacks=[InstanceCallback()])
+from udspy import LM
 
-# Both GlobalCallback and InstanceCallback will be invoked
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
+udspy.settings.configure(lm=lm, callbacks=[GlobalCallback()])
+
+# GlobalCallback is invoked
 result = predictor(question="...")
+
+# Context temporarily overrides with different callbacks
+with udspy.settings.context(callbacks=[DebugCallback()]):
+    result = predictor(question="...")  # Only DebugCallback is invoked
 ```
 
 ## Callback Execution Flow
@@ -219,9 +210,11 @@ Tools like Opik and MLflow that provide DSPy callbacks will work with udspy:
 ```python
 # Example with Opik (hypothetical - check Opik docs for actual API)
 from opik import OpikCallback
+from udspy import LM
 
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
 udspy.settings.configure(
-    api_key="sk-...",
+    lm=lm,
     callbacks=[OpikCallback(project="my-project")]
 )
 
@@ -248,11 +241,12 @@ udspy.settings.configure(callbacks=[
 ])
 ```
 
-### 2. Use Instance Callbacks for Specific Monitoring
+### 2. Use Context Callbacks for Specific Monitoring
 
 ```python
-# Monitor only critical paths
-critical_predictor = Predict(ImportantTask, callbacks=[AlertCallback()])
+# Monitor only critical paths with context-scoped callbacks
+with udspy.settings.context(callbacks=[AlertCallback()]):
+    result = critical_predictor(question="...")
 ```
 
 ### 3. Use Context Callbacks for Debugging
@@ -342,9 +336,11 @@ If you're using DSPy callbacks, migration is straightforward:
 import dspy
 dspy.settings.configure(callbacks=[MyCallback()])
 
-# udspy code - exactly the same!
+# udspy code - same callback interface!
 import udspy
-udspy.settings.configure(callbacks=[MyCallback()])
+from udspy import LM
+lm = LM(model="gpt-4o-mini", api_key="sk-...")
+udspy.settings.configure(lm=lm, callbacks=[MyCallback()])
 ```
 
 The callback interface is identical, so existing DSPy callbacks should work without modification.
