@@ -303,6 +303,11 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 class BaseLM(ABC):
+    @property
+    def model(self) -> str | None:
+        """Get the default model for this LM instance."""
+        return None
+
     @abstractmethod
     async def acomplete(
         self,
@@ -323,6 +328,25 @@ class BaseLM(ABC):
 - `tools`: Optional tool schemas in OpenAI format
 - `stream`: If True, return streaming response
 - `**kwargs`: Provider-specific parameters (temperature, etc.)
+
+### Callable Interface
+
+The base `LM` class also provides `acall()` and `__call__()` methods for convenient usage with two modes:
+
+1. **String prompt**: Returns just the text content (str)
+2. **Messages list**: Returns the complete response object
+
+```python
+# Simple string prompt - returns text directly
+answer = lm("What is Python?")
+answer = await lm.acall("What is Python?")
+
+# Full messages list - returns response object
+response = lm([{"role": "user", "content": "Hello"}], model="gpt-4o")
+response = await lm.acall([{"role": "user", "content": "Hello"}], tools=[...])
+```
+
+Both `acall()` and `__call__()` are decorated with `@with_callbacks` for automatic telemetry.
 
 ## OpenAILM Implementation
 
@@ -567,7 +591,7 @@ The LM abstraction uses **OpenAI's message format** as the standard:
 4. **Store API keys in environment variables** - never hardcode
 5. **Use context managers** for multi-tenant scenarios
 6. **Always specify a model** to avoid runtime errors
-7. **Prefer `settings.lm.client`** over deprecated `settings.aclient`
+7. **Access the client via `settings.lm.client`** when needed for direct API calls
 
 ### For Provider Implementers
 

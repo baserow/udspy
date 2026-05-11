@@ -172,8 +172,9 @@ class LM(ABC):
             # Ignore tools parameter for string prompts (already enforced by overload)
             messages = [{"role": "user", "content": prompt_or_messages}]
             response = await self.acomplete(messages, model=model, stream=stream, **kwargs)
-            if hasattr(response, "choices") and len(response.choices) > 0:
-                message = response.choices[0].message
+            choices = getattr(response, "choices", [])
+            if choices and len(choices) > 0:
+                message = choices[0].message
                 if hasattr(message, "content") and message.content:
                     return message.content
             return str(response)
@@ -256,8 +257,9 @@ class LM(ABC):
             # Ignore tools parameter for string prompts (already enforced by overload)
             messages = [{"role": "user", "content": prompt_or_messages}]
             response = self.complete(messages, model=model, stream=stream, **kwargs)
-            if hasattr(response, "choices") and len(response.choices) > 0:
-                message = response.choices[0].message
+            choices = getattr(response, "choices", [])
+            if choices and len(choices) > 0:
+                message = choices[0].message
                 if hasattr(message, "content") and message.content:
                     return message.content
             return str(response)

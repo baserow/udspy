@@ -75,7 +75,7 @@ result = agent(task="Find information about React")
 print(result.result)
 ```
 
-## User Clarification with user clarification
+## User Clarification with ask_to_user
 
 When the user's request is ambiguous, the agent can ask for clarification:
 
@@ -85,7 +85,7 @@ from udspy import ConfirmationRequired, ResumeState
 agent = ReAct(
     ResearchTask,
     tools=[search],
-    enable_user_clarification=True  # Enable clarification requests
+    enable_ask_to_user=True  # Enable clarification requests
 )
 
 try:
@@ -99,29 +99,29 @@ except ConfirmationRequired as e:
     response = "The Python programming language"
 
     # Resume execution
-    result = agent.resume(user_response, e)
+    result = agent.resume(response, e)
     print(result.answer)
 ```
 
-### Configuring user clarification
+### Configuring ask_to_user
 
-The user clarification tool is enabled by default and can be called by the agent whenever clarification is needed:
+The ask_to_user tool is disabled by default but can be enabled so the agent can ask clarifying questions:
 
 ```python
 agent = ReAct(
     ResearchTask,
     tools=[search],
-    enable_user_clarification=True,  # Default: enabled
+    enable_ask_to_user=True,  # Enable clarification requests (default: False)
 )
 ```
 
-To disable user clarification entirely:
+To disable ask_to_user entirely:
 
 ```python
 agent = ReAct(
     ResearchTask,
     tools=[search],
-    enable_user_clarification=False  # No clarification requests
+    enable_ask_to_user=False  # No clarification requests (default)
 )
 ```
 
@@ -162,34 +162,30 @@ except ConfirmationRequired as e:
 
 ## Accessing the Trajectory
 
-The trajectory contains all reasoning steps and tool calls:
+The trajectory is a `list[Episode]` where each episode contains `thought`, `tool_name`, `tool_args`, and `observation`:
 
 ```python
 result = agent(question="What is 2 + 2?")
 
-# Access trajectory
-for i in range(10):  # Max iterations
-    observation_key = f"observation_{i}"
-    if observation_key not in result.trajectory:
-        break
-
+# Access trajectory (list of Episode dicts)
+for i, episode in enumerate(result.trajectory):
     print(f"Step {i + 1}:")
-    print(f"  Reasoning: {result.trajectory.get(f'reasoning_{i}', '')}")
-    print(f"  Tool: {result.trajectory[f'tool_name_{i}']}")
-    print(f"  Args: {result.trajectory[f'tool_args_{i}']}")
-    print(f"  Observation: {result.trajectory[observation_key]}")
+    print(f"  Thought: {episode['thought']}")
+    print(f"  Tool: {episode['tool_name']}")
+    print(f"  Args: {episode['tool_args']}")
+    print(f"  Observation: {episode['observation']}")
 ```
 
 Example trajectory:
 ```
 Step 1:
-  Reasoning: I need to calculate 2 + 2
+  Thought: I need to calculate 2 + 2
   Tool: calculator
   Args: {'expression': '2 + 2'}
   Observation: 4
 
 Step 2:
-  Reasoning: I have the answer
+  Thought: I have the answer
   Tool: finish
   Args: {}
   Observation: Task completed
@@ -202,7 +198,7 @@ agent = ReAct(
     signature=ResearchTask,       # Task signature
     tools=[search, calculator],   # Available tools
     max_iters=10,                 # Maximum reasoning steps (default: 10)
-    enable_user_clarification=True       # Enable user clarification (default: True)
+    enable_ask_to_user=True       # Enable ask_to_user tool (default: False)
 )
 ```
 
@@ -211,7 +207,7 @@ agent = ReAct(
 - **`signature`**: Signature class or string format (`"input -> output"`)
 - **`tools`**: List of tool functions (decorated with `@tool`) or `Tool` objects
 - **`max_iters`**: Maximum number of reasoning iterations before stopping
-- **`enable_user_clarification`**: Whether to enable the user clarification tool
+- **`enable_ask_to_user`**: Whether to enable the ask_to_user tool (default: False)
 
 ## Async Support
 
@@ -246,13 +242,13 @@ Signals that the agent has collected enough information to answer:
 
 This is automatically selected by the LLM when it has sufficient information.
 
-### user clarification (if enabled)
+### ask_to_user (if enabled)
 
 Requests clarification from the user:
 
 ```python
 # Agent internally calls:
-# Tool: user_clarification
+# Tool: ask_to_user
 # Args: {"question": "What topic would you like to know about?"}
 ```
 
@@ -302,7 +298,7 @@ def api_call(endpoint: str = Field(...)) -> str:
 # Agent will see error in observation and can:
 # 1. Try a different tool
 # 2. Retry with different args
-# 3. Ask user for help (using user_clarification tool)
+# 3. Ask user for help (using ask_to_user tool)
 ```
 
 ### State Management
@@ -323,7 +319,7 @@ except ConfirmationRequired as e:
 
     # Later, restore and continue
     response = input(f"{saved_question} ")
-    result = agent.resume(user_response, saved_state)
+    result = agent.resume(response, saved_state)
 ```
 
 ## DSPy Compatibility
@@ -423,23 +419,23 @@ Reduce `max_iters` or improve tool descriptions:
 
 ### Agent asks for clarification too often
 
-Disable or restrict user clarification:
+Disable or restrict ask_to_user:
 
 ```python
 agent = ReAct(
     signature,
     tools=tools,
-    enable_user_clarification=False  # Disable entirely
+    enable_ask_to_user=False  # Disable entirely
 )
 ```
 
-Or disable it completely if the agent should never ask for clarification:
+Or disable it completely if the agent should never ask for clarification (this is the default):
 
 ```python
 agent = ReAct(
     signature,
     tools=tools,
-    enable_user_clarification=False  # Disable user clarification
+    enable_ask_to_user=False  # Disable ask_to_user (default)
 )
 ```
 

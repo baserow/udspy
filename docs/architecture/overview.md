@@ -128,11 +128,7 @@ udspy is organized into clear layers with well-defined responsibilities:
 #### 2. LM Layer (Language Model Abstraction)
 **What it does**: Provides abstract interface to LLM providers
 
-**Current State**:
-- Direct usage of `settings.aclient` (AsyncOpenAI)
-- No abstraction yet - coupled to OpenAI
-
-**Future Design**:
+**Current Implementation** (`src/udspy/lm/`):
 ```python
 class LM(ABC):
     """Abstract language model interface."""
@@ -141,39 +137,41 @@ class LM(ABC):
     async def acomplete(
         self,
         messages: list[dict],
+        *,
+        model: str | None = None,
         tools: list[dict] | None = None,
         stream: bool = False,
         **kwargs
-    ) -> AsyncGenerator[ChatCompletion, None] | ChatCompletion:
+    ) -> Any:
         """Complete a prompt with optional tools."""
         pass
 
-class OpenAILM(LM):
-    """OpenAI implementation."""
-    def __init__(self, client: AsyncOpenAI, model: str):
-        self.client = client
-        self.model = model
+    # Also supports: __call__(prompt_or_messages), acall(), complete()
 
-    async def acomplete(self, messages, tools=None, stream=False, **kwargs):
-        return await self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=tools,
-            stream=stream,
-            **kwargs
-        )
+class OpenAILM(LM):
+    """OpenAI implementation with retry logic."""
+    def __init__(self, api_key="", base_url=None, default_model=None, client=None, provider="openai"):
+        ...
+```
+
+**Factory function** for easy creation:
+```python
+lm = LM(model="gpt-4o", api_key="sk-...")       # OpenAI
+lm = LM(model="ollama/llama2")                    # Ollama
+lm = LM(model="groq/llama-3.1-70b", api_key=...) # Groq
 ```
 
 **Responsibilities**:
 - Normalize provider-specific APIs
-- Handle retries and rate limiting
+- Handle retries with tenacity (exponential backoff)
 - Abstract away provider differences
 - Provide unified interface for modules
+- Support callable interface: `lm("prompt")` returns text directly
 
-**Key Files** (when implemented):
-- `lm.py` - Base LM class and interface
-- `lm/openai.py` - OpenAI implementation
-- `lm/anthropic.py` - Anthropic implementation (future)
+**Key Files**:
+- `lm/base.py` - Abstract LM class with `acomplete()`, `acall()`, `__call__()`
+- `lm/openai.py` - OpenAI implementation with AsyncOpenAI
+- `lm/factory.py` - `LM()` factory function with provider auto-detection
 
 **DO**: Provider API calls, retry logic, rate limiting
 **DON'T**: Message formatting (use Adapter), business logic (use Module)
@@ -192,9 +190,11 @@ class OpenAILM(LM):
 
 **Key Methods**:
 - `format_instructions(signature)` - Signature → system message
-- `format_inputs(signature, inputs)` - Inputs → user message
-- `parse_outputs(signature, completion)` - Completion → structured dict
-- `tools_to_openai_format(tools)` - Tools → OpenAI schemas
+- `format_user_request(signature, inputs)` - Inputs + output instructions → user message
+- `parse_outputs(signature, completion)` - JSON completion → structured dict
+- `format_tool_schema(tool)` - Tool → OpenAI function schema
+- `process_chunk(chunk, module, signature)` - Streaming chunk processing
+- `split_reasoning_and_content_delta(response)` - Separate reasoning from content
 
 **DO**: Format translation, schema conversion, parsing
 **DON'T**: LLM API calls (use LM), orchestration (use Module)
@@ -208,8 +208,10 @@ class OpenAILM(LM):
 - Simple list wrapper with convenience methods
 - No LLM coupling - pure data structure
 
-**Tools** (`src/udspy/tool.py`)
-- Wraps functions as tools
+**Tools** (`src/udspy/tool/`)
+- Wraps functions as tools (`tool.py`)
+- `@tool` decorator (`decorator.py`)
+- Type definitions: `Tools`, `ToolCall`, `ToolCalls` (`types.py`)
 - Extracts schemas from type hints
 - Handles async/sync execution
 - Integrates with confirmation system
@@ -544,7 +546,7 @@ udspy.settings.configure(lm=lm)
 lm = udspy.settings.lm  # Returns OpenAILM instance
 ```
 
-**Backward Compatibility**: `settings.aclient` still works but is deprecated. Use `settings.lm` for new code.
+**Note**: Use `settings.lm` to access the configured LM instance. There is no `settings.aclient`.
 
 ### Context Manager Support
 
@@ -567,10 +569,9 @@ result = predictor(question="...")  # Uses global LM
 ```
 
 **Priority**:
-1. Explicit `lm` parameter (highest)
-2. `aclient` parameter (creates OpenAILM wrapper)
-3. `api_key` parameter (creates new client + LM)
-4. Global settings (fallback)
+1. Context-specific LM (from `settings.context(lm=...)`) - highest
+2. Global LM (from `settings.configure(lm=...)`)
+3. Environment variable `UDSPY_LM_MODEL` (auto-creates LM)
 
 ### Usage in Predict Module
 
@@ -777,7 +778,7 @@ QA = make_signature(
    ↓
 2. Schema Extraction (Tool.__init__)
    ↓
-3. Schema Conversion (Adapter.tools_to_openai_format)
+3. Schema Conversion (Adapter.format_tool_schema)
    ↓
 4. LLM Call (Module → LM)
    ↓
@@ -1045,11 +1046,10 @@ Events from nested modules bubble up automatically:
 ```python
 class Pipeline(Module):
     async def aexecute(self, *, stream: bool = False, **inputs):
-        # Nested module emits to same queue
-        async for event in self.predictor.aexecute(stream=stream, **inputs):
-            # Events automatically go to active queue
-            if isinstance(event, Prediction):
-                return event
+        # Nested module emits to same queue via emit_event()
+        result = await self.predictor.aexecute(stream=stream, **inputs)
+        # Events were already emitted to the active queue during execution
+        return result
 ```
 
 ---
@@ -1315,31 +1315,23 @@ class MyModule(Module):
 
 ### Adding a New LM Provider
 
-1. **Create src/udspy/lm/ package**
-2. **Define LM base class**
-3. **Implement provider-specific class**
-4. **Update settings to use LM**
+1. **Subclass the LM base class** from `src/udspy/lm/base.py`
+2. **Implement `acomplete()`** method
+3. **Register in factory** (optional) or use directly
 
 ```python
-# src/udspy/lm/base.py
-from abc import ABC, abstractmethod
+# my_providers/anthropic.py
+from udspy.lm.base import LM as BaseLM
 
-class LM(ABC):
-    @abstractmethod
-    async def acomplete(self, messages, *, tools=None, stream=False, **kwargs):
-        pass
+class AnthropicLM(BaseLM):
+    def __init__(self, api_key: str, default_model: str | None = None):
+        from anthropic import AsyncAnthropic
+        self.client = AsyncAnthropic(api_key=api_key)
+        self._default_model = default_model
 
-# src/udspy/lm/anthropic.py
-class AnthropicLM(LM):
-    def __init__(self, client, model):
-        self.client = client
-        self.model = model
-
-    async def acomplete(self, messages, *, tools=None, stream=False, **kwargs):
-        # Convert formats
-        # Call Anthropic API
-        # Convert response
-        pass
+    async def acomplete(self, messages, *, model=None, tools=None, stream=False, **kwargs):
+        # Convert OpenAI format to Anthropic format and call API
+        ...
 ```
 
 ### Adding Custom Stream Events
@@ -1479,7 +1471,7 @@ except ConfirmationRequired as e:
 
 ```
 Is it about LLM provider API calls?
-├─ YES → LM Layer (future: src/udspy/lm/)
+├─ YES → LM Layer (src/udspy/lm/)
 └─ NO
    ├─ Is it about message formatting or parsing?
    │  └─ YES → Adapter Layer (src/udspy/adapter.py)
@@ -1490,7 +1482,7 @@ Is it about LLM provider API calls?
          ├─ Is it about conversation storage?
          │  └─ YES → History (src/udspy/history.py)
          ├─ Is it about tool definition or execution?
-         │  └─ YES → Tool (src/udspy/tool.py)
+         │  └─ YES → Tool (src/udspy/tool/)
          ├─ Is it about streaming events?
          │  └─ YES → Streaming (src/udspy/streaming.py)
          ├─ Is it about human-in-the-loop?
@@ -1498,7 +1490,7 @@ Is it about LLM provider API calls?
          ├─ Is it about telemetry?
          │  └─ YES → Callbacks (src/udspy/callback.py)
          └─ Is it a utility used everywhere?
-            └─ YES → Utils (src/udspy/utils.py)
+            └─ YES → Utils (src/udspy/utils/)
 ```
 
 ### Should this be a new module?
@@ -1536,10 +1528,10 @@ Does it talk to an LLM provider API?
 | Layer | Responsibilities | Key Files |
 |-------|-----------------|-----------|
 | **Module** | Business logic, orchestration, composition | `module/predict.py`, `module/react.py` |
-| **LM** | Provider API calls, retries, format conversion | *(Future)* `lm/openai.py`, `lm/anthropic.py` |
+| **LM** | Provider API calls, retries, format conversion | `lm/base.py`, `lm/openai.py`, `lm/factory.py` |
 | **Adapter** | Message formatting, output parsing, schema conversion | `adapter.py` |
 | **Signature** | I/O contracts, validation | `signature.py` |
-| **Tool** | Function wrapping, schema extraction, execution | `tool.py` |
+| **Tool** | Function wrapping, schema extraction, execution | `tool/tool.py`, `tool/decorator.py`, `tool/types.py` |
 | **History** | Conversation storage | `history.py` |
 | **Streaming** | Event queue, chunks, emission | `streaming.py` |
 | **Confirmation** | Suspend/resume, human-in-the-loop | `confirmation.py` |

@@ -160,7 +160,7 @@ def run_with_editing(agent, question):
             else:
                 user_response = response
 
-            resume_state = ResumeState(e, response)
+            resume_state = ResumeState(e, user_response)
 
 # Usage
 agent = ReAct(
@@ -216,7 +216,7 @@ def run_with_confirmations(
         except ConfirmationRequired as e:
             if on_confirmation:
                 # Use custom handler
-                user_response = on_confirmation(e)
+                response = on_confirmation(e)
             else:
                 # Default CLI handler
                 print(f"\n⚠️  {e.question}")
@@ -320,10 +320,10 @@ async def resume_agent(request: ResumeRequest):
     session = sessions[request.session_id]
 
     try:
+        resume = ResumeState(session["state"], request.user_response)
         result = await agent.aforward(
             question=session["question"],
-            resume_state=session["state"],
-            user_response=request.user_response
+            resume_state=resume
         )
 
         # Clean up session on success
@@ -388,7 +388,7 @@ async def agent_worker(
 
             # Wait for user response
             user_response = await req.get_response()
-            resume_state = ResumeState(e, response)
+            resume_state = ResumeState(e, user_response)
 
 async def confirmation_handler(confirmation_queue: Queue[ConfirmationRequest]):
     """Handler that processes confirmation requests from queue."""
@@ -588,7 +588,7 @@ async def run_with_timeout(agent, question):
                 timeout_seconds=30,
                 default_response="no"
             )
-            resume_state = ResumeState(e, response)
+            resume_state = ResumeState(e, user_response)
 ```
 
 ## Testing Confirmations
@@ -610,14 +610,13 @@ async def test_agent_with_confirmation():
         assert "delete" in e.question.lower()
         assert e.tool_call.name == "delete_file"
 
-        # Programmatically approve
-        respond_to_confirmation(e.confirmation_id, approved=True)
+        # Resume with approval
+        resume = ResumeState(e, "yes")
 
     # Resume - should complete
     result = await agent.aforward(
         question="Delete /tmp/test.txt",
-        resume_state=e,
-        user_response="yes"
+        resume_state=resume
     )
 
     assert "deleted" in result.answer.lower()

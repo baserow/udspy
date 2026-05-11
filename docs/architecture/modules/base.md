@@ -46,7 +46,7 @@ def add_tools(context):
     # Get current tools (excluding built-ins)
     current = [
         t for t in context.module.tools.values()
-        if t.name not in ("finish", "user_clarification")
+        if t.name not in ("finish", "ask_to_user")
     ]
 
     # Add new tools
@@ -60,20 +60,21 @@ def add_tools(context):
 
 **See also**: [Dynamic Tool Management](../../examples/dynamic_tools.md) for detailed examples.
 
-### `aexecute(*, stream: bool = False, **inputs)`
+### `aexecute(*, stream: bool = False, **inputs) -> Prediction`
 
 The core execution method that all modules must implement. This is the public API for module execution.
 
 - **stream**: If `True`, enables streaming mode for real-time output
 - **inputs**: Keyword arguments matching the module's signature input fields
-- **Returns**: `AsyncGenerator[StreamEvent, None]` that yields events and ends with a `Prediction`
+- **Returns**: `Prediction` object with output fields
+- **Side effects**: Emits `StreamEvent` objects via `emit_event()` to the active queue (if streaming)
 
 ```python
 class CustomModule(Module):
     async def aexecute(self, *, stream: bool = False, **inputs):
         # Implementation here
         ...
-        yield Prediction(result=final_result)
+        return Prediction(result=final_result)
 ```
 
 ### `aforward(**inputs)`
@@ -96,19 +97,22 @@ print(result.answer)
 
 ## Streaming Architecture
 
-Modules support streaming through an async generator pattern:
+Modules support streaming through a queue-based pattern. Use `astream()` to get events:
 
 ```python
-async for event in module.aexecute(stream=True, question="Explain AI"):
+async for event in module.astream(question="Explain AI"):
     if isinstance(event, OutputStreamChunk):
         print(event.delta, end="", flush=True)
     elif isinstance(event, Prediction):
         print(f"\nFinal: {event.answer}")
 ```
 
-The streaming system yields:
-- `StreamChunk` events during generation (with `field` and `delta`)
+The streaming system emits:
+- `OutputStreamChunk` events during generation (with `field_name` and `delta`)
+- `ThoughtStreamChunk` events for reasoning output
 - A final `Prediction` object with complete results
+
+Internally, `astream()` creates an `asyncio.Queue`, runs `aexecute(stream=True)` as a task, and yields events from the queue. Events are emitted via `emit_event()` using a `ContextVar`-based queue.
 
 ## Module Composition
 
@@ -123,23 +127,17 @@ class Pipeline(Module):
         self.summarizer = ChainOfThought("text, analysis -> summary")
 
     async def aexecute(self, *, stream: bool = False, **inputs):
-        # First module: get analysis (stream=False since we need full result)
-        analysis = None
-        async for event in self.analyzer.aexecute(stream=False, text=inputs["text"]):
-            if isinstance(event, Prediction):
-                analysis = event
-
-        if not analysis:
-            raise ValueError("First module did not produce a result")
+        # First module: get analysis
+        analysis = await self.analyzer.aexecute(stream=False, text=inputs["text"])
 
         # Second module: pass down stream parameter
-        async for event in self.summarizer.aexecute(
+        # Events are automatically emitted to the active queue
+        result = await self.summarizer.aexecute(
             stream=stream,
             text=inputs["text"],
             analysis=analysis.analysis
-        ):
-            # Yield all events from second module
-            yield event
+        )
+        return result
 ```
 
 ## Design Rationale
@@ -179,11 +177,12 @@ To create a custom module:
 
 1. Subclass `Module`
 2. Implement `aexecute()` method
-3. Yield `StreamEvent` objects during execution
-4. Yield final `Prediction` at the end
+3. Optionally emit `StreamEvent` objects via `emit_event()` during execution
+4. Return final `Prediction`
 
 ```python
 from udspy import Module, Prediction
+from udspy.streaming import emit_event, OutputStreamChunk
 
 class CustomModule(Module):
     async def aexecute(self, *, stream: bool = False, **inputs):
@@ -191,7 +190,7 @@ class CustomModule(Module):
         result = process_inputs(inputs)
 
         # Return final prediction
-        yield Prediction(output=result)
+        return Prediction(output=result)
 ```
 
 ## See Also

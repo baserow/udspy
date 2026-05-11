@@ -28,30 +28,25 @@ class Pipeline(Module):
         self.summarize = ChainOfThought("text, analysis -> summary")
 
     async def aexecute(self, *, stream: bool = False, **inputs):
-        # First module: get analysis (stream=False since we need full result)
-        analysis = None
-        async for event in self.analyze.aexecute(stream=False, text=inputs["text"]):
-            if isinstance(event, Prediction):
-                analysis = event
-
-        if not analysis:
-            raise ValueError("First module did not produce a result")
+        # First module: get analysis
+        analysis = await self.analyze.aexecute(stream=False, text=inputs["text"])
 
         # Second module: pass down stream parameter
-        async for event in self.summarize.aexecute(
+        # Events emitted by summarize are automatically sent to the active queue
+        result = await self.summarize.aexecute(
             stream=stream,
             text=inputs["text"],
             analysis=analysis.analysis
-        ):
-            yield event
+        )
+        return result
 ```
 
 ### Streaming Support
 
-All modules support streaming for real-time output:
+All modules support streaming for real-time output via `astream()`:
 
 ```python
-async for event in module.aexecute(stream=True, **inputs):
+async for event in module.astream(**inputs):
     if isinstance(event, OutputStreamChunk):
         print(event.delta, end="", flush=True)
     elif isinstance(event, Prediction):
@@ -153,7 +148,7 @@ print(result.answer)     # "36738"
 Agent that reasons and acts with tools. Features:
 - Iterative reasoning and tool usage
 - Human-in-the-loop support
-- Built-in user_clarification and finish tools
+- Built-in `ask_to_user` and `finish` tools
 - Full trajectory tracking
 
 **When to use**: For tasks requiring multiple steps, tool usage, or agent-like behavior
@@ -187,11 +182,11 @@ To create a custom module:
 
 1. Subclass `Module`
 2. Implement `aexecute()` method
-3. Yield `StreamEvent` objects during execution
-4. Yield final `Prediction` at the end
+3. Emit `StreamEvent` objects via `emit_event()` during execution (optional)
+4. Return final `Prediction`
 
 ```python
-from udspy import Module, Prediction, OutputStreamChunk
+from udspy import Module, Predict, Prediction
 
 class CustomModule(Module):
     def __init__(self, signature):
@@ -201,16 +196,13 @@ class CustomModule(Module):
         # Custom logic before prediction
         processed_inputs = preprocess(inputs)
 
-        # Call nested module's aexecute, passing down stream parameter
-        async for event in self.predictor.aexecute(stream=stream, **processed_inputs):
-            if isinstance(event, Prediction):
-                # Custom logic after prediction
-                final_result = postprocess(event)
-                # Yield final prediction
-                yield Prediction(**final_result)
-            else:
-                # Pass through other events (OutputStreamChunks, etc.)
-                yield event
+        # Call nested module -- events are automatically emitted to the
+        # active stream queue (if one exists from astream())
+        result = await self.predictor.aexecute(stream=stream, **processed_inputs)
+
+        # Custom logic after prediction
+        final_result = postprocess(result)
+        return Prediction(**final_result)
 ```
 
 See [Base Module](modules/base.md) for detailed guidance.

@@ -69,6 +69,9 @@ class Settings:
         """
         if lm:
             self._lm = lm
+        elif self._lm is None:
+            if model := os.getenv("UDSPY_LM_MODEL"):
+                self._lm = LM(model)
 
         if callbacks is not None:
             self._callbacks = callbacks
@@ -91,7 +94,7 @@ class Settings:
         if context_lm is not None:
             return context_lm
 
-        if model := os.getenv("USDPY_LM_MODEL"):
+        if model := os.getenv("UDSPY_LM_MODEL"):
             self._lm = LM(model)
 
         if self._lm is None:

@@ -20,11 +20,11 @@ async for event in predictor.astream(question="Explain AI"):
 
 ## Stream Events
 
-The streaming API yields two types of events:
+The streaming API yields three types of events:
 
 ### OutputStreamChunk
 
-Incremental text updates for a specific field:
+Incremental text updates for a specific output field:
 
 ```python
 class OutputStreamChunk(StreamEvent):
@@ -43,6 +43,21 @@ async for event in predictor.astream(question="..."):
         if event.is_complete:
             print(f"\n--- {event.field_name} complete ---")
 ```
+
+### ThoughtStreamChunk
+
+Incremental text updates for reasoning/thought fields (used by ChainOfThought):
+
+```python
+class ThoughtStreamChunk(StreamEvent):
+    module: Module          # Module that generated this chunk
+    field_name: str        # Which thought field (e.g., "reasoning")
+    delta: str             # New text since last chunk
+    content: str           # Full accumulated text so far
+    is_complete: bool      # Whether field is done streaming
+```
+
+`ThoughtStreamChunk` has the same attributes as `OutputStreamChunk` but is a separate class, allowing consumers to distinguish reasoning output from final output fields.
 
 ### Prediction
 
@@ -221,12 +236,13 @@ This allows tools and nested modules to emit events without explicit queue passi
 ### Event Flow
 
 1. Module's `astream(**inputs)` is called
-2. Queue is created and set in context
-3. Internal `aexecute(stream=True)` is called
-4. Module yields `StreamChunk` events as text arrives
-5. Tools can call `emit_event()` to inject custom events
-6. Module yields final `Prediction` when complete
-7. Queue is cleaned up
+2. An `asyncio.Queue` is created and set in `_stream_queue` ContextVar
+3. `aexecute(stream=True)` runs as a background task
+4. Module emits `OutputStreamChunk`/`ThoughtStreamChunk` events via `emit_event()` as text arrives
+5. Tools can also call `emit_event()` to inject custom events into the queue
+6. Module emits final `Prediction` when complete
+7. `astream()` yields events from the queue until the sentinel `None` is received
+8. Queue is cleaned up
 
 ### Non-Streaming Mode
 

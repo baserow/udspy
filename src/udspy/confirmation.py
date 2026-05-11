@@ -268,7 +268,7 @@ def _generate_confirmation_id(
     """
     import json
 
-    func_name = func.__name__
+    func_name = getattr(func, "__name__", repr(func))
 
     # Convert positional args to kwargs for consistent handling
     sig = inspect.signature(func)

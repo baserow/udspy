@@ -60,7 +60,7 @@ def OutputField(
     )
 
 
-class SignatureMeta(type(BaseModel)):  # type: ignore[misc]
+class SignatureMeta(type(BaseModel)):
     """Metaclass for Signature that validates field types."""
 
     def __new__(
@@ -76,12 +76,12 @@ class SignatureMeta(type(BaseModel)):  # type: ignore[misc]
         if name == "Signature":
             return cls
 
-        for field_name, field_info in cls.model_fields.items():
+        for field_name, field_info in cls.model_fields.items():  # ty: ignore[unresolved-attribute]
             if not isinstance(field_info, FieldInfo):
                 continue
 
             json_schema_extra = field_info.json_schema_extra or {}
-            field_type = json_schema_extra.get("__udspy_field_type")  # type: ignore[union-attr]
+            field_type = json_schema_extra.get("__udspy_field_type")
 
             if field_type not in ("input", "output"):
                 raise TypeError(
@@ -113,7 +113,7 @@ class Signature(BaseModel, metaclass=SignatureMeta):
         return {
             name: field_info
             for name, field_info in cls.model_fields.items()
-            if (field_info.json_schema_extra or {}).get("__udspy_field_type") == "input"  # type: ignore[union-attr]
+            if (field_info.json_schema_extra or {}).get("__udspy_field_type") == "input"
         }
 
     @classmethod
@@ -122,7 +122,7 @@ class Signature(BaseModel, metaclass=SignatureMeta):
         return {
             name: field_info
             for name, field_info in cls.model_fields.items()
-            if (field_info.json_schema_extra or {}).get("__udspy_field_type") == "output"  # type: ignore[union-attr]
+            if (field_info.json_schema_extra or {}).get("__udspy_field_type") == "output"
         }
 
     @classmethod
@@ -236,7 +236,7 @@ def make_signature(
     sig = create_model(
         "DynamicSignature",
         __base__=Signature,
-        **fields,  # type: ignore
+        **fields,
     )
 
     if instructions:

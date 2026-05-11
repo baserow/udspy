@@ -8,7 +8,8 @@ from collections.abc import Callable
 from typing import Any, Literal, TypedDict
 
 from udspy.callback import with_callbacks
-from udspy.confirmation import ConfirmationRequired
+from udspy.confirmation import ConfirmationRejected, ConfirmationRequired
+from udspy.decorators import suspendable
 from udspy.history import History
 from udspy.module.base import Module
 from udspy.module.callbacks import ReactContext, is_module_callback
@@ -16,14 +17,22 @@ from udspy.module.chain_of_thought import ChainOfThought
 from udspy.module.predict import Predict
 from udspy.signature import Signature, make_signature
 from udspy.streaming import Prediction, emit_event
-from udspy.tool import Tool, Tools
+from udspy.tool import Tool, ToolCall, Tools
 from udspy.utils.async_support import execute_function_async
-from udspy.utils.formatting import format_tool_exception
+from udspy.utils.formatting import format_tool_exception, format_validation_error
 
 # Rebuild Tools model to resolve forward references
 Tools.model_rebuild()
 
 logger = logging.getLogger(__name__)
+
+
+class PlanItem(TypedDict):
+    """A single item in the agent's plan."""
+
+    task: str
+    status: Literal["todo", "done"]
+    done_at_step: int | None
 
 
 class Episode(TypedDict):
@@ -102,6 +111,7 @@ class ReAct(Module):
         tools: list[Callable | Tool],
         *,
         max_iters: int = 10,
+        enable_ask_to_user: bool = False,
         **kwargs: Any,
     ):
         """Initialize ReAct module.
@@ -110,6 +120,8 @@ class ReAct(Module):
             signature: Signature defining inputs and outputs, or signature string
             tools: List of tool functions (decorated with @tool) or Tool objects
             max_iters: Maximum number of reasoning iterations (default: 10)
+            enable_ask_to_user: Whether to add an ask_to_user built-in tool
+                that lets the agent ask the user clarifying questions
         """
         if isinstance(signature, str):
             signature = Signature.from_string(signature)
@@ -117,6 +129,7 @@ class ReAct(Module):
         self.signature = signature
         self.user_signature = signature
         self.max_iters = max_iters
+        self._enable_ask_to_user = enable_ask_to_user
         self._kwargs = kwargs
         self._context: ReactContext | None = None  # Current execution context
 
@@ -129,7 +142,7 @@ class ReAct(Module):
         self._add_builtin_tools()
 
     def _add_builtin_tools(self) -> None:
-        """Add built-in finish tool."""
+        """Add built-in tools (finish, and optionally ask_to_user)."""
         outputs = ", ".join([f"`{k}`" for k in self.signature.get_output_fields().keys()])
 
         def finish_tool() -> str:  # pyright: ignore[reportUnusedParameter]
@@ -141,6 +154,21 @@ class ReAct(Module):
             name="finish",
             description=f"Call this when you have all information needed to produce {outputs}",
         )
+
+        if self._enable_ask_to_user:
+
+            def ask_to_user_func(question: str) -> str:
+                """Ask the user a clarifying question."""
+                raise ConfirmationRequired(
+                    question=question,
+                    tool_call=ToolCall(name="ask_to_user", args={"question": question}),
+                )
+
+            self.tools["ask_to_user"] = Tool(
+                func=ask_to_user_func,
+                name="ask_to_user",
+                description="Ask the user a clarifying question when the request is ambiguous",
+            )
 
     def _rebuild_signatures(self) -> None:
         """Rebuild react and extract signatures with current tools.
@@ -164,12 +192,20 @@ class ReAct(Module):
 
         instr.extend(
             [
-                f"You are an Agent. In each episode, you will be given the fields {inputs} as input. And you can see your past trajectory so far.",
-                f"Your goal is to use one or more of the supplied tools to collect any necessary information for producing {outputs}.\n",
-                "To do this, you will interleave next_thought, next_tool_name, and next_tool_args in each turn, and also when finishing the task.",
-                "After each step, you receive a resulting observation, which gets appended to your trajectory.\n",
-                "When writing next_thought, you may reason about the current situation and plan for future steps.",
-                "When selecting the next_tool_name and its next_tool_args, the tool must be one of:\n",
+                f"You are an Agent. Given {inputs} and your trajectory, use tools to produce {outputs}.",
+                "You respond with next_thought, plan_updates, next_tool_name, and next_tool_args each turn.\n",
+                "next_thought: reason about the user request vs what the trajectory and plan show is already done. "
+                "If a tool succeeded, mark that plan item done and move on. "
+                "If a tool failed, retry ONCE only if the fix is obvious from the error. "
+                "After two similar failures, call `finish` and report the issue. "
+                "NEVER repeat a tool call with the same or similar arguments that already succeeded.\n",
+                "plan_updates: a list of updates to the plan. "
+                'Use {"add": "task description"} to add a new todo item. '
+                'Use {"done": <index>} to mark the item at that index as done. '
+                "On your first turn, add all the steps needed. On subsequent turns, mark completed items done and add new ones if needed. "
+                "When all items are done, call `finish`.\n",
+                "The current plan is provided as input. Items marked [done at step N] are completed — do not redo them.\n",
+                "When selecting next_tool_name and next_tool_args, the tool must be one of:\n",
             ]
         )
 
@@ -177,19 +213,21 @@ class ReAct(Module):
         instr.extend(
             [
                 "IMPORTANT: You must respond with a JSON object in your message content containing the fields: "
-                '{"next_thought": "...", "next_tool_name": "...", "next_tool_args": {...}}.',
+                '{"next_thought": "...", "plan_updates": [{"add": "..."}, {"done": 0}], "next_tool_name": "...", "next_tool_args": {...}}.',
                 "NEVER use function calling or tool calling syntax - return the JSON as plain text in your response.",
             ]
         )
 
         react_input_fields: dict[str, type] = {
             "trajectory": str,
+            "plan": str,
         }
         for name, field_info in self.user_signature.get_input_fields().items():
             react_input_fields[name] = field_info.annotation or str
 
         react_output_fields: dict[str, type] = {
             "next_thought": str,
+            "plan_updates": list[dict[str, Any]],
             "next_tool_name": Literal[*self.tools.keys()],  # type: ignore[dict-item]
             "next_tool_args": dict[str, Any],
         }
@@ -274,6 +312,34 @@ class ReAct(Module):
 
         return "\n".join(lines)
 
+    @staticmethod
+    def _format_plan(plan: list[PlanItem]) -> str:
+        """Format the plan as a string for the LLM input."""
+        if not plan:
+            return "No plan yet. Use plan_updates to create one."
+
+        lines = []
+        for i, item in enumerate(plan):
+            if item["status"] == "done":
+                lines.append(f"[{i}] [done at step {item['done_at_step']}] {item['task']}")
+            else:
+                lines.append(f"[{i}] [todo] {item['task']}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _apply_plan_updates(
+        plan: list[PlanItem], updates: list[dict[str, Any]], step_number: int
+    ) -> None:
+        """Apply LLM-proposed plan updates to the canonical plan in place."""
+        for update in updates:
+            if "add" in update and isinstance(update["add"], str):
+                plan.append({"task": update["add"], "status": "todo", "done_at_step": None})
+            elif "done" in update:
+                idx = update["done"]
+                if isinstance(idx, int) and 0 <= idx < len(plan) and plan[idx]["status"] == "todo":
+                    plan[idx]["status"] = "done"
+                    plan[idx]["done_at_step"] = step_number
+
     async def _execute_tool_call(self, tool_name: str, tool_args: dict[str, Any]) -> str:
         """Execute a single tool call and return observation.
 
@@ -310,17 +376,40 @@ class ReAct(Module):
                 e.context = {
                     "trajectory": self._context.trajectory.copy(),
                     "input_args": self._context.input_args.copy(),
+                    "plan": [item.copy() for item in self._context.plan],
                     "stream": self._context.stream,
                 }
             raise
         except Exception as e:
-            parts = [
-                f"Traceback '{tool_name}': {format_tool_exception(e)}.",
-            ]
-            if tool is not None:
-                parts.append(f"Expected tool args schema: {tool.parameters}.")
+            from pydantic import ValidationError
+
             logger.warning(f"Tool execution failed: {e}")
-            return " ".join(parts)
+
+            if isinstance(e, (ValidationError, TypeError)):
+                observation = format_validation_error(tool_name, e, tool)
+            else:
+                observation = f"Runtime error in '{tool_name}': {format_tool_exception(e)}"
+
+            # Count consecutive failures for this tool to help the LLM
+            # decide when to stop retrying.
+            if self._context is not None:
+                consecutive = 0
+                for ep in reversed(self._context.trajectory):
+                    if ep["tool_name"] == tool_name and ep["observation"].startswith(
+                        ("Runtime error", "Validation error")
+                    ):
+                        consecutive += 1
+                    else:
+                        break
+                if consecutive >= 1:
+                    observation += (
+                        f"\n\nWARNING: '{tool_name}' has now failed "
+                        f"{consecutive + 1} times in a row. "
+                        "Consider a different approach or call `finish` "
+                        "to report the issue."
+                    )
+
+            return observation
 
     async def _execute_iteration(
         self,
@@ -348,14 +437,18 @@ class ReAct(Module):
         input_args = self._context.input_args
 
         # Normal flow: get next thought and tool calls from LLM
+        plan = self._context.plan
         formatted_trajectory = self._format_trajectory(trajectory)
+        formatted_plan = self._format_plan(plan)
         pred = await self.react_module.aexecute(
             stream=stream,
             **input_args,
             trajectory=formatted_trajectory,
+            plan=formatted_plan,
         )
 
         thought = pred.get("next_thought", "").strip()
+        plan_updates = pred.get("plan_updates", [])
         tool_name = pred.get("next_tool_name", None)
         if tool_name not in self.tools:
             raise ValueError(
@@ -365,7 +458,17 @@ class ReAct(Module):
             )
 
         tool_args = pred.get("next_tool_args", None)
-        observation = await self._execute_tool_call(tool_name, tool_args)
+        try:
+            observation = await self._execute_tool_call(tool_name, tool_args)
+        except ConfirmationRequired as e:
+            # Save the current iteration state so aresume() can complete it
+            e.context["pending_thought"] = thought
+            e.context["pending_plan_updates"] = plan_updates
+            raise
+
+        # Apply plan updates after tool execution (step number = next trajectory index)
+        step_number = len(trajectory) + 1
+        self._apply_plan_updates(plan, plan_updates, step_number)
 
         episode: Episode = {
             "thought": thought,
@@ -376,14 +479,22 @@ class ReAct(Module):
         trajectory.append(episode)
 
         should_stop = tool_name == "finish"
+
+        # System guard: force stop if all plan items are done
+        if not should_stop and plan and all(item["status"] == "done" for item in plan):
+            logger.info("All plan items done — forcing stop")
+            should_stop = True
+
         return should_stop
 
+    @suspendable
     @with_callbacks
     async def aexecute(
         self,
         *,
         stream: bool = False,
         _trajectory: list[Episode] | None = None,
+        _plan: list[PlanItem] | None = None,
         history: History | None = None,
         **input_args: Any,
     ) -> Prediction:
@@ -392,6 +503,7 @@ class ReAct(Module):
         Args:
             stream: Passed to sub-modules
             _trajectory: Internal - restored trajectory for resumption (list of completed episodes)
+            _plan: Internal - restored plan for resumption
             history: History object for streaming (not used currently)
             **input_args: Input values matching signature's input fields
 
@@ -408,7 +520,11 @@ class ReAct(Module):
 
         # Set up React context for this execution
         self._context = ReactContext(
-            module=self, trajectory=trajectory, input_args=input_args, stream=stream
+            module=self,
+            trajectory=trajectory,
+            input_args=input_args,
+            plan=_plan,
+            stream=stream,
         )
 
         try:
@@ -447,6 +563,7 @@ class ReAct(Module):
                 **result_dict,
                 reasoning=extract["reasoning"],
                 trajectory=trajectory,
+                plan=self._context.plan,
                 module=self,
             )
             emit_event(prediction)
@@ -454,3 +571,100 @@ class ReAct(Module):
         finally:
             # Clean up context
             self._context = None
+
+    async def aresume(self, user_response: str, saved_state: Any) -> Prediction:
+        """Resume ReAct execution after a ConfirmationRequired exception.
+
+        Completes the interrupted iteration using the saved state and user's
+        response, then continues the ReAct loop.
+
+        Args:
+            user_response: The user's response (e.g. "yes", "no", or JSON edits)
+            saved_state: The ConfirmationRequired exception with saved context
+
+        Returns:
+            Final Prediction after completing the ReAct loop
+
+        Raises:
+            ConfirmationRejected: If user rejected the operation
+            ConfirmationRequired: If another confirmation is needed during execution
+        """
+        from udspy.confirmation import respond_to_confirmation
+
+        exc = saved_state
+        ctx = exc.context
+
+        trajectory = ctx.get("trajectory", [])
+        input_args = ctx.get("input_args", {})
+        plan = ctx.get("plan", [])
+        stream = ctx.get("stream", False)
+
+        tool_name = exc.tool_call.name if exc.tool_call else None
+        tool_args = exc.tool_call.args if exc.tool_call else {}
+
+        # Handle ask_to_user: user's response becomes the observation directly
+        if tool_name == "ask_to_user":
+            observation = f"User response: {user_response}"
+        elif tool_name is not None:
+            # Handle tool confirmation
+            response_lower = user_response.lower().strip()
+
+            if response_lower in ("no", "n"):
+                raise ConfirmationRejected(
+                    message=f"User rejected execution of {tool_name}",
+                    confirmation_id=exc.confirmation_id,
+                    tool_call=exc.tool_call,
+                )
+
+            # Set approval in confirmation context before re-executing the tool
+            if response_lower.startswith("{"):
+                try:
+                    edited_args = json.loads(user_response)
+                    respond_to_confirmation(
+                        exc.confirmation_id,
+                        approved=True,
+                        data=edited_args,
+                        status="edited",
+                    )
+                except json.JSONDecodeError:
+                    respond_to_confirmation(exc.confirmation_id, approved=True)
+            else:
+                respond_to_confirmation(exc.confirmation_id, approved=True)
+
+            # Re-execute the tool (now with approval set in confirmation context)
+            self._context = ReactContext(
+                module=self,
+                trajectory=trajectory,
+                input_args=input_args,
+                plan=plan,
+                stream=stream,
+            )
+            try:
+                observation = await self._execute_tool_call(tool_name, tool_args)
+            finally:
+                self._context = None
+        else:
+            observation = f"Unknown tool confirmation for: {exc.question}"
+
+        # Complete the pending episode
+        pending_thought = ctx.get("pending_thought", "")
+        pending_plan_updates = ctx.get("pending_plan_updates", [])
+
+        step_number = len(trajectory) + 1
+        self._apply_plan_updates(plan, pending_plan_updates, step_number)
+
+        episode: Episode = {
+            "thought": pending_thought,
+            "tool_name": tool_name,
+            "tool_args": tool_args,
+            "observation": observation,
+        }
+        trajectory.append(episode)
+
+        # Continue the ReAct loop
+        return await self.aexecute(
+            stream=stream,
+            _trajectory=trajectory,
+            _plan=plan,
+            **input_args,
+        )

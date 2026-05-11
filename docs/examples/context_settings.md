@@ -112,13 +112,14 @@ Context managers work seamlessly with async code:
 
 ```python
 import asyncio
-from udspy import LM
+import udspy
+from udspy import LM, Predict
 
 async def generate_response(question: str, user_api_key: str):
     user_lm = LM(model="gpt-4o-mini", api_key=user_api_key)
     with udspy.settings.context(lm=user_lm):
-        predictor = StreamingPredict(QA)
-        async for chunk in predictor.stream(question=question):
+        predictor = Predict(QA)
+        async for chunk in predictor.astream(question=question):
             yield chunk
 
 # Handle multiple users concurrently

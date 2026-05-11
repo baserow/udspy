@@ -95,32 +95,30 @@ for call in result.tool_calls:
 
 ### Auto-execution vs Manual
 
-By default, tools are NOT auto-executed. You control execution:
+By default, tools ARE auto-executed (`auto_execute_tools=True`). You can disable this:
 
 ```python
-# Auto-execute tools
-result = await predictor.aexecute(
+# Auto-execute tools (default)
+result = await predictor.aforward(
     question="Search for Python",
-    auto_execute_tools=True
 )
 
-# Manual execution
-result = await predictor.aexecute(
+# Manual execution - tools returned but not executed
+result = await predictor.aforward(
     question="Search for Python",
     auto_execute_tools=False
 )
-# Tools are returned in result.tool_calls but not executed
+# Tools are available in result.native_tool_calls
 ```
 
 See [Tool Calling](../../api/tool.md) for more details.
 
 ## Streaming
 
-Stream outputs in real-time:
+Stream outputs in real-time using `astream()`:
 
 ```python
-async for event in predictor.aexecute(
-    stream=True,
+async for event in predictor.astream(
     question="Explain quantum computing"
 ):
     if isinstance(event, OutputStreamChunk):
@@ -131,17 +129,18 @@ async for event in predictor.aexecute(
 
 ### Stream Events
 
-The streaming API yields:
-- `StreamChunk(field: str, delta: str)` - Incremental text for a field
+The streaming API emits:
+- `OutputStreamChunk(field_name: str, delta: str, content: str, is_complete: bool)` - Incremental text for a field
+- `ThoughtStreamChunk(...)` - Reasoning/thought output
 - `Prediction(**outputs)` - Final result with all fields
 
 ```python
 from udspy import OutputStreamChunk, Prediction
 
-async for event in predictor.aexecute(stream=True, **inputs):
+async for event in predictor.astream(**inputs):
     match event:
-        case OutputStreamChunk(field=field, delta=delta):
-            print(f"[{field}] {delta}", end="")
+        case OutputStreamChunk(field_name=field_name, delta=delta):
+            print(f"[{field_name}] {delta}", end="")
         case Prediction() as pred:
             print(f"\n\nComplete: {pred}")
 ```
@@ -152,7 +151,7 @@ async for event in predictor.aexecute(stream=True, **inputs):
 
 ```python
 # With streaming
-async for event in predictor.aexecute(stream=True, question="..."):
+async for event in predictor.astream(question="..."):
     ...
 
 # Without streaming
@@ -170,24 +169,29 @@ Internally, the synchronous call runs async code using `asyncio.run()` or the cu
 
 ## History Management
 
-Predict automatically manages conversation history:
+Predict manages conversation history when you pass a `History` object:
 
 ```python
+from udspy import History
+
 predictor = Predict(QA)
+history = History()
 
-# First call
-result1 = predictor(question="What is Python?")
+# First call - system prompt auto-set, user/assistant messages added
+result1 = predictor(question="What is Python?", history=history)
 
-# Second call - includes history
-result2 = predictor(question="What are its key features?")
+# Second call - uses context from previous turn
+result2 = predictor(question="What are its key features?", history=history)
 
 # Access history
-for msg in predictor.history:
-    print(f"{msg.role}: {msg.content}")
+for msg in history.messages:
+    print(f"{msg['role']}: {msg.get('content', '')}")
 
 # Clear history
-predictor.history.clear()
+history.clear()
 ```
+
+Note: Each call without a `history` parameter creates a fresh `History` internally. To maintain conversation context across calls, pass a shared `History` object.
 
 See [History API](../../api/history.md) for more details.
 

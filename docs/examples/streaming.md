@@ -6,7 +6,8 @@ Learn how to use streaming for better user experience.
 
 ```python
 import asyncio
-from udspy import StreamingPredict, Signature, InputField, OutputField
+from udspy import Predict, Signature, InputField, OutputField
+from udspy.streaming import OutputStreamChunk
 
 class QA(Signature):
     """Answer questions."""
@@ -14,9 +15,9 @@ class QA(Signature):
     answer: str = OutputField()
 
 async def main():
-    predictor = StreamingPredict(QA)
+    predictor = Predict(QA)
 
-    async for chunk in predictor.stream(question="What is AI?"):
+    async for chunk in predictor.astream(question="What is AI?"):
         if isinstance(chunk, OutputStreamChunk):
             print(chunk.delta, end="", flush=True)
 
@@ -35,11 +36,11 @@ class ReasonedQA(Signature):
     answer: str = OutputField()
 
 async def main():
-    predictor = StreamingPredict(ReasonedQA)
+    predictor = Predict(ReasonedQA)
 
     print("Question: What is the sum of first 10 primes?\n")
 
-    async for item in predictor.stream(
+    async for item in predictor.astream(
         question="What is the sum of first 10 primes?"
     ):
         if isinstance(item, OutputStreamChunk):
@@ -70,8 +71,8 @@ app = FastAPI()
 @app.get("/ask")
 async def ask_question(question: str):
     async def generate():
-        predictor = StreamingPredict(QA)
-        async for chunk in predictor.stream(question=question):
+        predictor = Predict(QA)
+        async for chunk in predictor.astream(question=question):
             if isinstance(chunk, OutputStreamChunk) and not chunk.is_complete:
                 # chunk.delta contains the new incremental text
                 # chunk.content contains the full accumulated text so far

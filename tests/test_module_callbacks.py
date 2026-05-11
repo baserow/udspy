@@ -305,11 +305,11 @@ async def test_react_with_module_callback() -> None:
     # Mock LLM responses
     responses = [
         # Load tools
-        '{"next_thought": "I need to load weather tools", "next_tool_name": "load_tools", "next_tool_args": {"category": "weather"}}',
+        '{"next_thought": "I need to load weather tools", "plan_updates": [], "next_tool_name": "load_tools", "next_tool_args": {"category": "weather"}}',
         # Use weather tool
-        '{"next_thought": "Now check the weather", "next_tool_name": "weather_tool", "next_tool_args": {"location": "Tokyo"}}',
+        '{"next_thought": "Now check the weather", "plan_updates": [], "next_tool_name": "weather_tool", "next_tool_args": {"location": "Tokyo"}}',
         # Finish
-        '{"next_thought": "I have the answer", "next_tool_name": "finish", "next_tool_args": {}}',
+        '{"next_thought": "I have the answer", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}',
         # Extract answer (ChainOfThought reasoning)
         '{"reasoning": "Extracting final answer from trajectory", "answer": "The weather in Tokyo is Sunny"}',
     ]
@@ -588,9 +588,9 @@ async def test_react_uses_dynamically_loaded_tool() -> None:
         return callback
 
     responses = [
-        '{"next_thought": "I need to load the calculator", "next_tool_name": "load_calculator", "next_tool_args": {}}',
-        '{"next_thought": "Now I can calculate", "next_tool_name": "calculator", "next_tool_args": {"expression": "25 * 4"}}',
-        '{"next_thought": "I have the answer", "next_tool_name": "finish", "next_tool_args": {}}',
+        '{"next_thought": "I need to load the calculator", "plan_updates": [], "next_tool_name": "load_calculator", "next_tool_args": {}}',
+        '{"next_thought": "Now I can calculate", "plan_updates": [], "next_tool_name": "calculator", "next_tool_args": {"expression": "25 * 4"}}',
+        '{"next_thought": "I have the answer", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}',
         '{"reasoning": "Extracting answer", "answer": "100"}',
     ]
 
@@ -650,11 +650,11 @@ async def test_multiple_dynamic_tool_loads() -> None:
         return callback
 
     responses = [
-        '{"next_thought": "Load calculator", "next_tool_name": "load_calculator", "next_tool_args": {}}',
-        '{"next_thought": "Load formatter", "next_tool_name": "load_formatter", "next_tool_args": {}}',
-        '{"next_thought": "Use tools", "next_tool_name": "calculator", "next_tool_args": {"expression": "10 + 5"}}',
-        '{"next_thought": "Format result", "next_tool_name": "formatter", "next_tool_args": {"number": "15"}}',
-        '{"next_thought": "Done", "next_tool_name": "finish", "next_tool_args": {}}',
+        '{"next_thought": "Load calculator", "plan_updates": [], "next_tool_name": "load_calculator", "next_tool_args": {}}',
+        '{"next_thought": "Load formatter", "plan_updates": [], "next_tool_name": "load_formatter", "next_tool_args": {}}',
+        '{"next_thought": "Use tools", "plan_updates": [], "next_tool_name": "calculator", "next_tool_args": {"expression": "10 + 5"}}',
+        '{"next_thought": "Format result", "plan_updates": [], "next_tool_name": "formatter", "next_tool_args": {"number": "15"}}',
+        '{"next_thought": "Done", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}',
         '{"reasoning": "Completed", "answer": "Formatted: 15"}',
     ]
 
@@ -688,8 +688,8 @@ async def test_callback_with_invalid_tool_name() -> None:
         return "Valid tool executed"
 
     responses = [
-        '{"next_thought": "Try invalid tool", "next_tool_name": "nonexistent_tool", "next_tool_args": {}}',
-        '{"next_thought": "Handle error", "next_tool_name": "finish", "next_tool_args": {}}',
+        '{"next_thought": "Try invalid tool", "plan_updates": [], "next_tool_name": "nonexistent_tool", "next_tool_args": {}}',
+        '{"next_thought": "Handle error", "plan_updates": [], "next_tool_name": "finish", "next_tool_args": {}}',
         '{"reasoning": "Error handled", "answer": "Tool not found"}',
     ]
 

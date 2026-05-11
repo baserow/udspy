@@ -57,32 +57,41 @@ result = agent(question="What is Python?")
 ReAct automatically provides:
 
 - **finish**: Call when task is complete
-- **user_clarification**: Ask user for clarification (if enabled)
+- **ask_to_user**: Ask user for clarification (if enabled via `enable_ask_to_user=True`)
 
 ```python
 # The agent automatically has these tools available:
-# - finish(answer: str) - Complete the task
-# - user_clarification(question: str) - Ask user for help
+# - finish() - Complete the task
+# - ask_to_user(question: str) - Ask user for help (opt-in)
 ```
 
 ### Trajectory
 
-The trajectory records every step:
+The trajectory records every step as a `list[Episode]`:
 
 ```python
 result = agent(question="Calculate 15 * 23")
 
 # Access trajectory
 print(result.trajectory)
-# {
-#   "reasoning_0": "I need to calculate 15 * 23",
-#   "tool_name_0": "calculator",
-#   "tool_args_0": {"expression": "15 * 23"},
-#   "observation_0": "345",
-#   "reasoning_1": "I have the answer",
-#   "tool_name_1": "finish",
-#   ...
-# }
+# [
+#   {
+#     "thought": "I need to calculate 15 * 23",
+#     "tool_name": "calculator",
+#     "tool_args": {"expression": "15 * 23"},
+#     "observation": "345"
+#   },
+#   {
+#     "thought": "I have the answer",
+#     "tool_name": "finish",
+#     "tool_args": {},
+#     "observation": "Task completed"
+#   }
+# ]
+
+# Access plan
+print(result.plan)
+# [{"task": "Calculate 15 * 23", "status": "done", "done_at_step": 1}]
 ```
 
 ## Configuration
@@ -94,28 +103,30 @@ agent = ReAct(QA, tools=[search], max_iters=10)
 result = agent(question="...", max_iters=5)  # Override per call
 ```
 
-### Disable Ask-to-User
+### Enable Ask-to-User
+
+The `ask_to_user` built-in tool is disabled by default. Enable it explicitly:
 
 ```python
+# Disabled by default
 agent = ReAct(QA, tools=[search])
+
+# Enable ask_to_user tool
+agent = ReAct(QA, tools=[search], enable_ask_to_user=True)
 ```
 
 ## Human-in-the-Loop
 
-ReAct supports tools with require_confirmation that require human confirmation:
+ReAct supports tools with `require_confirmation` that require human confirmation:
 
 ```python
-from udspy import ConfirmationRequired, tool
+from udspy import ConfirmationRequired, ConfirmationRejected, tool
 
 @tool(name="delete_file", require_confirmation=True)
 def delete_file(path: str = Field(...)) -> str:
     return f"Deleted {path}"
 
 agent = ReAct(QA, tools=[delete_file])
-
-# Note: aresume() is not yet implemented in ReAct
-# Use respond_to_confirmation() instead
-from udspy import respond_to_confirmation
 
 try:
     result = await agent.aforward(question="Delete /tmp/test.txt")
@@ -124,12 +135,11 @@ except ConfirmationRequired as e:
     print(f"Tool: {e.tool_call.name}")
     print(f"Args: {e.tool_call.args}")
 
-    # User approves
-    respond_to_confirmation(e.confirmation_id, approved=True)
-    result = await agent.aforward(question="Delete /tmp/test.txt")
+    # Resume with user approval
+    result = await agent.aresume("yes", e)
 
-    # Or user rejects
-    respond_to_confirmation(e.confirmation_id, approved=False, status="rejected")
+    # Or reject (raises ConfirmationRejected)
+    # result = await agent.aresume("no", e)
 ```
 
 ### Resumption Flow
@@ -137,23 +147,29 @@ except ConfirmationRequired as e:
 When a confirmation is requested:
 
 1. Agent pauses and raises `ConfirmationRequired`
-2. Exception contains saved state and pending tool call
+2. Exception contains saved context (trajectory, plan, input_args, pending episode)
 3. User reviews and responds
-4. Call `aresume(response, saved_state)` to continue
+4. Call `aresume(user_response, exception)` to continue the ReAct loop
+5. The pending episode is completed with the user's response, then iteration resumes
+
+The `aresume()` method handles:
+- **ask_to_user**: User's response becomes the observation directly
+- **Tool confirmations**: "yes"/"y" approves, "no"/"n" raises `ConfirmationRejected`, JSON string edits tool args
 
 See [Confirmation API](../../api/confirmation.md) for details.
 
 ## Streaming
 
-Stream the agent's reasoning in real-time:
+Stream the agent's reasoning in real-time using `astream()`:
 
 ```python
-async for event in agent.aexecute(
-    stream=True,
+from udspy import OutputStreamChunk, Prediction
+
+async for event in agent.astream(
     question="What is quantum computing?"
 ):
     if isinstance(event, OutputStreamChunk):
-        if event.field == "reasoning":
+        if event.field_name == "next_thought":
             print(f"Thinking: {event.delta}", end="", flush=True)
     elif isinstance(event, Prediction):
         print(f"\n\nAnswer: {event.answer}")
@@ -168,12 +184,12 @@ See `examples/react_streaming.py` for a complete example.
 ReAct uses two internal signatures:
 
 1. **react_signature**: For reasoning and tool selection
-   - Inputs: Original inputs + trajectory
-   - Outputs: reasoning
-   - Tools: All provided tools + finish
+   - Inputs: Original inputs + `trajectory` + `plan`
+   - Outputs: `next_thought`, `plan_updates`, `next_tool_name`, `next_tool_args`
+   - No native tool calling - tool selection is done via JSON in message content
 
 2. **extract_signature**: For extracting final answer
-   - Inputs: Original inputs + trajectory
+   - Inputs: Original inputs + `trajectory`
    - Outputs: Original outputs
    - Uses ChainOfThought for extraction
 
@@ -181,29 +197,40 @@ ReAct uses two internal signatures:
 
 ReAct composes two modules:
 
-- `react_module`: Predict with tools for reasoning/acting
+- `react_module`: Predict for reasoning/acting (no native tool calling; tools are described in the prompt and selected via structured output)
 - `extract_module`: ChainOfThought for final answer extraction
+
+### Plan System
+
+ReAct uses a plan to track progress:
+
+- Each iteration, the agent outputs `plan_updates` to add/complete plan items
+- Plan items are `PlanItem(task: str, status: "todo"|"done", done_at_step: int|None)`
+- When all plan items are done, the loop force-stops
+- The final `Prediction` includes the plan via `result.plan`
 
 ### Example Flow
 
 ```
 User: "What is the capital of France?"
 
-Iteration 0:
-  Reasoning: "I need to search for France's capital"
-  Tool: search
-  Args: {"query": "capital of France"}
+Iteration 1:
+  next_thought: "I need to search for France's capital"
+  plan_updates: [{"add": "Search for the capital of France"}, {"add": "Return the answer"}]
+  next_tool_name: "search"
+  next_tool_args: {"query": "capital of France"}
   Observation: "Paris is the capital of France"
 
-Iteration 1:
-  Reasoning: "I have the answer, I can finish"
-  Tool: finish
-  Args: {}
+Iteration 2:
+  next_thought: "I found the answer, I can finish"
+  plan_updates: [{"done": 0}, {"done": 1}]
+  next_tool_name: "finish"
+  next_tool_args: {}
   Observation: "Task completed"
 
-Extract:
-  Reasoning: "Based on the search, Paris is the capital"
-  Answer: "Paris"
+Extract (ChainOfThought):
+  reasoning: "Based on the search, Paris is the capital"
+  answer: "Paris"
 ```
 
 ## Advanced Usage
@@ -277,14 +304,14 @@ This separation ensures:
 - Final outputs are well-formatted
 - Trajectory doesn't pollute final answer
 
-### Why user_clarification Tool?
+### Why ask_to_user Tool?
 
-The built-in user clarification tool allows agents to:
+The built-in `ask_to_user` tool (opt-in via `enable_ask_to_user=True`) allows agents to:
 - Request clarification when ambiguous
 - Ask for additional information
 - Interact naturally with users
 
-It's implemented as a tool with require_confirmation, so users can provide responses that the agent incorporates into its reasoning.
+It raises `ConfirmationRequired`, and the user's response is used as the observation via `aresume()`. This enables natural human-in-the-loop interaction.
 
 ### Why finish Tool?
 

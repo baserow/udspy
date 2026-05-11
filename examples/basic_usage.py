@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # APPROACH 2: Structured signatures (for complex outputs)
     print("=== Structured Signatures ===\n")
 
-    udspy.settings.configure()
+    udspy.settings.configure(lm=lm)
 
     class QA(Signature):
         """Answer questions concisely and accurately."""

@@ -9,13 +9,13 @@ class AdapterParseError(Exception):
     def __init__(
         self,
         adapter_name: str,
-        signature: Signature | None,
+        signature: type[Signature] | None,
         lm_response: str,
         message: str | None = None,
         parsed_result: dict[str, Any] | None = None,
     ):
         self.adapter_name = adapter_name
-        self.signature = signature
+        self.signature: type[Signature] | None = signature
         self.lm_response = lm_response
         self.parsed_result = parsed_result
 

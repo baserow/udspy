@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12']
+        python-version: ['3.11', '3.14']
 
     steps:
       - uses: actions/checkout@v4
@@ -61,5 +61,5 @@ jobs:
       - name: Run ruff
         run: uv run ruff check src tests
 
-      - name: Run mypy
-        run: uv run mypy src
+      - name: Run ty
+        run: uv run ty check
